@@ -7,7 +7,7 @@ async function seed() {
     return
   }
 
-  // Create batch 1 - Already harvested (FCR target ~1.75)
+  // Create batch 1 - Already harvested
   const batch1 = await db.batch.create({
     data: {
       name: 'Termin DOC Januari',
@@ -18,12 +18,12 @@ async function seed() {
       status: 'harvested',
       harvestDate: new Date('2025-03-12'),
       harvestWeight: 1.85,
+      harvestQuantity: 4750,
+      sellingPricePerKg: 22000,
       notes: 'DOC dari PT. Charoen Pokphand',
     },
   })
 
-  // Feed records for batch 1 - realistic amounts for 5000 broilers over 56 days
-  // Total ~16,500 kg for FCR ~1.82
   await db.feedRecord.createMany({
     data: [
       { batchId: batch1.id, date: new Date('2025-01-15'), feedType: 'Pre-Starter', quantityKg: 500, pricePerKg: 8500, notes: 'Hari 1-7' },
@@ -37,7 +37,6 @@ async function seed() {
     ],
   })
 
-  // Weight records for batch 1
   await db.weightRecord.createMany({
     data: [
       { batchId: batch1.id, date: new Date('2025-01-15'), averageWeightGram: 38, ageDays: 1, sampleCount: 50 },
@@ -52,7 +51,18 @@ async function seed() {
     ],
   })
 
-  // Create batch 2 - Currently active (FCR target ~1.45 at day 21)
+  // Mortality records for batch 1
+  await db.mortalityRecord.createMany({
+    data: [
+      { batchId: batch1.id, date: new Date('2025-01-16'), quantity: 15, reason: 'stress', notes: 'Stress transportasi' },
+      { batchId: batch1.id, date: new Date('2025-01-20'), quantity: 8, reason: 'sakit', notes: 'CRD awal' },
+      { batchId: batch1.id, date: new Date('2025-01-28'), quantity: 12, reason: 'sakit', notes: 'Necrotic enteritis' },
+      { batchId: batch1.id, date: new Date('2025-02-10'), quantity: 5, reason: 'kecelakaan', notes: 'Penumpukan' },
+      { batchId: batch1.id, date: new Date('2025-02-25'), quantity: 10, reason: 'afkir', notes: 'Afkir - pertumbuhan lambat' },
+    ],
+  })
+
+  // Create batch 2 - Currently active
   const batch2 = await db.batch.create({
     data: {
       name: 'Termin DOC Februari',
@@ -65,8 +75,6 @@ async function seed() {
     },
   })
 
-  // Feed records for batch 2 - realistic for 3000 broilers at 21 days
-  // Total ~3,000 kg for FCR ~1.45
   await db.feedRecord.createMany({
     data: [
       { batchId: batch2.id, date: new Date('2025-02-20'), feedType: 'Pre-Starter', quantityKg: 300, pricePerKg: 8500, notes: 'Hari 1-7' },
@@ -76,13 +84,21 @@ async function seed() {
     ],
   })
 
-  // Weight records for batch 2
   await db.weightRecord.createMany({
     data: [
       { batchId: batch2.id, date: new Date('2025-02-20'), averageWeightGram: 40, ageDays: 1, sampleCount: 30 },
       { batchId: batch2.id, date: new Date('2025-02-27'), averageWeightGram: 155, ageDays: 7, sampleCount: 30 },
       { batchId: batch2.id, date: new Date('2025-03-06'), averageWeightGram: 410, ageDays: 14, sampleCount: 30 },
       { batchId: batch2.id, date: new Date('2025-03-13'), averageWeightGram: 730, ageDays: 21, sampleCount: 30 },
+    ],
+  })
+
+  // Mortality records for batch 2
+  await db.mortalityRecord.createMany({
+    data: [
+      { batchId: batch2.id, date: new Date('2025-02-21'), quantity: 10, reason: 'stress', notes: 'Stress DOC datang' },
+      { batchId: batch2.id, date: new Date('2025-03-01'), quantity: 5, reason: 'sakit', notes: 'Diare' },
+      { batchId: batch2.id, date: new Date('2025-03-10'), quantity: 3, reason: 'afkir', notes: 'Culling - cacat' },
     ],
   })
 

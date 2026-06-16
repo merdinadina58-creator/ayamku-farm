@@ -12,6 +12,7 @@ export async function GET(
       include: {
         feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
+        mortalityRecords: { orderBy: { date: 'desc' } },
       },
     })
 
@@ -33,7 +34,10 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, terminNumber, arrivalDate, initialWeight, quantity, status, harvestDate, harvestWeight, notes } = body
+    const {
+      name, terminNumber, arrivalDate, initialWeight, quantity,
+      status, harvestDate, harvestWeight, harvestQuantity, sellingPricePerKg, notes
+    } = body
 
     const batch = await db.batch.update({
       where: { id },
@@ -41,11 +45,13 @@ export async function PUT(
         ...(name !== undefined && { name }),
         ...(terminNumber !== undefined && { terminNumber: parseInt(terminNumber) }),
         ...(arrivalDate !== undefined && { arrivalDate: new Date(arrivalDate) }),
-        ...(initialWeight !== undefined && { initialWeight: parseFloat(initialWeight) }),
+        ...(initialWeight !== undefined && { initialWeight: Math.round(parseFloat(initialWeight) * 1000) / 1000 }),
         ...(quantity !== undefined && { quantity: parseInt(quantity) }),
         ...(status !== undefined && { status }),
         ...(harvestDate !== undefined && { harvestDate: harvestDate ? new Date(harvestDate) : null }),
         ...(harvestWeight !== undefined && { harvestWeight: harvestWeight ? parseFloat(harvestWeight) : null }),
+        ...(harvestQuantity !== undefined && { harvestQuantity: harvestQuantity ? parseInt(harvestQuantity) : null }),
+        ...(sellingPricePerKg !== undefined && { sellingPricePerKg: sellingPricePerKg ? parseFloat(sellingPricePerKg) : null }),
         ...(notes !== undefined && { notes }),
       },
     })

@@ -32,3 +32,36 @@ Stage Summary:
 - Demo data includes 2 batches (1 harvested, 1 active) with realistic feed and weight records
 - FCR values are realistic (1.82 for harvested, 1.45 for active batch)
 - App running on port 3000, all features verified working
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add mortality tracking and total panen (harvest) features
+
+Work Log:
+- Updated Prisma schema with MortalityRecord model and harvest fields (harvestQuantity, sellingPricePerKg)
+- Pushed new schema to SQLite database
+- Created mortality API routes: POST/GET /api/batches/[id]/mortality, DELETE /api/mortality/[id]
+- Updated batch API routes to handle harvestQuantity and sellingPricePerKg
+- Updated dashboard API with mortality calculations and harvest revenue/profit
+- Rebuilt entire frontend with:
+  - 5 stat cards (added Total Mortalitas)
+  - New Mortalitas tab with per-termin breakdown, pie charts, timeline
+  - Updated Hitung tab with mortality stats, total panen, and profit calculations
+  - Mortalitas sub-tab in batch detail view with summary cards and records list
+  - Total Panen card for harvested batches (Jumlah Panen, Total Berat, Pendapatan, Profit)
+  - Harvest dialog with harvestQuantity and sellingPricePerKg fields
+  - Add Mortality dialog with reason selector and live remaining count preview
+  - Batch cards now show mortality data (Mati/Afkir count and percentage)
+  - 8 stat cards in batch detail (added Awal, Hidup, Mati/Afkir)
+- Updated seed data with mortality records for both batches
+- Fixed age calculation for harvested batches (uses harvestDate instead of current date)
+- All lint checks pass
+- Verified all features working with Agent Browser
+
+Stage Summary:
+- Mortality tracking fully implemented with reason categorization (Sakit, Stress, Kecelakaan, Afkir, Lainnya)
+- Total Panen feature shows harvest data: jumlah panen, total berat, pendapatan, and profit
+- Harvested batch (Januari) shows profit of Rp73,875,000
+- Active batch (Februari) shows 18 dead (0.6% mortality), 2,982 alive
+- All new features verified working via browser testing

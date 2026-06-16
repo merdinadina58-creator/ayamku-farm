@@ -8,21 +8,24 @@ datasource db {
 }
 
 model Batch {
-  id            String   @id @default(cuid())
-  name          String
-  terminNumber   Int
-  arrivalDate   DateTime
-  initialWeight Float    // kg per ekor saat datang
-  quantity      Int      // jumlah ekor
-  status        String   @default("active") // active, harvested
-  harvestDate   DateTime?
-  harvestWeight Float?   // kg per ekor saat panen
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  terminNumber     Int
+  arrivalDate      DateTime
+  initialWeight    Float    // kg per ekor saat datang
+  quantity         Int      // jumlah ekor awal
+  status           String   @default("active") // active, harvested
+  harvestDate      DateTime?
+  harvestWeight    Float?   // kg per ekor saat panen
+  harvestQuantity  Int?     // jumlah ekor yang dipanen
+  sellingPricePerKg Float?  // harga jual per kg saat panen
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  feedRecords   FeedRecord[]
-  weightRecords WeightRecord[]
+  feedRecords      FeedRecord[]
+  weightRecords    WeightRecord[]
+  mortalityRecords MortalityRecord[]
 }
 
 model FeedRecord {
@@ -49,4 +52,16 @@ model WeightRecord {
   createdAt        DateTime @default(now())
 
   batch            Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model MortalityRecord {
+  id        String   @id @default(cuid())
+  batchId   String
+  date      DateTime
+  quantity  Int      // jumlah ayam mati/afkir
+  reason    String   // penyebab: sakit, stress, kecelakaan, afkir, lainnya
+  notes     String?
+  createdAt DateTime @default(now())
+
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }

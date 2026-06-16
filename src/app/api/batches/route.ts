@@ -7,6 +7,7 @@ export async function GET() {
       include: {
         feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
+        mortalityRecords: { orderBy: { date: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },
     })

@@ -18,6 +18,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   Activity,
+  Skull,
+  ShoppingBasket,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -55,6 +57,16 @@ interface WeightRecord {
   createdAt: string
 }
 
+interface MortalityRecord {
+  id: string
+  batchId: string
+  date: string
+  quantity: number
+  reason: string
+  notes: string | null
+  createdAt: string
+}
+
 interface Batch {
   id: string
   name: string
@@ -65,11 +77,14 @@ interface Batch {
   status: string
   harvestDate: string | null
   harvestWeight: number | null
+  harvestQuantity: number | null
+  sellingPricePerKg: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
   feedRecords: FeedRecord[]
   weightRecords: WeightRecord[]
+  mortalityRecords: MortalityRecord[]
 }
 
 interface DashboardData {
@@ -77,8 +92,10 @@ interface DashboardData {
   activeBatches: number
   harvestedBatches: number
   totalChickens: number
+  totalMortality: number
   totalFeedKg: number
   totalFeedCost: number
+  totalHarvestRevenue: number
   batchSummaries: Array<{
     id: string
     name: string
@@ -92,6 +109,15 @@ interface DashboardData {
     totalFeedCost: number
     fcr: number
     feedPerEkor: number
+    totalDead: number
+    aliveCount: number
+    mortalityRate: number
+    harvestQuantity: number
+    harvestWeight: number
+    sellingPricePerKg: number
+    totalHarvestKg: number
+    totalHarvestValue: number
+    profit: number
   }>
 }
 
@@ -103,6 +129,20 @@ const FEED_TYPE_COLORS: Record<string, string> = {
   'Finisher': '#ef4444',
   'Pre-Starter': '#06b6d4',
   'Lainnya': '#8b5cf6',
+}
+const MORTALITY_REASON_LABELS: Record<string, string> = {
+  'sakit': 'Sakit',
+  'stress': 'Stress / Heat',
+  'kecelakaan': 'Kecelakaan',
+  'afkir': 'Afkir / Culling',
+  'lainnya': 'Lainnya',
+}
+const MORTALITY_REASON_COLORS: Record<string, string> = {
+  'sakit': '#ef4444',
+  'stress': '#f59e0b',
+  'kecelakaan': '#8b5cf6',
+  'afkir': '#06b6d4',
+  'lainnya': '#6b7280',
 }
 
 export default function HomePage() {
@@ -117,6 +157,7 @@ export default function HomePage() {
   const [addBatchOpen, setAddBatchOpen] = useState(false)
   const [addFeedOpen, setAddFeedOpen] = useState(false)
   const [addWeightOpen, setAddWeightOpen] = useState(false)
+  const [addMortalityOpen, setAddMortalityOpen] = useState(false)
   const [harvestOpen, setHarvestOpen] = useState(false)
 
   // Form states
@@ -129,8 +170,11 @@ export default function HomePage() {
   const [weightForm, setWeightForm] = useState({
     date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '',
   })
+  const [mortalityForm, setMortalityForm] = useState({
+    date: '', quantity: '', reason: 'sakit', notes: '',
+  })
   const [harvestForm, setHarvestForm] = useState({
-    harvestDate: '', harvestWeight: '',
+    harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
 
   const fetchData = useCallback(async () => {
@@ -207,6 +251,24 @@ export default function HomePage() {
     }
   }
 
+  const handleAddMortality = async () => {
+    if (!selectedBatch) return
+    try {
+      const res = await fetch(`/api/batches/${selectedBatch.id}/mortality`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mortalityForm),
+      })
+      if (!res.ok) throw new Error()
+      setAddMortalityOpen(false)
+      setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' })
+      toast({ title: 'Berhasil!', description: 'Data kematian berhasil ditambahkan' })
+      fetchData()
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menambahkan data kematian', variant: 'destructive' })
+    }
+  }
+
   const handleHarvest = async () => {
     if (!selectedBatch) return
     try {
@@ -217,11 +279,13 @@ export default function HomePage() {
           status: 'harvested',
           harvestDate: harvestForm.harvestDate,
           harvestWeight: harvestForm.harvestWeight,
+          harvestQuantity: harvestForm.harvestQuantity,
+          sellingPricePerKg: harvestForm.sellingPricePerKg,
         }),
       })
       if (!res.ok) throw new Error()
       setHarvestOpen(false)
-      setHarvestForm({ harvestDate: '', harvestWeight: '' })
+      setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
       toast({ title: 'Berhasil! 🎉', description: 'Ayam berhasil dipanen' })
       fetchData()
     } catch {
@@ -249,8 +313,18 @@ export default function HomePage() {
     }
   }
 
+  const handleDeleteMortality = async (id: string) => {
+    try {
+      await fetch(`/api/mortality/${id}`, { method: 'DELETE' })
+      toast({ title: 'Dihapus', description: 'Data kematian berhasil dihapus' })
+      fetchData()
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menghapus data kematian', variant: 'destructive' })
+    }
+  }
+
   const handleDeleteBatch = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus termin ini? Semua data pakan dan berat juga akan dihapus.')) return
+    if (!confirm('Yakin ingin menghapus termin ini? Semua data terkait juga akan dihapus.')) return
     try {
       await fetch(`/api/batches/${id}`, { method: 'DELETE' })
       toast({ title: 'Dihapus', description: 'Termin berhasil dihapus' })
@@ -279,17 +353,32 @@ export default function HomePage() {
   const getBatchStats = (batch: Batch) => {
     const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
     const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+    const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+    const aliveCount = batch.quantity - totalDead
     const latestWeight = batch.weightRecords.length > 0
       ? batch.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, batch.weightRecords[0]).averageWeightGram
       : batch.initialWeight * 1000
     const weightGain = latestWeight - batch.initialWeight * 1000
-    const fcr = weightGain > 0 && batch.quantity > 0 ? (totalFeed * 1000) / (batch.quantity * weightGain) : 0
-    const now = new Date()
+    const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
+    const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
     const arrival = new Date(batch.arrivalDate)
     const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
-    const feedPerEkor = batch.quantity > 0 ? totalFeed / batch.quantity : 0
+    const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
+    const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
 
-    return { totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays, feedPerEkor }
+    // Harvest calculations
+    const harvestQty = batch.harvestQuantity || 0
+    const harvestWt = batch.harvestWeight || 0
+    const sellPrice = batch.sellingPricePerKg || 0
+    const totalHarvestKg = harvestQty * harvestWt
+    const totalHarvestValue = totalHarvestKg * sellPrice
+    const profit = totalHarvestValue - totalCost
+
+    return {
+      totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays,
+      feedPerEkor, totalDead, aliveCount, mortalityRate,
+      harvestQty, harvestWt, sellPrice, totalHarvestKg, totalHarvestValue, profit,
+    }
   }
 
   if (loading) {
@@ -391,16 +480,17 @@ export default function HomePage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
                   <div className="px-6 sm:px-10">
                     <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di AyamKu Farm</h2>
-                    <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, dan berat ayam Anda dengan mudah dan efisien dalam satu tempat.</p>
+                    <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
                   </div>
                 </div>
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
                 {[
                   { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
-                  { icon: Bird, label: 'Ayam Aktif', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
+                  { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
+                  { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
                   { icon: Wheat, label: 'Total Pakan', value: `${dashboard?.totalFeedKg || 0} kg`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
                   { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(dashboard?.totalFeedCost || 0), color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
                 ].map((stat, i) => (
@@ -429,18 +519,21 @@ export default function HomePage() {
 
               {/* Tabs */}
               <Tabs defaultValue="termin" className="space-y-4">
-                <TabsList className="bg-white shadow-sm border p-1">
-                  <TabsTrigger value="termin" className="gap-2 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
-                    <Package className="w-4 h-4" /> Termin
+                <TabsList className="bg-white shadow-sm border p-1 flex flex-wrap">
+                  <TabsTrigger value="termin" className="gap-1.5 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 text-xs sm:text-sm">
+                    <Package className="w-3.5 h-3.5" /> Termin
                   </TabsTrigger>
-                  <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
-                    <Wheat className="w-4 h-4" /> Pakan
+                  <TabsTrigger value="pakan" className="gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 text-xs sm:text-sm">
+                    <Wheat className="w-3.5 h-3.5" /> Pakan
                   </TabsTrigger>
-                  <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700">
-                    <Scale className="w-4 h-4" /> Berat
+                  <TabsTrigger value="berat" className="gap-1.5 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 text-xs sm:text-sm">
+                    <Scale className="w-3.5 h-3.5" /> Berat
                   </TabsTrigger>
-                  <TabsTrigger value="hitung" className="gap-2 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
-                    <Calculator className="w-4 h-4" /> Hitung
+                  <TabsTrigger value="mortalitas" className="gap-1.5 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 text-xs sm:text-sm">
+                    <Skull className="w-3.5 h-3.5" /> Mortalitas
+                  </TabsTrigger>
+                  <TabsTrigger value="hitung" className="gap-1.5 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 text-xs sm:text-sm">
+                    <Calculator className="w-3.5 h-3.5" /> Hitung
                   </TabsTrigger>
                 </TabsList>
 
@@ -492,26 +585,26 @@ export default function HomePage() {
                                 </div>
                               </CardHeader>
                               <CardContent className="pt-0">
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="bg-emerald-50/50 rounded-lg p-2.5">
-                                    <p className="text-xs text-muted-foreground">Jumlah</p>
-                                    <p className="text-sm font-bold text-emerald-700">{batch.quantity.toLocaleString('id-ID')} ekor</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="bg-emerald-50/50 rounded-lg p-2">
+                                    <p className="text-xs text-muted-foreground">Hidup</p>
+                                    <p className="text-sm font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
                                   </div>
-                                  <div className="bg-amber-50/50 rounded-lg p-2.5">
+                                  <div className="bg-amber-50/50 rounded-lg p-2">
                                     <p className="text-xs text-muted-foreground">Umur</p>
                                     <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
                                   </div>
-                                  <div className="bg-teal-50/50 rounded-lg p-2.5">
-                                    <p className="text-xs text-muted-foreground">Total Pakan</p>
+                                  <div className="bg-teal-50/50 rounded-lg p-2">
+                                    <p className="text-xs text-muted-foreground">Pakan</p>
                                     <p className="text-sm font-bold text-teal-700">{stats.totalFeed.toFixed(1)} kg</p>
                                   </div>
-                                  <div className="bg-rose-50/50 rounded-lg p-2.5">
-                                    <p className="text-xs text-muted-foreground">FCR</p>
-                                    <p className="text-sm font-bold text-rose-700">{stats.fcr.toFixed(2)}</p>
+                                  <div className="bg-red-50/50 rounded-lg p-2">
+                                    <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+                                    <p className="text-sm font-bold text-red-700">{stats.totalDead} ekor ({stats.mortalityRate.toFixed(1)}%)</p>
                                   </div>
                                 </div>
                                 {/* Weight progress bar */}
-                                <div className="mt-3">
+                                <div className="mt-2">
                                   <div className="flex justify-between text-xs text-muted-foreground mb-1">
                                     <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
                                     <span>Target: ~1.8 kg</span>
@@ -527,7 +620,7 @@ export default function HomePage() {
                   )}
                 </TabsContent>
 
-                {/* Pakan Tab - All feed across batches */}
+                {/* Pakan Tab */}
                 <TabsContent value="pakan">
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
@@ -595,7 +688,7 @@ export default function HomePage() {
                   </Card>
                 </TabsContent>
 
-                {/* Berat Tab - Weight tracking across batches */}
+                {/* Berat Tab */}
                 <TabsContent value="berat">
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
@@ -618,7 +711,6 @@ export default function HomePage() {
                             const chartData = sortedWeights.map((w) => ({
                               umur: `Hari ${w.ageDays}`,
                               berat: w.averageWeightGram,
-                              beratKg: (w.averageWeightGram / 1000).toFixed(2),
                             }))
 
                             return (
@@ -659,15 +751,132 @@ export default function HomePage() {
                   </Card>
                 </TabsContent>
 
-                {/* Hitung Tab - Feed calculations per termin */}
+                {/* Mortalitas Tab */}
+                <TabsContent value="mortalitas">
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Skull className="w-5 h-5 text-red-600" />
+                        Rekap Mortalitas Seluruh Termin
+                      </CardTitle>
+                      <CardDescription>Data ayam mati, afkir, dan tidak layak jual</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {batches.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Skull className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p>Belum ada data mortalitas</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {batches.map((batch) => {
+                            const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+                            const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
+                            const deadByReason = batch.mortalityRecords.reduce((acc, m) => {
+                              if (!acc[m.reason]) acc[m.reason] = 0
+                              acc[m.reason] += m.quantity
+                              return acc
+                            }, {} as Record<string, number>)
+
+                            const pieData = Object.entries(deadByReason).map(([reason, qty]) => ({
+                              name: MORTALITY_REASON_LABELS[reason] || reason,
+                              value: qty,
+                            }))
+
+                            return (
+                              <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-red-50/20">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="font-bold">{batch.name}</h3>
+                                    <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-red-700">{totalDead} ekor</p>
+                                    <p className="text-xs text-muted-foreground">Mortalitas: {mortalityRate.toFixed(1)}%</p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3 mb-3">
+                                  <div className="bg-emerald-50 rounded-lg p-2 text-center">
+                                    <p className="text-xs text-muted-foreground">Awal</p>
+                                    <p className="text-sm font-bold text-emerald-700">{batch.quantity.toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div className="bg-red-50 rounded-lg p-2 text-center">
+                                    <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+                                    <p className="text-sm font-bold text-red-700">{totalDead}</p>
+                                  </div>
+                                  <div className="bg-amber-50 rounded-lg p-2 text-center">
+                                    <p className="text-xs text-muted-foreground">Hidup</p>
+                                    <p className="text-sm font-bold text-amber-700">{(batch.quantity - totalDead).toLocaleString('id-ID')}</p>
+                                  </div>
+                                </div>
+
+                                {pieData.length > 0 && (
+                                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="w-40 h-40">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                                            {pieData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={MORTALITY_REASON_COLORS[Object.keys(MORTALITY_REASON_LABELS).find(k => MORTALITY_REASON_LABELS[k] === entry.name) || 'lainnya'] || COLORS[index]} />
+                                            ))}
+                                          </Pie>
+                                          <Tooltip formatter={(value: number) => [`${value} ekor`, 'Jumlah']} />
+                                        </PieChart>
+                                      </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex-1 space-y-1.5">
+                                      {Object.entries(deadByReason).map(([reason, qty]) => (
+                                        <div key={reason} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/60">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[reason] || '#6b7280' }} />
+                                            <span className="text-sm font-medium">{MORTALITY_REASON_LABELS[reason] || reason}</span>
+                                          </div>
+                                          <span className="text-sm font-bold">{qty} ekor</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Mortality timeline */}
+                                {batch.mortalityRecords.length > 0 && (
+                                  <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                    <p className="text-xs font-medium text-muted-foreground mb-1">Riwayat Kematian:</p>
+                                    {batch.mortalityRecords.map((m) => (
+                                      <div key={m.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
+                                          <span className="text-xs">{formatDate(m.date)}</span>
+                                          <span className="text-xs text-muted-foreground">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
+                                        </div>
+                                        <span className="text-xs font-bold">{m.quantity} ekor</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {batch.mortalityRecords.length === 0 && (
+                                  <p className="text-sm text-muted-foreground text-center py-2">Tidak ada catatan mortalitas</p>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Hitung Tab */}
                 <TabsContent value="hitung">
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Calculator className="w-5 h-5 text-rose-600" />
-                        Perhitungan Pakan Per Termin
+                        Perhitungan & Total Panen Per Termin
                       </CardTitle>
-                      <CardDescription>Kalkulasi total pakan, biaya, FCR, dan feed conversion per termin</CardDescription>
+                      <CardDescription>Kalkulasi total pakan, biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {batches.length === 0 ? (
@@ -682,7 +891,7 @@ export default function HomePage() {
                             <div className="border rounded-xl p-4 bg-gradient-to-br from-white to-rose-50/20">
                               <h3 className="font-bold mb-4 flex items-center gap-2">
                                 <BarChart3 className="w-4 h-4 text-rose-600" />
-                                Perbandingan Pakan Per Termin
+                                Perbandingan Per Termin
                               </h3>
                               <div className="h-72">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -690,7 +899,7 @@ export default function HomePage() {
                                     name: b.name,
                                     'Total Pakan (kg)': b.totalFeedKg,
                                     'Biaya (Rp ribu)': Math.round(b.totalFeedCost / 1000),
-                                    'Pakan/Ekor (kg)': b.feedPerEkor,
+                                    'Mati/Afkir': b.totalDead,
                                   }))}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -699,7 +908,7 @@ export default function HomePage() {
                                     <Legend />
                                     <Bar dataKey="Total Pakan (kg)" fill="#16a34a" radius={[4, 4, 0, 0]} />
                                     <Bar dataKey="Biaya (Rp ribu)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="Pakan/Ekor (kg)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="Mati/Afkir" fill="#ef4444" radius={[4, 4, 0, 0]} />
                                   </BarChart>
                                 </ResponsiveContainer>
                               </div>
@@ -727,13 +936,14 @@ export default function HomePage() {
                                 <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between">
                                   <div>
                                     <h3 className="font-bold text-lg">{batch.name}</h3>
-                                    <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor • {stats.ageDays} hari</p>
+                                    <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor awal • {stats.ageDays} hari</p>
                                   </div>
                                   <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
                                     {batch.status === 'active' ? 'Aktif' : 'Panen'}
                                   </Badge>
                                 </div>
                                 <div className="p-4">
+                                  {/* Feed & Cost stats */}
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                                     <div className="bg-emerald-50 rounded-xl p-3 text-center">
                                       <p className="text-xs text-muted-foreground">Total Pakan</p>
@@ -747,9 +957,32 @@ export default function HomePage() {
                                       <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
                                       <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
                                     </div>
-                                    <div className="bg-rose-50 rounded-xl p-3 text-center">
+                                    <div className="bg-violet-50 rounded-xl p-3 text-center">
                                       <p className="text-xs text-muted-foreground">FCR</p>
-                                      <p className="text-lg font-bold text-rose-700">{stats.fcr.toFixed(2)}</p>
+                                      <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
+                                    </div>
+                                  </div>
+
+                                  {/* Mortality & Harvest stats */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                                    <div className="bg-red-50 rounded-xl p-3 text-center">
+                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+                                      <p className="text-lg font-bold text-red-700">{stats.totalDead} ekor</p>
+                                      <p className="text-xs text-red-500">{stats.mortalityRate.toFixed(1)}%</p>
+                                    </div>
+                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                      <p className="text-xs text-muted-foreground">Hidup</p>
+                                      <p className="text-lg font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+                                    </div>
+                                    <div className="bg-orange-50 rounded-xl p-3 text-center">
+                                      <p className="text-xs text-muted-foreground">Total Panen</p>
+                                      <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+                                      {stats.harvestQty > 0 && <p className="text-xs text-muted-foreground">{stats.harvestQty} ekor × {stats.harvestWt} kg</p>}
+                                    </div>
+                                    <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                                      <p className="text-xs text-muted-foreground">{batch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
+                                      <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
                                     </div>
                                   </div>
 
@@ -822,7 +1055,7 @@ export default function HomePage() {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor • Tiba {formatDate(selectedBatch.arrivalDate)}
+                      Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -841,9 +1074,11 @@ export default function HomePage() {
                 {(() => {
                   const stats = getBatchStats(selectedBatch)
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                       {[
-                        { icon: Bird, label: 'Jumlah', value: `${selectedBatch.quantity.toLocaleString('id-ID')} ekor`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
+                        { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
                         { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
                         { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
                         { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
@@ -894,7 +1129,7 @@ export default function HomePage() {
                   </Card>
                 )}
 
-                {/* Detail Tabs: Feed & Weight */}
+                {/* Detail Tabs: Feed, Weight, Mortality */}
                 <Tabs defaultValue="pakan" className="space-y-4">
                   <TabsList className="bg-white shadow-sm border p-1">
                     <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
@@ -902,6 +1137,9 @@ export default function HomePage() {
                     </TabsTrigger>
                     <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700">
                       <Scale className="w-4 h-4" /> Berat
+                    </TabsTrigger>
+                    <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
+                      <Skull className="w-4 h-4" /> Mortalitas
                     </TabsTrigger>
                   </TabsList>
 
@@ -1016,7 +1254,120 @@ export default function HomePage() {
                       </CardContent>
                     </Card>
                   </TabsContent>
+
+                  {/* Mortality Records */}
+                  <TabsContent value="mortalitas">
+                    <Card className="border-0 shadow-lg">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Skull className="w-4 h-4 text-red-600" />
+                            Riwayat Mortalitas
+                          </CardTitle>
+                          <CardDescription>Catatan ayam mati, afkir, dan tidak layak jual</CardDescription>
+                        </div>
+                        {selectedBatch.status === 'active' && (
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" onClick={() => setAddMortalityOpen(true)}>
+                            <Plus className="w-4 h-4" /> Tambah
+                          </Button>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        {(() => {
+                          const totalDead = selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+                          const mortalityRate = selectedBatch.quantity > 0 ? (totalDead / selectedBatch.quantity) * 100 : 0
+
+                          return (
+                            <>
+                              {/* Summary row */}
+                              <div className="grid grid-cols-3 gap-3 mb-4">
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Awal Masuk</p>
+                                  <p className="text-lg font-bold text-emerald-700">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
+                                </div>
+                                <div className="bg-red-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Total Mati/Afkir</p>
+                                  <p className="text-lg font-bold text-red-700">{totalDead} ekor ({mortalityRate.toFixed(1)}%)</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Masih Hidup</p>
+                                  <p className="text-lg font-bold text-amber-700">{(selectedBatch.quantity - totalDead).toLocaleString('id-ID')} ekor</p>
+                                </div>
+                              </div>
+
+                              {selectedBatch.mortalityRecords.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  <Skull className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                  <p className="text-sm">Belum ada catatan mortalitas</p>
+                                  <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddMortalityOpen(true)}>
+                                    <Plus className="w-3 h-3" /> Tambah Data Pertama
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                                  {selectedBatch.mortalityRecords.map((m) => (
+                                    <div key={m.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50/50 to-transparent hover:from-red-50 transition-colors group">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                                          <Skull className="w-5 h-5 text-red-600" />
+                                        </div>
+                                        <div>
+                                          <p className="font-medium text-sm">{MORTALITY_REASON_LABELS[m.reason] || m.reason}</p>
+                                          <p className="text-xs text-muted-foreground">{formatDate(m.date)}{m.notes ? ` • ${m.notes}` : ''}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
+                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
                 </Tabs>
+
+                {/* Total Panen Card (only for harvested batches) */}
+                {selectedBatch.status === 'harvested' && (() => {
+                  const stats = getBatchStats(selectedBatch)
+                  return (
+                    <Card className="border-0 shadow-lg overflow-hidden">
+                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <ShoppingBasket className="w-5 h-5" />
+                          Total Panen
+                        </h3>
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="bg-amber-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-muted-foreground">Jumlah Panen</p>
+                            <p className="text-lg font-bold text-amber-700">{stats.harvestQty.toLocaleString('id-ID')} ekor</p>
+                          </div>
+                          <div className="bg-orange-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+                            <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+                          </div>
+                          <div className="bg-green-50 rounded-xl p-3 text-center">
+                            <p className="text-xs text-muted-foreground">Pendapatan</p>
+                            <p className="text-lg font-bold text-green-700">{formatCurrency(stats.totalHarvestValue)}</p>
+                          </div>
+                          <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            <p className="text-xs text-muted-foreground">Profit</p>
+                            <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })()}
               </div>
             </motion.div>
           )}
@@ -1123,6 +1474,59 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Mortality Dialog */}
+      <Dialog open={addMortalityOpen} onOpenChange={setAddMortalityOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Skull className="w-5 h-5 text-red-600" />
+              Tambah Data Mortalitas
+            </DialogTitle>
+            <DialogDescription>Catatan ayam mati/afkir untuk {selectedBatch?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tanggal</Label>
+                <Input type="date" value={mortalityForm.date} onChange={(e) => setMortalityForm({ ...mortalityForm, date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Jumlah (ekor)</Label>
+                <Input type="number" min="1" placeholder="5" value={mortalityForm.quantity} onChange={(e) => setMortalityForm({ ...mortalityForm, quantity: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Penyebab</Label>
+              <Select value={mortalityForm.reason} onValueChange={(v) => setMortalityForm({ ...mortalityForm, reason: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sakit">Sakit</SelectItem>
+                  <SelectItem value="stress">Stress / Heat</SelectItem>
+                  <SelectItem value="kecelakaan">Kecelakaan</SelectItem>
+                  <SelectItem value="afkir">Afkir / Culling</SelectItem>
+                  <SelectItem value="lainnya">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Catatan</Label>
+              <Textarea placeholder="Catatan opsional..." value={mortalityForm.notes} onChange={(e) => setMortalityForm({ ...mortalityForm, notes: e.target.value })} />
+            </div>
+            {mortalityForm.quantity && selectedBatch && (
+              <div className="bg-red-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-muted-foreground">Sisa Ayam Hidup (setelah input)</p>
+                <p className="text-lg font-bold text-red-700">
+                  {selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0) - parseInt(mortalityForm.quantity || '0')} ekor
+                </p>
+              </div>
+            )}
+            <Button onClick={handleAddMortality} className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" disabled={!mortalityForm.date || !mortalityForm.quantity}>
+              Simpan Data Mortalitas
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Harvest Dialog */}
       <Dialog open={harvestOpen} onOpenChange={setHarvestOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1138,11 +1542,38 @@ export default function HomePage() {
               <Label>Tanggal Panen</Label>
               <Input type="date" value={harvestForm.harvestDate} onChange={(e) => setHarvestForm({ ...harvestForm, harvestDate: e.target.value })} />
             </div>
-            <div className="space-y-2">
-              <Label>Berat Panen Rata-rata (kg/ekor)</Label>
-              <Input type="number" step="0.01" min="0" placeholder="1.8" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Jumlah Panen (ekor)</Label>
+                <Input type="number" min="0" placeholder="4800" value={harvestForm.harvestQuantity} onChange={(e) => setHarvestForm({ ...harvestForm, harvestQuantity: e.target.value })} />
+                {selectedBatch && (
+                  <p className="text-xs text-muted-foreground">Hidup: {selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)} ekor</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Berat Rata-rata (kg/ekor)</Label>
+                <Input type="number" step="0.01" min="0" placeholder="1.8" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
+              </div>
             </div>
-            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={!harvestForm.harvestDate || !harvestForm.harvestWeight}>
+            <div className="space-y-2">
+              <Label>Harga Jual per kg (Rp)</Label>
+              <Input type="number" step="100" min="0" placeholder="22000" value={harvestForm.sellingPricePerKg} onChange={(e) => setHarvestForm({ ...harvestForm, sellingPricePerKg: e.target.value })} />
+            </div>
+            {harvestForm.harvestQuantity && harvestForm.harvestWeight && harvestForm.sellingPricePerKg && (
+              <div className="bg-amber-50 rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+                    <p className="text-lg font-bold text-amber-700">{(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight)).toFixed(1)} kg</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Pendapatan</p>
+                    <p className="text-lg font-bold text-green-700">{formatCurrency(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight) * parseFloat(harvestForm.sellingPricePerKg))}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={!harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
               Konfirmasi Panen
             </Button>
           </div>
