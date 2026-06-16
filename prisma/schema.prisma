@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Batch {
+  id            String   @id @default(cuid())
+  name          String
+  terminNumber   Int
+  arrivalDate   DateTime
+  initialWeight Float    // kg per ekor saat datang
+  quantity      Int      // jumlah ekor
+  status        String   @default("active") // active, harvested
+  harvestDate   DateTime?
+  harvestWeight Float?   // kg per ekor saat panen
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  feedRecords   FeedRecord[]
+  weightRecords WeightRecord[]
+}
+
+model FeedRecord {
+  id         String   @id @default(cuid())
+  batchId    String
+  date       DateTime
+  feedType   String   // jenis pakan (starter, grower, finisher, dll)
+  quantityKg Float    // jumlah pakan dalam kg
+  pricePerKg Float    // harga per kg
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  batch      Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model WeightRecord {
+  id               String   @id @default(cuid())
+  batchId          String
+  date             DateTime
+  averageWeightGram Float   // rata-rata berat dalam gram
+  ageDays          Int      // umur dalam hari
+  sampleCount      Int      @default(1) // jumlah sampel
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  batch            Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
