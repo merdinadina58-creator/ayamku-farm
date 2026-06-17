@@ -105,10 +105,16 @@ export async function GET() {
       try {
         new URL(testUrl)
       } catch (e2) {
+        // Extract the host portion (not sensitive) to help diagnose the issue
+        const atIdx = connectionString.indexOf('@')
+        const hostPart = atIdx >= 0 ? connectionString.substring(atIdx + 1) : '(no @ found)'
+        const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
+        const isNeon = connectionString.includes('neon.tech')
+        const isVercel = connectionString.includes('vercel')
         steps.push({
           step: 'Create tables',
           status: 'error',
-          detail: `DATABASE_URL is malformed and cannot be parsed as a URL: ${(e2 as Error).message}. Length: ${connectionString.length}. Contains '://': ${connectionString.includes('://')}. Contains '@': ${connectionString.includes('@')}. Please go to Vercel Dashboard → Storage → your Postgres database → copy the exact connection string (it should look like: postgres://user:password@host:port/dbname?sslmode=require).`,
+          detail: `DATABASE_URL cannot be parsed as a valid URL. Length: ${connectionString.length} (a real Vercel Postgres URL is typically 100+ chars). Host portion after '@': '${hostPart}'. Is localhost: ${isLocalhost}. Is Neon: ${isNeon}. Is Vercel: ${isVercel}. Please go to Vercel Dashboard → Storage → Create Database (Postgres) → connect it to your project → Vercel will auto-set DATABASE_URL to the real connection string (starts with postgres://default:...@ep-xxx-pooler.region.aws.neon.tech/verceldb?sslmode=require).`,
         })
         return NextResponse.json({ steps, error: 'Malformed DATABASE_URL' }, { status: 500 })
       }
