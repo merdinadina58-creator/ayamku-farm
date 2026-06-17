@@ -96,6 +96,24 @@ export async function GET() {
 
   // Step 2: Create tables via Prisma's raw SQL (uses the same connection as the app)
   try {
+    // First, try to parse the URL to give a specific diagnostic if it's malformed
+    try {
+      new URL(connectionString)
+    } catch {
+      // URL constructor can't parse it — try replacing the scheme to https for validation
+      const testUrl = connectionString.replace(/^postgres(ql)?:\/\//, 'https://')
+      try {
+        new URL(testUrl)
+      } catch (e2) {
+        steps.push({
+          step: 'Create tables',
+          status: 'error',
+          detail: `DATABASE_URL is malformed and cannot be parsed as a URL: ${(e2 as Error).message}. Length: ${connectionString.length}. Contains '://': ${connectionString.includes('://')}. Contains '@': ${connectionString.includes('@')}. Please go to Vercel Dashboard → Storage → your Postgres database → copy the exact connection string (it should look like: postgres://user:password@host:port/dbname?sslmode=require).`,
+        })
+        return NextResponse.json({ steps, error: 'Malformed DATABASE_URL' }, { status: 500 })
+      }
+    }
+
     // Split into individual statements — Prisma's $executeRawUnsafe runs one at a time
     const statements = CREATE_TABLES_SQL.trim()
       .split(/;\s*\n/)
@@ -108,19 +126,10 @@ export async function GET() {
     steps.push({ step: 'Create tables', status: 'ok', detail: `All 5 tables created (or already existed). Ran ${statements.length} statements.` })
   } catch (e) {
     const msg = (e as Error).message
-    const urlLen = connectionString.length
-    const hasPrefix = connectionString.startsWith('postgres://') || connectionString.startsWith('postgresql://')
-    const hint = !hasPrefix
-      ? ` Hint: DATABASE_URL must start with 'postgres://' or 'postgresql://'. Currently starts with '${connectionString.substring(0, 15)}...' (length ${urlLen}).`
-      : msg.includes('Invalid URL')
-        ? ` Hint: URL starts correctly but has a format issue. This often happens when the password contains special characters (@, #, ?, /) that need URL-encoding, or when quotes are included in the value. Go to Vercel Dashboard → Settings → Environment Variables and re-copy the exact connection string from your Vercel Postgres database.`
-        : msg.includes('relation') || msg.includes('does not exist')
-          ? ` Hint: Tables may not exist yet — but that should have been handled. Error: ${msg}`
-          : ''
     steps.push({
       step: 'Create tables',
       status: 'error',
-      detail: `Failed: ${msg}${hint}`,
+      detail: `Failed: ${msg}. URL length: ${connectionString.length}, has '@': ${connectionString.includes('@')}, has '?': ${connectionString.includes('?')}.`,
     })
     return NextResponse.json({ steps, error: 'Table creation failed' }, { status: 500 })
   }
