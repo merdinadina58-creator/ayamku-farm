@@ -65,3 +65,9 @@ model MortalityRecord {
 
   batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
+
+model AppSetting {
+  key       String   @id   // appName, logoData (base64 data URL)
+  value     String
+  updatedAt DateTime @updatedAt
+}

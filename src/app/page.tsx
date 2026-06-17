@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bird,
@@ -13,25 +13,36 @@ import {
   Package,
   DollarSign,
   Calendar,
+  CalendarDays,
   ChevronRight,
+  ChevronLeft,
   BarChart3,
   ArrowLeft,
   CheckCircle2,
   Activity,
   Skull,
   ShoppingBasket,
+  LayoutDashboard,
+  Menu,
+  X,
+  Settings,
+  Upload,
+  Image as ImageIcon,
+  Save,
+  Info,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts'
 
 // Types
@@ -121,6 +132,11 @@ interface DashboardData {
   }>
 }
 
+interface CalendarEvent {
+  type: 'tiba' | 'panen'
+  batch: Batch
+}
+
 // Color palette
 const COLORS = ['#16a34a', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899']
 const FEED_TYPE_COLORS: Record<string, string> = {
@@ -145,6 +161,28 @@ const MORTALITY_REASON_COLORS: Record<string, string> = {
   'lainnya': '#6b7280',
 }
 
+const SECTION_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  termin: 'Termin',
+  pakan: 'Pakan',
+  berat: 'Berat',
+  mortalitas: 'Mortalitas',
+  hitung: 'Perhitungan',
+  kalender: 'Kalender',
+  settings: 'Pengaturan',
+}
+
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
+  { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
+  { id: 'pakan', label: 'Pakan', icon: Wheat, iconColor: 'text-amber-600' },
+  { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
+  { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
+  { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
+  { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
+  { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
+] as const
+
 export default function HomePage() {
   const [batches, setBatches] = useState<Batch[]>([])
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
@@ -152,6 +190,23 @@ export default function HomePage() {
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null)
   const [view, setView] = useState<'dashboard' | 'batch-detail'>('dashboard')
   const { toast } = useToast()
+
+  // Sidebar + section state
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'pakan' | 'berat' | 'mortalitas' | 'hitung' | 'kalender' | 'settings'>('dashboard')
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+
+  // Settings state
+  const [appSettings, setAppSettings] = useState({ appName: 'AyamKu Farm', logoData: '' })
+  const [settingsForm, setSettingsForm] = useState({ appName: 'AyamKu Farm', logoData: '' })
+  const [logoPreview, setLogoPreview] = useState('')
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  // Calendar state
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [dayDetail, setDayDetail] = useState<{ date: Date; events: CalendarEvent[] } | null>(null)
 
   // Dialog states
   const [addBatchOpen, setAddBatchOpen] = useState(false)
@@ -179,14 +234,19 @@ export default function HomePage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [batchRes, dashRes] = await Promise.all([
+      const [batchRes, dashRes, settingsRes] = await Promise.all([
         fetch('/api/batches'),
         fetch('/api/dashboard'),
+        fetch('/api/settings'),
       ])
       const batchData = await batchRes.json()
       const dashData = await dashRes.json()
+      const settingsData = await settingsRes.json()
       setBatches(batchData)
       setDashboard(dashData)
+      setAppSettings({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
+      setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
+      setLogoPreview(settingsData.logoData || '')
     } catch {
       toast({ title: 'Error', description: 'Gagal memuat data', variant: 'destructive' })
     } finally {
@@ -330,6 +390,7 @@ export default function HomePage() {
       toast({ title: 'Dihapus', description: 'Termin berhasil dihapus' })
       setView('dashboard')
       setSelectedBatch(null)
+      setActiveSection('termin')
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menghapus termin', variant: 'destructive' })
@@ -339,6 +400,50 @@ export default function HomePage() {
   const openBatchDetail = (batch: Batch) => {
     setSelectedBatch(batch)
     setView('batch-detail')
+  }
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName: settingsForm.appName, logoData: settingsForm.logoData }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setAppSettings({ appName: data.appName, logoData: data.logoData })
+      toast({ title: 'Pengaturan Tersimpan! ✅', description: 'Nama aplikasi dan logo telah diperbarui' })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menyimpan pengaturan', variant: 'destructive' })
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Error', description: 'File harus berupa gambar', variant: 'destructive' })
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Error', description: 'Ukuran gambar maksimal 2MB', variant: 'destructive' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      setLogoPreview(dataUrl)
+      setSettingsForm((prev) => ({ ...prev, logoData: dataUrl }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveLogo = () => {
+    setLogoPreview('')
+    setSettingsForm((prev) => ({ ...prev, logoData: '' }))
   }
 
   const formatDate = (dateStr: string) => {
@@ -381,6 +486,122 @@ export default function HomePage() {
     }
   }
 
+  // Calendar events derived from batches
+  const calendarEvents = useMemo(() => {
+    const events: Record<string, CalendarEvent[]> = {}
+    batches.forEach((batch) => {
+      const arriveKey = new Date(batch.arrivalDate).toDateString()
+      if (!events[arriveKey]) events[arriveKey] = []
+      events[arriveKey].push({ type: 'tiba', batch })
+      if (batch.harvestDate) {
+        const harvestKey = new Date(batch.harvestDate).toDateString()
+        if (!events[harvestKey]) events[harvestKey] = []
+        events[harvestKey].push({ type: 'panen', batch })
+      }
+    })
+    return events
+  }, [batches])
+
+  // Calendar grid cells (data, not JSX)
+  const calendarCells = useMemo(() => {
+    const year = calendarMonth.getFullYear()
+    const month = calendarMonth.getMonth()
+    const firstDay = new Date(year, month, 1).getDay()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const cells: Array<{ day: number | null; date: Date | null; events: CalendarEvent[] }> = []
+    for (let i = 0; i < firstDay; i++) {
+      cells.push({ day: null, date: null, events: [] })
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day)
+      const key = date.toDateString()
+      cells.push({ day, date, events: calendarEvents[key] || [] })
+    }
+    return cells
+  }, [calendarMonth, calendarEvents])
+
+  const renderSidebar = () => (
+    <div className="flex flex-col h-full">
+      {/* Brand header */}
+      <div className="p-4 border-b border-emerald-100">
+        <div className="flex items-center gap-3">
+          {appSettings.logoData ? (
+            <img src={appSettings.logoData} alt="Logo" className="w-10 h-10 rounded-xl object-cover shadow-lg shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+              <Bird className="w-6 h-6 text-white" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-base font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{appSettings.appName}</h1>
+            <p className="text-xs text-muted-foreground truncate">Manajemen Peternakan Ayam</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tambah Termin button */}
+      <div className="p-3">
+        <Button
+          onClick={() => setAddBatchOpen(true)}
+          className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
+        >
+          <Plus className="w-4 h-4" /> Tambah Termin
+        </Button>
+      </div>
+
+      {/* Nav list */}
+      <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+        {NAV_ITEMS.map((item) => {
+          const isActive = view === 'dashboard' && activeSection === item.id
+          const Icon = item.icon
+          return (
+            <button
+              key={item.id}
+              onClick={() => { setActiveSection(item.id); setView('dashboard'); setSelectedBatch(null); setSidebarMobileOpen(false) }}
+              className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-emerald-600" />}
+              <Icon className={`w-4 h-4 shrink-0 ${isActive ? item.iconColor : 'text-gray-400'}`} />
+              <span className="truncate">{item.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* Footer info card */}
+      <div className="p-3 border-t border-emerald-100">
+        <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-amber-50/50 p-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-600">Ringkasan Termin</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-lg font-bold text-emerald-700">{dashboard?.totalBatches || 0}</p>
+              <p className="text-[10px] text-muted-foreground">Total</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-amber-700">{dashboard?.activeBatches || 0}</p>
+              <p className="text-[10px] text-muted-foreground">Aktif</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-gray-700">{dashboard?.harvestedBatches || 0}</p>
+              <p className="text-[10px] text-muted-foreground">Panen</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Close button - mobile only */}
+      <div className="lg:hidden p-3 border-t border-emerald-100">
+        <Button variant="outline" className="w-full gap-2" onClick={() => setSidebarMobileOpen(false)}>
+          <X className="w-4 h-4" /> Tutup Menu
+        </Button>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-amber-50/30 to-white">
@@ -394,234 +615,205 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50/80 via-amber-50/20 to-white flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-emerald-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200">
-              <Bird className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent">
-                AyamKu Farm
-              </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Sistem Manajemen Peternakan Ayam</p>
-            </div>
-          </div>
-          <Dialog open={addBatchOpen} onOpenChange={setAddBatchOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Tambah Termin</span>
-                <span className="sm:hidden">Tambah</span>
+    <div className="min-h-screen flex bg-gradient-to-br from-emerald-50/80 via-amber-50/20 to-white">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden lg:flex w-64 flex-col border-r border-emerald-100 bg-white/70 backdrop-blur-xl shrink-0 sticky top-0 h-screen">
+        {renderSidebar()}
+      </aside>
+
+      {/* Sidebar - Mobile */}
+      <Sheet open={sidebarMobileOpen} onOpenChange={setSidebarMobileOpen}>
+        <SheetContent side="left" className="w-72 p-0 border-emerald-100 bg-white">
+          <SheetTitle className="sr-only">Menu Navigasi</SheetTitle>
+          <SheetDescription className="sr-only">Pilih menu untuk berpindah halaman</SheetDescription>
+          {renderSidebar()}
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Column */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header */}
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-emerald-100 shadow-sm">
+          <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button variant="ghost" size="icon" className="lg:hidden shrink-0" onClick={() => setSidebarMobileOpen(true)}>
+                <Menu className="w-5 h-5" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-emerald-600" />
-                  Tambah Termin Baru
-                </DialogTitle>
-                <DialogDescription>Tambahkan bibit ayam baru ke peternakan</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="batch-name">Nama Termin</Label>
-                    <Input id="batch-name" placeholder="Termin 1" value={batchForm.name} onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })} />
+              {/* Mobile brand */}
+              <div className="flex items-center gap-2 lg:hidden min-w-0">
+                {appSettings.logoData ? (
+                  <img src={appSettings.logoData} alt="Logo" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                ) : (
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                    <Bird className="w-5 h-5 text-white" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="termin-number">No. Termin</Label>
-                    <Input id="termin-number" type="number" min="1" value={batchForm.terminNumber} onChange={(e) => setBatchForm({ ...batchForm, terminNumber: e.target.value })} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="arrival-date">Tanggal Datang</Label>
-                    <Input id="arrival-date" type="date" value={batchForm.arrivalDate} onChange={(e) => setBatchForm({ ...batchForm, arrivalDate: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Jumlah (ekor)</Label>
-                    <Input id="quantity" type="number" min="1" placeholder="1000" value={batchForm.quantity} onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="initial-weight">Berat Awal (kg/ekor)</Label>
-                  <Input id="initial-weight" type="number" step="0.001" min="0" placeholder="0.040" value={batchForm.initialWeight} onChange={(e) => setBatchForm({ ...batchForm, initialWeight: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="batch-notes">Catatan</Label>
-                  <Textarea id="batch-notes" placeholder="Catatan opsional..." value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} />
-                </div>
-                <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={!batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
-                  Simpan Termin
-                </Button>
+                )}
+                <h1 className="text-base font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{appSettings.appName}</h1>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6 pb-6">
-        <AnimatePresence mode="wait">
-          {view === 'dashboard' ? (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              {/* Desktop contextual title */}
+              <div className="hidden lg:block min-w-0">
+                <h1 className="text-lg font-bold text-gray-800 truncate">{view === 'batch-detail' ? 'Detail Termin' : SECTION_LABELS[activeSection]}</h1>
+                <p className="text-xs text-muted-foreground truncate">{view === 'batch-detail' && selectedBatch ? selectedBatch.name : 'Sistem Manajemen Peternakan Ayam'}</p>
+              </div>
+            </div>
+            {/* Desktop Tambah Termin button */}
+            <Button
+              onClick={() => setAddBatchOpen(true)}
+              className="hidden lg:flex bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
             >
-              {/* Hero Banner */}
-              <div className="relative rounded-2xl overflow-hidden mb-6 shadow-xl">
-                <img src="/chicken-farm-hero.png" alt="Peternakan Ayam" className="w-full h-40 sm:h-56 object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
-                  <div className="px-6 sm:px-10">
-                    <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di AyamKu Farm</h2>
-                    <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
-                  </div>
-                </div>
-              </div>
+              <Plus className="w-4 h-4" />
+              <span>Tambah Termin</span>
+            </Button>
+          </div>
+        </header>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-                {[
-                  { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
-                  { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
-                  { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
-                  { icon: Wheat, label: 'Total Pakan', value: `${dashboard?.totalFeedKg || 0} kg`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
-                  { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(dashboard?.totalFeedCost || 0), color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
-                ].map((stat, i) => (
-                  <motion.div
-                    key={stat.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                  >
-                    <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                      <CardContent className="p-4 sm:p-5">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="text-xs sm:text-sm text-muted-foreground font-medium">{stat.label}</p>
-                            <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{stat.value}</p>
-                          </div>
-                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg ${stat.shadow}`}>
-                            <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                          </div>
+        {/* Main Content */}
+        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6 pb-6">
+          <AnimatePresence mode="wait">
+            {view === 'dashboard' ? (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {/* Hero Banner + Stats Cards - only on dashboard section */}
+                {activeSection === 'dashboard' && (
+                  <>
+                    {/* Hero Banner */}
+                    <div className="relative rounded-2xl overflow-hidden mb-6 shadow-xl">
+                      <img src="/chicken-farm-hero.png" alt="Peternakan Ayam" className="w-full h-40 sm:h-56 object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
+                        <div className="px-6 sm:px-10">
+                          <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di {appSettings.appName}</h2>
+                          <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Tabs */}
-              <Tabs defaultValue="termin" className="space-y-4">
-                <TabsList className="bg-white shadow-sm border p-1 flex flex-wrap">
-                  <TabsTrigger value="termin" className="gap-1.5 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 text-xs sm:text-sm">
-                    <Package className="w-3.5 h-3.5" /> Termin
-                  </TabsTrigger>
-                  <TabsTrigger value="pakan" className="gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 text-xs sm:text-sm">
-                    <Wheat className="w-3.5 h-3.5" /> Pakan
-                  </TabsTrigger>
-                  <TabsTrigger value="berat" className="gap-1.5 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 text-xs sm:text-sm">
-                    <Scale className="w-3.5 h-3.5" /> Berat
-                  </TabsTrigger>
-                  <TabsTrigger value="mortalitas" className="gap-1.5 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 text-xs sm:text-sm">
-                    <Skull className="w-3.5 h-3.5" /> Mortalitas
-                  </TabsTrigger>
-                  <TabsTrigger value="hitung" className="gap-1.5 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 text-xs sm:text-sm">
-                    <Calculator className="w-3.5 h-3.5" /> Hitung
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Termin Tab */}
-                <TabsContent value="termin">
-                  {batches.length === 0 ? (
-                    <Card className="border-dashed border-2 border-emerald-200">
-                      <CardContent className="flex flex-col items-center justify-center py-16">
-                        <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
-                          <Bird className="w-10 h-10 text-emerald-400" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
-                        <p className="text-muted-foreground text-sm mt-1">Mulai tambahkan bibit ayam pertama Anda</p>
-                        <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-700 gap-2" onClick={() => setAddBatchOpen(true)}>
-                          <Plus className="w-4 h-4" /> Tambah Termin Pertama
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {batches.map((batch, i) => {
-                        const stats = getBatchStats(batch)
-                        return (
-                          <motion.div
-                            key={batch.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.05 }}
-                          >
-                            <Card
-                              className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group overflow-hidden"
-                              onClick={() => openBatchDetail(batch)}
-                            >
-                              <div className={`h-1.5 ${batch.status === 'active' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} />
-                              <CardHeader className="pb-3">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                                      {batch.name}
-                                      <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
-                                        {batch.status === 'active' ? 'Aktif' : 'Panen'}
-                                      </Badge>
-                                    </CardTitle>
-                                    <CardDescription className="mt-1">
-                                      Termin #{batch.terminNumber} • {formatDate(batch.arrivalDate)}
-                                    </CardDescription>
-                                  </div>
-                                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-emerald-600 transition-colors" />
-                                </div>
-                              </CardHeader>
-                              <CardContent className="pt-0">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="bg-emerald-50/50 rounded-lg p-2">
-                                    <p className="text-xs text-muted-foreground">Hidup</p>
-                                    <p className="text-sm font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
-                                  </div>
-                                  <div className="bg-amber-50/50 rounded-lg p-2">
-                                    <p className="text-xs text-muted-foreground">Umur</p>
-                                    <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
-                                  </div>
-                                  <div className="bg-teal-50/50 rounded-lg p-2">
-                                    <p className="text-xs text-muted-foreground">Pakan</p>
-                                    <p className="text-sm font-bold text-teal-700">{stats.totalFeed.toFixed(1)} kg</p>
-                                  </div>
-                                  <div className="bg-red-50/50 rounded-lg p-2">
-                                    <p className="text-xs text-muted-foreground">Mati/Afkir</p>
-                                    <p className="text-sm font-bold text-red-700">{stats.totalDead} ekor ({stats.mortalityRate.toFixed(1)}%)</p>
-                                  </div>
-                                </div>
-                                {/* Weight progress bar */}
-                                <div className="mt-2">
-                                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                                    <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
-                                    <span>Target: ~1.8 kg</span>
-                                  </div>
-                                  <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </motion.div>
-                        )
-                      })}
+                      </div>
                     </div>
-                  )}
-                </TabsContent>
 
-                {/* Pakan Tab */}
-                <TabsContent value="pakan">
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+                      {[
+                        { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
+                        { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
+                        { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
+                        { icon: Wheat, label: 'Total Pakan', value: `${dashboard?.totalFeedKg || 0} kg`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
+                        { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(dashboard?.totalFeedCost || 0), color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
+                      ].map((stat, i) => (
+                        <motion.div
+                          key={stat.label}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                          className={i === 4 ? 'col-span-2 sm:col-span-1' : ''}
+                        >
+                          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                            <CardContent className="p-4 sm:p-5">
+                              <div className="flex items-start justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-xs sm:text-sm text-muted-foreground font-medium">{stat.label}</p>
+                                  <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{stat.value}</p>
+                                </div>
+                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg ${stat.shadow} shrink-0`}>
+                                  <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Termin Section */}
+                {activeSection === 'termin' && (
+                  <>
+                    {batches.length === 0 ? (
+                      <Card className="border-dashed border-2 border-emerald-200">
+                        <CardContent className="flex flex-col items-center justify-center py-16">
+                          <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+                            <Bird className="w-10 h-10 text-emerald-400" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
+                          <p className="text-muted-foreground text-sm mt-1">Mulai tambahkan bibit ayam pertama Anda</p>
+                          <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-700 gap-2" onClick={() => setAddBatchOpen(true)}>
+                            <Plus className="w-4 h-4" /> Tambah Termin Pertama
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {batches.map((batch, i) => {
+                          const stats = getBatchStats(batch)
+                          return (
+                            <motion.div
+                              key={batch.id}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: i * 0.05 }}
+                            >
+                              <Card
+                                className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group overflow-hidden"
+                                onClick={() => openBatchDetail(batch)}
+                              >
+                                <div className={`h-1.5 ${batch.status === 'active' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} />
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-start justify-between">
+                                    <div className="min-w-0">
+                                      <CardTitle className="text-base font-bold flex items-center gap-2">
+                                        <span className="truncate">{batch.name}</span>
+                                        <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                                          {batch.status === 'active' ? 'Aktif' : 'Panen'}
+                                        </Badge>
+                                      </CardTitle>
+                                      <CardDescription className="mt-1">
+                                        Termin #{batch.terminNumber} • {formatDate(batch.arrivalDate)}
+                                      </CardDescription>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-emerald-600 transition-colors shrink-0" />
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-emerald-50/50 rounded-lg p-2">
+                                      <p className="text-xs text-muted-foreground">Hidup</p>
+                                      <p className="text-sm font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+                                    </div>
+                                    <div className="bg-amber-50/50 rounded-lg p-2">
+                                      <p className="text-xs text-muted-foreground">Umur</p>
+                                      <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
+                                    </div>
+                                    <div className="bg-teal-50/50 rounded-lg p-2">
+                                      <p className="text-xs text-muted-foreground">Pakan</p>
+                                      <p className="text-sm font-bold text-teal-700">{stats.totalFeed.toFixed(1)} kg</p>
+                                    </div>
+                                    <div className="bg-red-50/50 rounded-lg p-2">
+                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+                                      <p className="text-sm font-bold text-red-700">{stats.totalDead} ekor ({stats.mortalityRate.toFixed(1)}%)</p>
+                                    </div>
+                                  </div>
+                                  {/* Weight progress bar */}
+                                  <div className="mt-2">
+                                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                                      <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
+                                      <span>Target: ~1.8 kg</span>
+                                    </div>
+                                    <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </motion.div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Pakan Section */}
+                {activeSection === 'pakan' && (
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -652,11 +844,11 @@ export default function HomePage() {
                             return (
                               <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-amber-50/20">
                                 <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-bold">{batch.name}</h3>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h3 className="font-bold truncate">{batch.name}</h3>
                                     <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-right shrink-0 ml-2">
                                     <p className="text-lg font-bold text-amber-700">{totalFeed.toFixed(1)} kg</p>
                                     <p className="text-xs text-muted-foreground">Total Pakan</p>
                                   </div>
@@ -664,12 +856,12 @@ export default function HomePage() {
                                 <div className="space-y-2">
                                   {Object.entries(feedByType).map(([type, data]) => (
                                     <div key={type} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/60">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
                                         <span className="text-sm font-medium">{type}</span>
                                         <span className="text-xs text-muted-foreground">({data.count}x)</span>
                                       </div>
-                                      <div className="text-right">
+                                      <div className="text-right shrink-0">
                                         <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
                                         <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
                                       </div>
@@ -686,10 +878,10 @@ export default function HomePage() {
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
+                )}
 
-                {/* Berat Tab */}
-                <TabsContent value="berat">
+                {/* Berat Section */}
+                {activeSection === 'berat' && (
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -715,9 +907,9 @@ export default function HomePage() {
 
                             return (
                               <div key={batch.id} className="border rounded-xl p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h3 className="font-bold">{batch.name} <Badge variant="outline" className="text-xs ml-1">Termin #{batch.terminNumber}</Badge></h3>
-                                  <div className="text-right">
+                                <div className="flex items-center justify-between mb-4 gap-2">
+                                  <h3 className="font-bold truncate">{batch.name} <Badge variant="outline" className="text-xs ml-1">Termin #{batch.terminNumber}</Badge></h3>
+                                  <div className="text-right shrink-0">
                                     <p className="text-sm text-muted-foreground">Berat Awal: {(batch.initialWeight * 1000).toFixed(0)} gram</p>
                                     <p className="text-sm font-bold text-teal-700">
                                       Berat Saat Ini: {sortedWeights.length > 0 ? `${sortedWeights[sortedWeights.length - 1].averageWeightGram.toFixed(0)} gram` : '-'}
@@ -749,10 +941,10 @@ export default function HomePage() {
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
+                )}
 
-                {/* Mortalitas Tab */}
-                <TabsContent value="mortalitas">
+                {/* Mortalitas Section */}
+                {activeSection === 'mortalitas' && (
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -785,12 +977,12 @@ export default function HomePage() {
 
                             return (
                               <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-red-50/20">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-bold">{batch.name}</h3>
+                                <div className="flex items-center justify-between mb-3 gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <h3 className="font-bold truncate">{batch.name}</h3>
                                     <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-right shrink-0">
                                     <p className="text-lg font-bold text-red-700">{totalDead} ekor</p>
                                     <p className="text-xs text-muted-foreground">Mortalitas: {mortalityRate.toFixed(1)}%</p>
                                   </div>
@@ -813,7 +1005,7 @@ export default function HomePage() {
 
                                 {pieData.length > 0 && (
                                   <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    <div className="w-40 h-40">
+                                    <div className="w-40 h-40 shrink-0">
                                       <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                           <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -825,14 +1017,14 @@ export default function HomePage() {
                                         </PieChart>
                                       </ResponsiveContainer>
                                     </div>
-                                    <div className="flex-1 space-y-1.5">
+                                    <div className="flex-1 space-y-1.5 w-full">
                                       {Object.entries(deadByReason).map(([reason, qty]) => (
                                         <div key={reason} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/60">
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[reason] || '#6b7280' }} />
-                                            <span className="text-sm font-medium">{MORTALITY_REASON_LABELS[reason] || reason}</span>
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: MORTALITY_REASON_COLORS[reason] || '#6b7280' }} />
+                                            <span className="text-sm font-medium truncate">{MORTALITY_REASON_LABELS[reason] || reason}</span>
                                           </div>
-                                          <span className="text-sm font-bold">{qty} ekor</span>
+                                          <span className="text-sm font-bold shrink-0">{qty} ekor</span>
                                         </div>
                                       ))}
                                     </div>
@@ -845,12 +1037,12 @@ export default function HomePage() {
                                     <p className="text-xs font-medium text-muted-foreground mb-1">Riwayat Kematian:</p>
                                     {batch.mortalityRecords.map((m) => (
                                       <div key={m.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
                                           <span className="text-xs">{formatDate(m.date)}</span>
-                                          <span className="text-xs text-muted-foreground">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
+                                          <span className="text-xs text-muted-foreground truncate">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
                                         </div>
-                                        <span className="text-xs font-bold">{m.quantity} ekor</span>
+                                        <span className="text-xs font-bold shrink-0">{m.quantity} ekor</span>
                                       </div>
                                     ))}
                                   </div>
@@ -866,10 +1058,10 @@ export default function HomePage() {
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
+                )}
 
-                {/* Hitung Tab */}
-                <TabsContent value="hitung">
+                {/* Hitung Section */}
+                {activeSection === 'hitung' && (
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -933,12 +1125,12 @@ export default function HomePage() {
 
                             return (
                               <div key={batch.id} className="border rounded-xl overflow-hidden">
-                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between">
-                                  <div>
-                                    <h3 className="font-bold text-lg">{batch.name}</h3>
+                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <h3 className="font-bold text-lg truncate">{batch.name}</h3>
                                     <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor awal • {stats.ageDays} hari</p>
                                   </div>
-                                  <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                                  <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} shrink-0>
                                     {batch.status === 'active' ? 'Aktif' : 'Panen'}
                                   </Badge>
                                 </div>
@@ -951,7 +1143,7 @@ export default function HomePage() {
                                     </div>
                                     <div className="bg-amber-50 rounded-xl p-3 text-center">
                                       <p className="text-xs text-muted-foreground">Total Biaya</p>
-                                      <p className="text-lg font-bold text-amber-700">{formatCurrency(stats.totalCost)}</p>
+                                      <p className="text-base sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(stats.totalCost)}</p>
                                     </div>
                                     <div className="bg-teal-50 rounded-xl p-3 text-center">
                                       <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
@@ -981,15 +1173,15 @@ export default function HomePage() {
                                     </div>
                                     <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
                                       <p className="text-xs text-muted-foreground">{batch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
-                                      <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
-                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
+                                      <p className={`text-base sm:text-lg font-bold break-words ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground break-words">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
                                     </div>
                                   </div>
 
                                   {/* Pie chart for feed distribution */}
                                   {pieData.length > 0 && (
                                     <div className="flex flex-col sm:flex-row items-center gap-4">
-                                      <div className="w-48 h-48">
+                                      <div className="w-48 h-48 shrink-0">
                                         <ResponsiveContainer width="100%" height="100%">
                                           <PieChart>
                                             <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -1001,14 +1193,14 @@ export default function HomePage() {
                                           </PieChart>
                                         </ResponsiveContainer>
                                       </div>
-                                      <div className="flex-1 space-y-2">
+                                      <div className="flex-1 space-y-2 w-full">
                                         {Object.entries(feedByType).map(([type, data]) => (
                                           <div key={type} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-gray-50">
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
+                                            <div className="flex items-center gap-2 min-w-0">
+                                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
                                               <span className="text-sm font-medium">{type}</span>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="text-right shrink-0">
                                               <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
                                               <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
                                             </div>
@@ -1029,350 +1221,594 @@ export default function HomePage() {
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
-              </Tabs>
-            </motion.div>
-          ) : selectedBatch && (
-            <motion.div
-              key="batch-detail"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* Batch Detail View */}
-              <div className="space-y-6">
-                {/* Back button & header */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 relative z-10">
-                  <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null) }} className="w-fit gap-2">
-                    <ArrowLeft className="w-4 h-4" /> Kembali
-                  </Button>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h2>
-                      <Badge variant={selectedBatch.status === 'active' ? 'default' : 'secondary'} className={selectedBatch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
-                        {selectedBatch.status === 'active' ? 'Aktif' : 'Panen'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {selectedBatch.status === 'active' && (
-                      <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => setHarvestOpen(true)}>
-                        <CheckCircle2 className="w-4 h-4" /> Panen
-                      </Button>
-                    )}
-                    <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBatch(selectedBatch.id)}>
-                      <Trash2 className="w-4 h-4" /> Hapus
-                    </Button>
-                  </div>
-                </div>
+                )}
 
-                {/* Batch Stats */}
-                {(() => {
-                  const stats = getBatchStats(selectedBatch)
-                  return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-                      {[
-                        { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
-                        { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
-                        { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
-                        { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
-                        { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
-                        { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(stats.totalCost), bg: 'bg-rose-50', text: 'text-rose-700' },
-                        { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
-                      ].map((stat) => (
-                        <Card key={stat.label} className="border-0 shadow-md">
-                          <CardContent className="p-3 sm:p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <stat.icon className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">{stat.label}</span>
-                            </div>
-                            <p className={`text-sm sm:text-base font-bold ${stat.text}`}>{stat.value}</p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )
-                })()}
-
-                {/* Weight Chart */}
-                {selectedBatch.weightRecords.length > 1 && (
+                {/* Kalender Section */}
+                {activeSection === 'kalender' && (
                   <Card className="border-0 shadow-lg">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-emerald-600" />
-                        Grafik Pertumbuhan
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CalendarDays className="w-5 h-5 text-emerald-600" />
+                        Kalender Peternakan
                       </CardTitle>
+                      <CardDescription>Jadwal kedatangan bibit (Tiba) dan panen ayam per termin</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={[...selectedBatch.weightRecords]
-                            .sort((a, b) => a.ageDays - b.ageDays)
-                            .map((w) => ({
-                              umur: `Hari ${w.ageDays}`,
-                              berat: w.averageWeightGram,
-                            }))}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="umur" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} unit="g" />
-                            <Tooltip formatter={(value: number) => [`${value} gram`, 'Berat Rata-rata']} />
-                            <Line type="monotone" dataKey="berat" stroke="#16a34a" strokeWidth={3} dot={{ r: 5, fill: '#16a34a' }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                      {batches.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p>Belum ada termin untuk ditampilkan di kalender</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Month navigation */}
+                          <div className="flex items-center justify-between mb-4">
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
+                              <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <h3 className="text-base font-bold capitalize">
+                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                            </h3>
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {/* Day name headers */}
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
+                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
+                            ))}
+                          </div>
+
+                          {/* Calendar grid */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {calendarCells.map((cell, i) => {
+                              if (!cell.date) {
+                                return <div key={`blank-${i}`} className="min-h-[60px] sm:min-h-[80px]" />
+                              }
+                              const events = cell.events
+                              const hasTiba = events.some((e) => e.type === 'tiba')
+                              const hasPanen = events.some((e) => e.type === 'panen')
+                              const isToday = new Date().toDateString() === cell.date.toDateString()
+                              return (
+                                <button
+                                  key={cell.day}
+                                  onClick={() => events.length > 0 && setDayDetail({ date: cell.date!, events })}
+                                  className={`min-h-[60px] sm:min-h-[80px] p-1.5 rounded-lg border text-left transition-all ${
+                                    events.length > 0
+                                      ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer'
+                                      : 'border-gray-100'
+                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
+                                >
+                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
+                                  {hasTiba && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">Tiba</span>
+                                    </div>
+                                  )}
+                                  {hasPanen && (
+                                    <div className="mt-0.5 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-amber-700 truncate">Panen</span>
+                                    </div>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* Legend */}
+                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span className="text-muted-foreground">Panen</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
+                              <span className="text-muted-foreground">Hari ini</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Detail Tabs: Feed, Weight, Mortality */}
-                <Tabs defaultValue="pakan" className="space-y-4">
-                  <TabsList className="bg-white shadow-sm border p-1">
-                    <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
-                      <Wheat className="w-4 h-4" /> Pakan
-                    </TabsTrigger>
-                    <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700">
-                      <Scale className="w-4 h-4" /> Berat
-                    </TabsTrigger>
-                    <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
-                      <Skull className="w-4 h-4" /> Mortalitas
-                    </TabsTrigger>
-                  </TabsList>
-
-                  {/* Feed Records */}
-                  <TabsContent value="pakan">
-                    <Card className="border-0 shadow-lg">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                        <div>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Wheat className="w-4 h-4 text-amber-600" />
-                            Riwayat Pakan
-                          </CardTitle>
-                          <CardDescription>Catatan pemberian pakan</CardDescription>
-                        </div>
-                        {selectedBatch.status === 'active' && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" onClick={() => setAddFeedOpen(true)}>
-                            <Plus className="w-4 h-4" /> Tambah
-                          </Button>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        {selectedBatch.feedRecords.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                            <p className="text-sm">Belum ada catatan pakan</p>
-                            <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddFeedOpen(true)}>
-                              <Plus className="w-3 h-3" /> Tambah Pakan Pertama
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                            {selectedBatch.feedRecords.map((feed) => (
-                              <div key={feed.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-2 h-8 rounded-full" style={{ backgroundColor: FEED_TYPE_COLORS[feed.feedType] || '#8b5cf6' }} />
-                                  <div>
-                                    <p className="font-medium text-sm">{feed.feedType}</p>
-                                    <p className="text-xs text-muted-foreground">{formatDate(feed.date)}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="text-right">
-                                    <p className="font-bold text-sm">{feed.quantityKg} kg</p>
-                                    <p className="text-xs text-muted-foreground">{formatCurrency(feed.quantityKg * feed.pricePerKg)}</p>
-                                  </div>
-                                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed.id) }}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-                  {/* Weight Records */}
-                  <TabsContent value="berat">
-                    <Card className="border-0 shadow-lg">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                        <div>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Scale className="w-4 h-4 text-teal-600" />
-                            Riwayat Berat
-                          </CardTitle>
-                          <CardDescription>Catatan timbang berat ayam</CardDescription>
-                        </div>
-                        {selectedBatch.status === 'active' && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" onClick={() => setAddWeightOpen(true)}>
-                            <Plus className="w-4 h-4" /> Tambah
-                          </Button>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        {selectedBatch.weightRecords.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                            <p className="text-sm">Belum ada catatan berat</p>
-                            <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddWeightOpen(true)}>
-                              <Plus className="w-3 h-3" /> Tambah Data Pertama
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                            {selectedBatch.weightRecords.map((weight) => (
-                              <div key={weight.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-teal-50/50 to-transparent hover:from-teal-50 transition-colors group">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-                                    <span className="text-xs font-bold text-teal-700">H{weight.ageDays}</span>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-sm">{weight.averageWeightGram.toFixed(0)} gram ({(weight.averageWeightGram / 1000).toFixed(3)} kg)</p>
-                                    <p className="text-xs text-muted-foreground">{formatDate(weight.date)} • {weight.sampleCount} sampel</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="text-right">
-                                    <p className="text-xs text-muted-foreground">Gain</p>
-                                    <p className="text-sm font-bold text-emerald-600">
-                                      +{(weight.averageWeightGram - selectedBatch.initialWeight * 1000).toFixed(0)}g
-                                    </p>
-                                  </div>
-                                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteWeight(weight.id) }}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-
-                  {/* Mortality Records */}
-                  <TabsContent value="mortalitas">
-                    <Card className="border-0 shadow-lg">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                        <div>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Skull className="w-4 h-4 text-red-600" />
-                            Riwayat Mortalitas
-                          </CardTitle>
-                          <CardDescription>Catatan ayam mati, afkir, dan tidak layak jual</CardDescription>
-                        </div>
-                        {selectedBatch.status === 'active' && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" onClick={() => setAddMortalityOpen(true)}>
-                            <Plus className="w-4 h-4" /> Tambah
-                          </Button>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        {(() => {
-                          const totalDead = selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
-                          const mortalityRate = selectedBatch.quantity > 0 ? (totalDead / selectedBatch.quantity) * 100 : 0
-
-                          return (
-                            <>
-                              {/* Summary row */}
-                              <div className="grid grid-cols-3 gap-3 mb-4">
-                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Awal Masuk</p>
-                                  <p className="text-lg font-bold text-emerald-700">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
-                                </div>
-                                <div className="bg-red-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Total Mati/Afkir</p>
-                                  <p className="text-lg font-bold text-red-700">{totalDead} ekor ({mortalityRate.toFixed(1)}%)</p>
-                                </div>
-                                <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Masih Hidup</p>
-                                  <p className="text-lg font-bold text-amber-700">{(selectedBatch.quantity - totalDead).toLocaleString('id-ID')} ekor</p>
-                                </div>
-                              </div>
-
-                              {selectedBatch.mortalityRecords.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  <Skull className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                  <p className="text-sm">Belum ada catatan mortalitas</p>
-                                  <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddMortalityOpen(true)}>
-                                    <Plus className="w-3 h-3" /> Tambah Data Pertama
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                                  {selectedBatch.mortalityRecords.map((m) => (
-                                    <div key={m.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50/50 to-transparent hover:from-red-50 transition-colors group">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                                          <Skull className="w-5 h-5 text-red-600" />
-                                        </div>
-                                        <div>
-                                          <p className="font-medium text-sm">{MORTALITY_REASON_LABELS[m.reason] || m.reason}</p>
-                                          <p className="text-xs text-muted-foreground">{formatDate(m.date)}{m.notes ? ` • ${m.notes}` : ''}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
-                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </>
-                          )
-                        })()}
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-
-                {/* Total Panen Card (only for harvested batches) */}
-                {selectedBatch.status === 'harvested' && (() => {
-                  const stats = getBatchStats(selectedBatch)
-                  return (
-                    <Card className="border-0 shadow-lg overflow-hidden">
-                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                          <ShoppingBasket className="w-5 h-5" />
-                          Total Panen
-                        </h3>
+                {/* Settings Section */}
+                {activeSection === 'settings' && (
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="w-5 h-5 text-gray-600" />
+                        Pengaturan Aplikasi
+                      </CardTitle>
+                      <CardDescription>Kustomisasi nama aplikasi dan logo. Perubahan logo akan menjadi ikon saat diinstal di Android.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* App Name */}
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium">Nama Aplikasi</Label>
+                        <Input value={settingsForm.appName} onChange={(e) => setSettingsForm({ ...settingsForm, appName: e.target.value })} placeholder="AyamKu Farm" maxLength={50} className="max-w-md" />
+                        <p className="text-xs text-muted-foreground">Nama ini tampil di sidebar, header, footer, dan judul aplikasi</p>
                       </div>
-                      <CardContent className="p-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                          <div className="bg-amber-50 rounded-xl p-3 text-center">
-                            <p className="text-xs text-muted-foreground">Jumlah Panen</p>
-                            <p className="text-lg font-bold text-amber-700">{stats.harvestQty.toLocaleString('id-ID')} ekor</p>
+
+                      {/* Logo Upload */}
+                      <div className="space-y-3">
+                        <Label className="text-base font-medium">Logo Aplikasi</Label>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                          {/* Preview */}
+                          <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-emerald-200 flex items-center justify-center overflow-hidden bg-emerald-50/30 shrink-0">
+                            {logoPreview ? (
+                              <img src={logoPreview} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon className="w-8 h-8 text-emerald-300" />
+                            )}
                           </div>
-                          <div className="bg-orange-50 rounded-xl p-3 text-center">
-                            <p className="text-xs text-muted-foreground">Total Berat Panen</p>
-                            <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+                          <div className="flex-1 space-y-2 min-w-0">
+                            <div className="flex flex-wrap gap-2">
+                              <label>
+                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                                <Button variant="outline" className="gap-2 cursor-pointer" asChild>
+                                  <span><Upload className="w-4 h-4" /> Pilih Gambar</span>
+                                </Button>
+                              </label>
+                              {logoPreview && (
+                                <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10" onClick={handleRemoveLogo}>
+                                  <Trash2 className="w-4 h-4" /> Hapus
+                                </Button>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Format: PNG, JPG, SVG, WebP. Maksimal 2MB. Disarankan ukuran persegi (mis. 512×512px).</p>
                           </div>
-                          <div className="bg-green-50 rounded-xl p-3 text-center">
-                            <p className="text-xs text-muted-foreground">Pendapatan</p>
-                            <p className="text-lg font-bold text-green-700">{formatCurrency(stats.totalHarvestValue)}</p>
+                        </div>
+                      </div>
+
+                      {/* Live Preview */}
+                      <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-amber-50/30 p-4">
+                        <p className="text-xs font-semibold text-muted-foreground mb-3">PREVIEW TAMPILAN</p>
+                        <div className="flex items-center gap-3">
+                          {logoPreview ? (
+                            <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-xl object-cover shadow-lg shrink-0" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shrink-0">
+                              <Bird className="w-6 h-6 text-white" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{settingsForm.appName || 'AyamKu Farm'}</p>
+                            <p className="text-xs text-muted-foreground">Manajemen Peternakan Ayam</p>
                           </div>
-                          <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                            <p className="text-xs text-muted-foreground">Profit</p>
-                            <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                        </div>
+                      </div>
+
+                      {/* Android Install Info */}
+                      <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
+                        <div className="flex items-start gap-3">
+                          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                          <div className="text-sm text-blue-800">
+                            <p className="font-medium mb-1">Cara Instal di Android</p>
+                            <p className="text-xs text-blue-700">Buka aplikasi di browser Chrome Android → menu (⋮) → &quot;Tambahkan ke layar utama&quot;. Logo dan nama di atas akan menjadi ikon aplikasi.</p>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Save Button */}
+                      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2 border-t">
+                        <Button variant="outline" onClick={() => { setSettingsForm({ appName: appSettings.appName, logoData: appSettings.logoData }); setLogoPreview(appSettings.logoData) }}>
+                          Batal
+                        </Button>
+                        <Button onClick={handleSaveSettings} disabled={savingSettings} className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800">
+                          <Save className="w-4 h-4" /> {savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </motion.div>
+            ) : selectedBatch && (
+              <motion.div
+                key="batch-detail"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {/* Batch Detail View */}
+                <div className="space-y-6">
+                  {/* Back button & header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 relative z-10">
+                    <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null); setActiveSection('termin') }} className="w-fit gap-2">
+                      <ArrowLeft className="w-4 h-4" /> Kembali
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-xl sm:text-2xl font-bold truncate">{selectedBatch.name}</h2>
+                        <Badge variant={selectedBatch.status === 'active' ? 'default' : 'secondary'} className={selectedBatch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                          {selectedBatch.status === 'active' ? 'Aktif' : 'Panen'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      {selectedBatch.status === 'active' && (
+                        <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => setHarvestOpen(true)}>
+                          <CheckCircle2 className="w-4 h-4" /> Panen
+                        </Button>
+                      )}
+                      <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10 flex-1 sm:flex-none" onClick={() => handleDeleteBatch(selectedBatch.id)}>
+                        <Trash2 className="w-4 h-4" /> Hapus
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Batch Stats */}
+                  {(() => {
+                    const stats = getBatchStats(selectedBatch)
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                        {[
+                          { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                          { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
+                          { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
+                          { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
+                          { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
+                          { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
+                          { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(stats.totalCost), bg: 'bg-rose-50', text: 'text-rose-700' },
+                          { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
+                        ].map((stat) => (
+                          <Card key={stat.label} className="border-0 shadow-md">
+                            <CardContent className="p-3 sm:p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <stat.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="text-xs text-muted-foreground truncate">{stat.label}</span>
+                              </div>
+                              <p className={`text-sm sm:text-base font-bold ${stat.text} break-words`}>{stat.value}</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Weight Chart */}
+                  {selectedBatch.weightRecords.length > 1 && (
+                    <Card className="border-0 shadow-lg">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                          Grafik Pertumbuhan
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={[...selectedBatch.weightRecords]
+                              .sort((a, b) => a.ageDays - b.ageDays)
+                              .map((w) => ({
+                                umur: `Hari ${w.ageDays}`,
+                                berat: w.averageWeightGram,
+                              }))}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis dataKey="umur" tick={{ fontSize: 12 }} />
+                              <YAxis tick={{ fontSize: 12 }} unit="g" />
+                              <Tooltip formatter={(value: number) => [`${value} gram`, 'Berat Rata-rata']} />
+                              <Line type="monotone" dataKey="berat" stroke="#16a34a" strokeWidth={3} dot={{ r: 5, fill: '#16a34a' }} />
+                            </LineChart>
+                          </ResponsiveContainer>
                         </div>
                       </CardContent>
                     </Card>
-                  )
-                })()}
+                  )}
+
+                  {/* Detail Tabs: Feed, Weight, Mortality */}
+                  <Tabs defaultValue="pakan" className="space-y-4">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-2 sm:flex">
+                      <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
+                        <Wheat className="w-4 h-4" /> Pakan
+                      </TabsTrigger>
+                      <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
+                        <Scale className="w-4 h-4" /> Berat
+                      </TabsTrigger>
+                      <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 w-full sm:w-auto col-span-2 sm:col-span-1">
+                        <Skull className="w-4 h-4" /> Mortalitas
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* Feed Records */}
+                    <TabsContent value="pakan">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Wheat className="w-4 h-4 text-amber-600" />
+                              Riwayat Pakan
+                            </CardTitle>
+                            <CardDescription>Catatan pemberian pakan</CardDescription>
+                          </div>
+                          {selectedBatch.status === 'active' && (
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => setAddFeedOpen(true)}>
+                              <Plus className="w-4 h-4" /> Tambah
+                            </Button>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {selectedBatch.feedRecords.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                              <p className="text-sm">Belum ada catatan pakan</p>
+                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddFeedOpen(true)}>
+                                <Plus className="w-3 h-3" /> Tambah Pakan Pertama
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                              {selectedBatch.feedRecords.map((feed) => (
+                                <div key={feed.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-2 h-8 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[feed.feedType] || '#8b5cf6' }} />
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-sm truncate">{feed.feedType}</p>
+                                      <p className="text-xs text-muted-foreground">{formatDate(feed.date)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <div className="text-right">
+                                      <p className="font-bold text-sm">{feed.quantityKg} kg</p>
+                                      <p className="text-xs text-muted-foreground">{formatCurrency(feed.quantityKg * feed.pricePerKg)}</p>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed.id) }}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Weight Records */}
+                    <TabsContent value="berat">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Scale className="w-4 h-4 text-teal-600" />
+                              Riwayat Berat
+                            </CardTitle>
+                            <CardDescription>Catatan timbang berat ayam</CardDescription>
+                          </div>
+                          {selectedBatch.status === 'active' && (
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => setAddWeightOpen(true)}>
+                              <Plus className="w-4 h-4" /> Tambah
+                            </Button>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {selectedBatch.weightRecords.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                              <p className="text-sm">Belum ada catatan berat</p>
+                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddWeightOpen(true)}>
+                                <Plus className="w-3 h-3" /> Tambah Data Pertama
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                              {selectedBatch.weightRecords.map((weight) => (
+                                <div key={weight.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-teal-50/50 to-transparent hover:from-teal-50 transition-colors group">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
+                                      <span className="text-xs font-bold text-teal-700">H{weight.ageDays}</span>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-sm truncate">{weight.averageWeightGram.toFixed(0)} gram ({(weight.averageWeightGram / 1000).toFixed(3)} kg)</p>
+                                      <p className="text-xs text-muted-foreground">{formatDate(weight.date)} • {weight.sampleCount} sampel</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <div className="text-right">
+                                      <p className="text-xs text-muted-foreground">Gain</p>
+                                      <p className="text-sm font-bold text-emerald-600">
+                                        +{(weight.averageWeightGram - selectedBatch.initialWeight * 1000).toFixed(0)}g
+                                      </p>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteWeight(weight.id) }}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Mortality Records */}
+                    <TabsContent value="mortalitas">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Skull className="w-4 h-4 text-red-600" />
+                              Riwayat Mortalitas
+                            </CardTitle>
+                            <CardDescription>Catatan ayam mati, afkir, dan tidak layak jual</CardDescription>
+                          </div>
+                          {selectedBatch.status === 'active' && (
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => setAddMortalityOpen(true)}>
+                              <Plus className="w-4 h-4" /> Tambah
+                            </Button>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const totalDead = selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+                            const mortalityRate = selectedBatch.quantity > 0 ? (totalDead / selectedBatch.quantity) * 100 : 0
+
+                            return (
+                              <>
+                                {/* Summary row */}
+                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Awal Masuk</p>
+                                    <p className="text-lg font-bold text-emerald-700">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
+                                  </div>
+                                  <div className="bg-red-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Mati/Afkir</p>
+                                    <p className="text-lg font-bold text-red-700">{totalDead} ekor ({mortalityRate.toFixed(1)}%)</p>
+                                  </div>
+                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Masih Hidup</p>
+                                    <p className="text-lg font-bold text-amber-700">{(selectedBatch.quantity - totalDead).toLocaleString('id-ID')} ekor</p>
+                                  </div>
+                                </div>
+
+                                {selectedBatch.mortalityRecords.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <Skull className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">Belum ada catatan mortalitas</p>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddMortalityOpen(true)}>
+                                      <Plus className="w-3 h-3" /> Tambah Data Pertama
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                                    {selectedBatch.mortalityRecords.map((m) => (
+                                      <div key={m.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50/50 to-transparent hover:from-red-50 transition-colors group">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                                            <Skull className="w-5 h-5 text-red-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="font-medium text-sm truncate">{MORTALITY_REASON_LABELS[m.reason] || m.reason}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{formatDate(m.date)}{m.notes ? ` • ${m.notes}` : ''}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
+
+                  {/* Total Panen Card (only for harvested batches) */}
+                  {selectedBatch.status === 'harvested' && (() => {
+                    const stats = getBatchStats(selectedBatch)
+                    return (
+                      <Card className="border-0 shadow-lg overflow-hidden">
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4">
+                          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <ShoppingBasket className="w-5 h-5" />
+                            Total Panen
+                          </h3>
+                        </div>
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="bg-amber-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Jumlah Panen</p>
+                              <p className="text-lg font-bold text-amber-700">{stats.harvestQty.toLocaleString('id-ID')} ekor</p>
+                            </div>
+                            <div className="bg-orange-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+                              <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+                            </div>
+                            <div className="bg-green-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Pendapatan</p>
+                              <p className="text-base sm:text-lg font-bold text-green-700 break-words">{formatCurrency(stats.totalHarvestValue)}</p>
+                            </div>
+                            <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                              <p className="text-xs text-muted-foreground">Profit</p>
+                              <p className={`text-base sm:text-lg font-bold break-words ${stats.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })()}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        {/* Footer */}
+        <footer className="mt-auto border-t bg-white/80 backdrop-blur-sm py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold bg-gradient-to-r from-emerald-600 to-amber-600 bg-clip-text text-transparent">{appSettings.appName}</span>
+              {' '}• Sistem Manajemen Peternakan Ayam
+            </p>
+          </div>
+        </footer>
+      </div>
+
+      {/* Add Batch Dialog */}
+      <Dialog open={addBatchOpen} onOpenChange={setAddBatchOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-emerald-600" />
+              Tambah Termin Baru
+            </DialogTitle>
+            <DialogDescription>Tambahkan bibit ayam baru ke peternakan</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="batch-name">Nama Termin</Label>
+                <Input id="batch-name" placeholder="Termin 1" value={batchForm.name} onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })} />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+              <div className="space-y-2">
+                <Label htmlFor="termin-number">No. Termin</Label>
+                <Input id="termin-number" type="number" min="1" value={batchForm.terminNumber} onChange={(e) => setBatchForm({ ...batchForm, terminNumber: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="arrival-date">Tanggal Datang</Label>
+                <Input id="arrival-date" type="date" value={batchForm.arrivalDate} onChange={(e) => setBatchForm({ ...batchForm, arrivalDate: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Jumlah (ekor)</Label>
+                <Input id="quantity" type="number" min="1" placeholder="1000" value={batchForm.quantity} onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="initial-weight">Berat Awal (kg/ekor)</Label>
+              <Input id="initial-weight" type="number" step="0.001" min="0" placeholder="0.040" value={batchForm.initialWeight} onChange={(e) => setBatchForm({ ...batchForm, initialWeight: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="batch-notes">Catatan</Label>
+              <Textarea id="batch-notes" placeholder="Catatan opsional..." value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} />
+            </div>
+            <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={!batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
+              Simpan Termin
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Feed Dialog */}
       <Dialog open={addFeedOpen} onOpenChange={setAddFeedOpen}>
@@ -1568,7 +2004,7 @@ export default function HomePage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Pendapatan</p>
-                    <p className="text-lg font-bold text-green-700">{formatCurrency(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight) * parseFloat(harvestForm.sellingPricePerKg))}</p>
+                    <p className="text-base sm:text-lg font-bold text-green-700 break-words">{formatCurrency(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight) * parseFloat(harvestForm.sellingPricePerKg))}</p>
                   </div>
                 </div>
               </div>
@@ -1580,15 +2016,45 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t bg-white/80 backdrop-blur-sm py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            <span className="font-semibold bg-gradient-to-r from-emerald-600 to-amber-600 bg-clip-text text-transparent">AyamKu Farm</span>
-            {' '}• Sistem Manajemen Peternakan Ayam
-          </p>
-        </div>
-      </footer>
+      {/* Day Detail Dialog (Calendar) */}
+      <Dialog open={!!dayDetail} onOpenChange={(open) => !open && setDayDetail(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-emerald-600" />
+              {dayDetail?.date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </DialogTitle>
+            <DialogDescription>
+              {dayDetail?.events.length || 0} kegiatan pada tanggal ini
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            {dayDetail?.events.map((event, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-white">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${event.type === 'tiba' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                  {event.type === 'tiba' ? (
+                    <Bird className="w-5 h-5 text-emerald-700" />
+                  ) : (
+                    <ShoppingBasket className="w-5 h-5 text-amber-700" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{event.batch.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Termin #{event.batch.terminNumber} •{' '}
+                    {event.type === 'tiba'
+                      ? `Bibit tiba • ${event.batch.quantity.toLocaleString('id-ID')} ekor`
+                      : `Panen • ${event.batch.harvestQuantity?.toLocaleString('id-ID') || 0} ekor`}
+                  </p>
+                </div>
+                <Badge variant="outline" className={`shrink-0 ${event.type === 'tiba' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                  {event.type === 'tiba' ? 'Tiba' : 'Panen'}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Custom scrollbar styles */}
       <style jsx global>{`

@@ -1,0 +1,402 @@
+   801→                                    <p className="text-xs text-muted-foreground">Awal</p>
+   802→                                    <p className="text-sm font-bold text-emerald-700">{batch.quantity.toLocaleString('id-ID')}</p>
+   803→                                  </div>
+   804→                                  <div className="bg-red-50 rounded-lg p-2 text-center">
+   805→                                    <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+   806→                                    <p className="text-sm font-bold text-red-700">{totalDead}</p>
+   807→                                  </div>
+   808→                                  <div className="bg-amber-50 rounded-lg p-2 text-center">
+   809→                                    <p className="text-xs text-muted-foreground">Hidup</p>
+   810→                                    <p className="text-sm font-bold text-amber-700">{(batch.quantity - totalDead).toLocaleString('id-ID')}</p>
+   811→                                  </div>
+   812→                                </div>
+   813→
+   814→                                {pieData.length > 0 && (
+   815→                                  <div className="flex flex-col sm:flex-row items-center gap-4">
+   816→                                    <div className="w-40 h-40">
+   817→                                      <ResponsiveContainer width="100%" height="100%">
+   818→                                        <PieChart>
+   819→                                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+   820→                                            {pieData.map((entry, index) => (
+   821→                                              <Cell key={`cell-${index}`} fill={MORTALITY_REASON_COLORS[Object.keys(MORTALITY_REASON_LABELS).find(k => MORTALITY_REASON_LABELS[k] === entry.name) || 'lainnya'] || COLORS[index]} />
+   822→                                            ))}
+   823→                                          </Pie>
+   824→                                          <Tooltip formatter={(value: number) => [`${value} ekor`, 'Jumlah']} />
+   825→                                        </PieChart>
+   826→                                      </ResponsiveContainer>
+   827→                                    </div>
+   828→                                    <div className="flex-1 space-y-1.5">
+   829→                                      {Object.entries(deadByReason).map(([reason, qty]) => (
+   830→                                        <div key={reason} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/60">
+   831→                                          <div className="flex items-center gap-2">
+   832→                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[reason] || '#6b7280' }} />
+   833→                                            <span className="text-sm font-medium">{MORTALITY_REASON_LABELS[reason] || reason}</span>
+   834→                                          </div>
+   835→                                          <span className="text-sm font-bold">{qty} ekor</span>
+   836→                                        </div>
+   837→                                      ))}
+   838→                                    </div>
+   839→                                  </div>
+   840→                                )}
+   841→
+   842→                                {/* Mortality timeline */}
+   843→                                {batch.mortalityRecords.length > 0 && (
+   844→                                  <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+   845→                                    <p className="text-xs font-medium text-muted-foreground mb-1">Riwayat Kematian:</p>
+   846→                                    {batch.mortalityRecords.map((m) => (
+   847→                                      <div key={m.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
+   848→                                        <div className="flex items-center gap-2">
+   849→                                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
+   850→                                          <span className="text-xs">{formatDate(m.date)}</span>
+   851→                                          <span className="text-xs text-muted-foreground">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
+   852→                                        </div>
+   853→                                        <span className="text-xs font-bold">{m.quantity} ekor</span>
+   854→                                      </div>
+   855→                                    ))}
+   856→                                  </div>
+   857→                                )}
+   858→
+   859→                                {batch.mortalityRecords.length === 0 && (
+   860→                                  <p className="text-sm text-muted-foreground text-center py-2">Tidak ada catatan mortalitas</p>
+   861→                                )}
+   862→                              </div>
+   863→                            )
+   864→                          })}
+   865→                        </div>
+   866→                      )}
+   867→                    </CardContent>
+   868→                  </Card>
+   869→                </TabsContent>
+   870→
+   871→                {/* Hitung Tab */}
+   872→                <TabsContent value="hitung">
+   873→                  <Card className="border-0 shadow-lg">
+   874→                    <CardHeader>
+   875→                      <CardTitle className="flex items-center gap-2">
+   876→                        <Calculator className="w-5 h-5 text-rose-600" />
+   877→                        Perhitungan & Total Panen Per Termin
+   878→                      </CardTitle>
+   879→                      <CardDescription>Kalkulasi total pakan, biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
+   880→                    </CardHeader>
+   881→                    <CardContent>
+   882→                      {batches.length === 0 ? (
+   883→                        <div className="text-center py-12 text-muted-foreground">
+   884→                          <Calculator className="w-12 h-12 mx-auto mb-3 opacity-30" />
+   885→                          <p>Belum ada data untuk dihitung</p>
+   886→                        </div>
+   887→                      ) : (
+   888→                        <div className="space-y-6">
+   889→                          {/* Summary Chart */}
+   890→                          {dashboard && dashboard.batchSummaries.length > 0 && (
+   891→                            <div className="border rounded-xl p-4 bg-gradient-to-br from-white to-rose-50/20">
+   892→                              <h3 className="font-bold mb-4 flex items-center gap-2">
+   893→                                <BarChart3 className="w-4 h-4 text-rose-600" />
+   894→                                Perbandingan Per Termin
+   895→                              </h3>
+   896→                              <div className="h-72">
+   897→                                <ResponsiveContainer width="100%" height="100%">
+   898→                                  <BarChart data={dashboard.batchSummaries.map((b) => ({
+   899→                                    name: b.name,
+   900→                                    'Total Pakan (kg)': b.totalFeedKg,
+   901→                                    'Biaya (Rp ribu)': Math.round(b.totalFeedCost / 1000),
+   902→                                    'Mati/Afkir': b.totalDead,
+   903→                                  }))}>
+   904→                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+   905→                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+   906→                                    <YAxis tick={{ fontSize: 11 }} />
+   907→                                    <Tooltip />
+   908→                                    <Legend />
+   909→                                    <Bar dataKey="Total Pakan (kg)" fill="#16a34a" radius={[4, 4, 0, 0]} />
+   910→                                    <Bar dataKey="Biaya (Rp ribu)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+   911→                                    <Bar dataKey="Mati/Afkir" fill="#ef4444" radius={[4, 4, 0, 0]} />
+   912→                                  </BarChart>
+   913→                                </ResponsiveContainer>
+   914→                              </div>
+   915→                            </div>
+   916→                          )}
+   917→
+   918→                          {/* Per-termin detail cards */}
+   919→                          {batches.map((batch) => {
+   920→                            const stats = getBatchStats(batch)
+   921→                            const feedByType = batch.feedRecords.reduce((acc, f) => {
+   922→                              if (!acc[f.feedType]) acc[f.feedType] = { total: 0, cost: 0 }
+   923→                              acc[f.feedType].total += f.quantityKg
+   924→                              acc[f.feedType].cost += f.quantityKg * f.pricePerKg
+   925→                              return acc
+   926→                            }, {} as Record<string, { total: number; cost: number }>)
+   927→
+   928→                            const pieData = Object.entries(feedByType).map(([type, data]) => ({
+   929→                              name: type,
+   930→                              value: data.total,
+   931→                              cost: data.cost,
+   932→                            }))
+   933→
+   934→                            return (
+   935→                              <div key={batch.id} className="border rounded-xl overflow-hidden">
+   936→                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between">
+   937→                                  <div>
+   938→                                    <h3 className="font-bold text-lg">{batch.name}</h3>
+   939→                                    <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor awal • {stats.ageDays} hari</p>
+   940→                                  </div>
+   941→                                  <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+   942→                                    {batch.status === 'active' ? 'Aktif' : 'Panen'}
+   943→                                  </Badge>
+   944→                                </div>
+   945→                                <div className="p-4">
+   946→                                  {/* Feed & Cost stats */}
+   947→                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+   948→                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+   949→                                      <p className="text-xs text-muted-foreground">Total Pakan</p>
+   950→                                      <p className="text-lg font-bold text-emerald-700">{stats.totalFeed.toFixed(1)} kg</p>
+   951→                                    </div>
+   952→                                    <div className="bg-amber-50 rounded-xl p-3 text-center">
+   953→                                      <p className="text-xs text-muted-foreground">Total Biaya</p>
+   954→                                      <p className="text-lg font-bold text-amber-700">{formatCurrency(stats.totalCost)}</p>
+   955→                                    </div>
+   956→                                    <div className="bg-teal-50 rounded-xl p-3 text-center">
+   957→                                      <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
+   958→                                      <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
+   959→                                    </div>
+   960→                                    <div className="bg-violet-50 rounded-xl p-3 text-center">
+   961→                                      <p className="text-xs text-muted-foreground">FCR</p>
+   962→                                      <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
+   963→                                    </div>
+   964→                                  </div>
+   965→
+   966→                                  {/* Mortality & Harvest stats */}
+   967→                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+   968→                                    <div className="bg-red-50 rounded-xl p-3 text-center">
+   969→                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+   970→                                      <p className="text-lg font-bold text-red-700">{stats.totalDead} ekor</p>
+   971→                                      <p className="text-xs text-red-500">{stats.mortalityRate.toFixed(1)}%</p>
+   972→                                    </div>
+   973→                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+   974→                                      <p className="text-xs text-muted-foreground">Hidup</p>
+   975→                                      <p className="text-lg font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+   976→                                    </div>
+   977→                                    <div className="bg-orange-50 rounded-xl p-3 text-center">
+   978→                                      <p className="text-xs text-muted-foreground">Total Panen</p>
+   979→                                      <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+   980→                                      {stats.harvestQty > 0 && <p className="text-xs text-muted-foreground">{stats.harvestQty} ekor × {stats.harvestWt} kg</p>}
+   981→                                    </div>
+   982→                                    <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+   983→                                      <p className="text-xs text-muted-foreground">{batch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
+   984→                                      <p className={`text-lg font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+   985→                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
+   986→                                    </div>
+   987→                                  </div>
+   988→
+   989→                                  {/* Pie chart for feed distribution */}
+   990→                                  {pieData.length > 0 && (
+   991→                                    <div className="flex flex-col sm:flex-row items-center gap-4">
+   992→                                      <div className="w-48 h-48">
+   993→                                        <ResponsiveContainer width="100%" height="100%">
+   994→                                          <PieChart>
+   995→                                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+   996→                                              {pieData.map((entry, index) => (
+   997→                                                <Cell key={`cell-${index}`} fill={FEED_TYPE_COLORS[entry.name] || COLORS[index % COLORS.length]} />
+   998→                                              ))}
+   999→                                            </Pie>
+  1000→                                            <Tooltip formatter={(value: number) => [`${value.toFixed(1)} kg`, 'Jumlah']} />
+  1001→                                          </PieChart>
+  1002→                                        </ResponsiveContainer>
+  1003→                                      </div>
+  1004→                                      <div className="flex-1 space-y-2">
+  1005→                                        {Object.entries(feedByType).map(([type, data]) => (
+  1006→                                          <div key={type} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-gray-50">
+  1007→                                            <div className="flex items-center gap-2">
+  1008→                                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
+  1009→                                              <span className="text-sm font-medium">{type}</span>
+  1010→                                            </div>
+  1011→                                            <div className="text-right">
+  1012→                                              <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
+  1013→                                              <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
+  1014→                                            </div>
+  1015→                                          </div>
+  1016→                                        ))}
+  1017→                                      </div>
+  1018→                                    </div>
+  1019→                                  )}
+  1020→
+  1021→                                  {batch.feedRecords.length === 0 && (
+  1022→                                    <p className="text-sm text-muted-foreground text-center py-4">Belum ada data pakan untuk termin ini</p>
+  1023→                                  )}
+  1024→                                </div>
+  1025→                              </div>
+  1026→                            )
+  1027→                          })}
+  1028→                        </div>
+  1029→                      )}
+  1030→                    </CardContent>
+  1031→                  </Card>
+  1032→                </TabsContent>
+  1033→              </Tabs>
+  1034→            </motion.div>
+  1035→          ) : selectedBatch && (
+  1036→            <motion.div
+  1037→              key="batch-detail"
+  1038→              initial={{ opacity: 0, x: 20 }}
+  1039→              animate={{ opacity: 1, x: 0 }}
+  1040→              exit={{ opacity: 0, x: -20 }}
+  1041→              transition={{ duration: 0.3 }}
+  1042→            >
+  1043→              {/* Batch Detail View */}
+  1044→              <div className="space-y-6">
+  1045→                {/* Back button & header */}
+  1046→                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 relative z-10">
+  1047→                  <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null) }} className="w-fit gap-2">
+  1048→                    <ArrowLeft className="w-4 h-4" /> Kembali
+  1049→                  </Button>
+  1050→                  <div className="flex-1">
+  1051→                    <div className="flex items-center gap-3">
+  1052→                      <h2 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h2>
+  1053→                      <Badge variant={selectedBatch.status === 'active' ? 'default' : 'secondary'} className={selectedBatch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+  1054→                        {selectedBatch.status === 'active' ? 'Aktif' : 'Panen'}
+  1055→                      </Badge>
+  1056→                    </div>
+  1057→                    <p className="text-sm text-muted-foreground mt-1">
+  1058→                      Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
+  1059→                    </p>
+  1060→                  </div>
+  1061→                  <div className="flex gap-2">
+  1062→                    {selectedBatch.status === 'active' && (
+  1063→                      <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => setHarvestOpen(true)}>
+  1064→                        <CheckCircle2 className="w-4 h-4" /> Panen
+  1065→                      </Button>
+  1066→                    )}
+  1067→                    <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBatch(selectedBatch.id)}>
+  1068→                      <Trash2 className="w-4 h-4" /> Hapus
+  1069→                    </Button>
+  1070→                  </div>
+  1071→                </div>
+  1072→
+  1073→                {/* Batch Stats */}
+  1074→                {(() => {
+  1075→                  const stats = getBatchStats(selectedBatch)
+  1076→                  return (
+  1077→                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+  1078→                      {[
+  1079→                        { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  1080→                        { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
+  1081→                        { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
+  1082→                        { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
+  1083→                        { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
+  1084→                        { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
+  1085→                        { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(stats.totalCost), bg: 'bg-rose-50', text: 'text-rose-700' },
+  1086→                        { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
+  1087→                      ].map((stat) => (
+  1088→                        <Card key={stat.label} className="border-0 shadow-md">
+  1089→                          <CardContent className="p-3 sm:p-4">
+  1090→                            <div className="flex items-center gap-2 mb-1">
+  1091→                              <stat.icon className="w-4 h-4 text-muted-foreground" />
+  1092→                              <span className="text-xs text-muted-foreground">{stat.label}</span>
+  1093→                            </div>
+  1094→                            <p className={`text-sm sm:text-base font-bold ${stat.text}`}>{stat.value}</p>
+  1095→                          </CardContent>
+  1096→                        </Card>
+  1097→                      ))}
+  1098→                    </div>
+  1099→                  )
+  1100→                })()}
+  1101→
+  1102→                {/* Weight Chart */}
+  1103→                {selectedBatch.weightRecords.length > 1 && (
+  1104→                  <Card className="border-0 shadow-lg">
+  1105→                    <CardHeader className="pb-2">
+  1106→                      <CardTitle className="text-base flex items-center gap-2">
+  1107→                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+  1108→                        Grafik Pertumbuhan
+  1109→                      </CardTitle>
+  1110→                    </CardHeader>
+  1111→                    <CardContent>
+  1112→                      <div className="h-64">
+  1113→                        <ResponsiveContainer width="100%" height="100%">
+  1114→                          <LineChart data={[...selectedBatch.weightRecords]
+  1115→                            .sort((a, b) => a.ageDays - b.ageDays)
+  1116→                            .map((w) => ({
+  1117→                              umur: `Hari ${w.ageDays}`,
+  1118→                              berat: w.averageWeightGram,
+  1119→                            }))}>
+  1120→                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+  1121→                            <XAxis dataKey="umur" tick={{ fontSize: 12 }} />
+  1122→                            <YAxis tick={{ fontSize: 12 }} unit="g" />
+  1123→                            <Tooltip formatter={(value: number) => [`${value} gram`, 'Berat Rata-rata']} />
+  1124→                            <Line type="monotone" dataKey="berat" stroke="#16a34a" strokeWidth={3} dot={{ r: 5, fill: '#16a34a' }} />
+  1125→                          </LineChart>
+  1126→                        </ResponsiveContainer>
+  1127→                      </div>
+  1128→                    </CardContent>
+  1129→                  </Card>
+  1130→                )}
+  1131→
+  1132→                {/* Detail Tabs: Feed, Weight, Mortality */}
+  1133→                <Tabs defaultValue="pakan" className="space-y-4">
+  1134→                  <TabsList className="bg-white shadow-sm border p-1">
+  1135→                    <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
+  1136→                      <Wheat className="w-4 h-4" /> Pakan
+  1137→                    </TabsTrigger>
+  1138→                    <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700">
+  1139→                      <Scale className="w-4 h-4" /> Berat
+  1140→                    </TabsTrigger>
+  1141→                    <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
+  1142→                      <Skull className="w-4 h-4" /> Mortalitas
+  1143→                    </TabsTrigger>
+  1144→                  </TabsList>
+  1145→
+  1146→                  {/* Feed Records */}
+  1147→                  <TabsContent value="pakan">
+  1148→                    <Card className="border-0 shadow-lg">
+  1149→                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+  1150→                        <div>
+  1151→                          <CardTitle className="text-base flex items-center gap-2">
+  1152→                            <Wheat className="w-4 h-4 text-amber-600" />
+  1153→                            Riwayat Pakan
+  1154→                          </CardTitle>
+  1155→                          <CardDescription>Catatan pemberian pakan</CardDescription>
+  1156→                        </div>
+  1157→                        {selectedBatch.status === 'active' && (
+  1158→                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" onClick={() => setAddFeedOpen(true)}>
+  1159→                            <Plus className="w-4 h-4" /> Tambah
+  1160→                          </Button>
+  1161→                        )}
+  1162→                      </CardHeader>
+  1163→                      <CardContent>
+  1164→                        {selectedBatch.feedRecords.length === 0 ? (
+  1165→                          <div className="text-center py-8 text-muted-foreground">
+  1166→                            <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
+  1167→                            <p className="text-sm">Belum ada catatan pakan</p>
+  1168→                            <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddFeedOpen(true)}>
+  1169→                              <Plus className="w-3 h-3" /> Tambah Pakan Pertama
+  1170→                            </Button>
+  1171→                          </div>
+  1172→                        ) : (
+  1173→                          <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+  1174→                            {selectedBatch.feedRecords.map((feed) => (
+  1175→                              <div key={feed.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
+  1176→                                <div className="flex items-center gap-3">
+  1177→                                  <div className="w-2 h-8 rounded-full" style={{ backgroundColor: FEED_TYPE_COLORS[feed.feedType] || '#8b5cf6' }} />
+  1178→                                  <div>
+  1179→                                    <p className="font-medium text-sm">{feed.feedType}</p>
+  1180→                                    <p className="text-xs text-muted-foreground">{formatDate(feed.date)}</p>
+  1181→                                  </div>
+  1182→                                </div>
+  1183→                                <div className="flex items-center gap-3">
+  1184→                                  <div className="text-right">
+  1185→                                    <p className="font-bold text-sm">{feed.quantityKg} kg</p>
+  1186→                                    <p className="text-xs text-muted-foreground">{formatCurrency(feed.quantityKg * feed.pricePerKg)}</p>
+  1187→                                  </div>
+  1188→                                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed.id) }}>
+  1189→                                    <Trash2 className="w-3.5 h-3.5" />
+  1190→                                  </Button>
+  1191→                                </div>
+  1192→                              </div>
+  1193→                            ))}
+  1194→                          </div>
+  1195→                        )}
+  1196→                      </CardContent>
+  1197→                    </Card>
+  1198→                  </TabsContent>
+  1199→
+  1200→                  {/* Weight Records */}
+
+[showing lines 801-1200 of 1612; use offset=1201 with limit to continue reading]
