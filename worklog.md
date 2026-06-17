@@ -162,3 +162,28 @@ Stage Summary:
 - Data persisted in SQLite (AppSetting table: appName, logoData keys)
 - Sidebar layout + mobile responsiveness also restored (was lost in environment reset)
 - All features browser-verified end-to-end
+
+---
+Task ID: vercel-postgres-migration
+Agent: main-agent
+Task: Migrate database from SQLite to PostgreSQL for Vercel deployment (user wants Vercel Postgres)
+
+Work Log:
+- Checked sandbox environment: no PostgreSQL, no Docker, cannot sudo to install → local preview will break after migration (expected, warned user)
+- Exported current SQLite data to prisma/backup.json (2 batches, 12 feedRecords, 13 weightRecords, 8 mortalityRecords, 2 appSettings)
+- Converted prisma/schema.prisma: provider sqlite → postgresql
+- Updated src/lib/db.ts to use @prisma/adapter-pg (PrismaPg) for serverless compatibility
+- Installed @prisma/adapter-pg@6.19.2 (matched @prisma/client version) + pg@8.21.0 + @types/pg
+- Updated package.json: added postinstall (prisma generate), changed build to "prisma generate && next build", added db:seed script
+- Rewrote prisma/seed.ts to restore from backup.json (fallback to demo data if no backup)
+- Untracked .env and db/custom.db from git, added db/*.db to .gitignore, added !.env.example exception
+- Created .env.example documenting required DATABASE_URL
+- Lint passed clean (exit 0)
+- Committed and pushed to GitHub (commit 1b0604d)
+
+Stage Summary:
+- Code is now Vercel-ready: PostgreSQL via Prisma driver adapter (serverless-safe)
+- Data preserved in prisma/backup.json — user can restore with `bun run db:push && bun run db:seed` on Vercel
+- Local sandbox preview BROKEN (no Postgres available) — expected tradeoff, user informed
+- Next step for user: import repo on Vercel dashboard, create Vercel Postgres database, set DATABASE_URL env var, deploy
+- Repo: https://github.com/merdinadina58-creator/ayamku-farm
