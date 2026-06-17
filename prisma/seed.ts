@@ -1,9 +1,174 @@
 import { db } from '@/lib/db'
 
-async function seed() {
+type Backup = {
+  exportedAt: string
+  counts: Record<string, number>
+  data: {
+    batches: Array<{
+      id: string
+      name: string
+      terminNumber: number
+      arrivalDate: string
+      initialWeight: number
+      quantity: number
+      status: string
+      harvestDate: string | null
+      harvestWeight: number | null
+      harvestQuantity: number | null
+      sellingPricePerKg: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }>
+    feedRecords: Array<{
+      id: string
+      batchId: string
+      date: string
+      feedType: string
+      quantityKg: number
+      pricePerKg: number
+      notes: string | null
+      createdAt: string
+    }>
+    weightRecords: Array<{
+      id: string
+      batchId: string
+      date: string
+      averageWeightGram: number
+      ageDays: number
+      sampleCount: number
+      notes: string | null
+      createdAt: string
+    }>
+    mortalityRecords: Array<{
+      id: string
+      batchId: string
+      date: string
+      quantity: number
+      reason: string
+      notes: string | null
+      createdAt: string
+    }>
+    appSettings: Array<{
+      key: string
+      value: string
+      updatedAt: string
+    }>
+  }
+}
+
+async function restoreFromBackup() {
+  const file = Bun.file('prisma/backup.json')
+  const exists = await file.exists()
+  if (!exists) {
+    console.log('ℹ️  No backup.json found, skipping restore.')
+    return false
+  }
+
+  const backup: Backup = await file.json()
+  console.log(`📦 Found backup from ${backup.exportedAt}`)
+  console.log('   Counts:', backup.counts)
+
+  // Restore batches first (parent records)
+  for (const b of backup.data.batches) {
+    await db.batch.upsert({
+      where: { id: b.id },
+      update: {
+        name: b.name,
+        terminNumber: b.terminNumber,
+        arrivalDate: new Date(b.arrivalDate),
+        initialWeight: b.initialWeight,
+        quantity: b.quantity,
+        status: b.status,
+        harvestDate: b.harvestDate ? new Date(b.harvestDate) : null,
+        harvestWeight: b.harvestWeight,
+        harvestQuantity: b.harvestQuantity,
+        sellingPricePerKg: b.sellingPricePerKg,
+        notes: b.notes,
+      },
+      create: {
+        id: b.id,
+        name: b.name,
+        terminNumber: b.terminNumber,
+        arrivalDate: new Date(b.arrivalDate),
+        initialWeight: b.initialWeight,
+        quantity: b.quantity,
+        status: b.status,
+        harvestDate: b.harvestDate ? new Date(b.harvestDate) : null,
+        harvestWeight: b.harvestWeight,
+        harvestQuantity: b.harvestQuantity,
+        sellingPricePerKg: b.sellingPricePerKg,
+        notes: b.notes,
+        createdAt: new Date(b.createdAt),
+        updatedAt: new Date(b.updatedAt),
+      },
+    })
+  }
+
+  // Restore child records
+  if (backup.data.feedRecords.length > 0) {
+    await db.feedRecord.createMany({
+      data: backup.data.feedRecords.map((r) => ({
+        id: r.id,
+        batchId: r.batchId,
+        date: new Date(r.date),
+        feedType: r.feedType,
+        quantityKg: r.quantityKg,
+        pricePerKg: r.pricePerKg,
+        notes: r.notes,
+        createdAt: new Date(r.createdAt),
+      })),
+      skipDuplicates: true,
+    })
+  }
+
+  if (backup.data.weightRecords.length > 0) {
+    await db.weightRecord.createMany({
+      data: backup.data.weightRecords.map((r) => ({
+        id: r.id,
+        batchId: r.batchId,
+        date: new Date(r.date),
+        averageWeightGram: r.averageWeightGram,
+        ageDays: r.ageDays,
+        sampleCount: r.sampleCount,
+        notes: r.notes,
+        createdAt: new Date(r.createdAt),
+      })),
+      skipDuplicates: true,
+    })
+  }
+
+  if (backup.data.mortalityRecords.length > 0) {
+    await db.mortalityRecord.createMany({
+      data: backup.data.mortalityRecords.map((r) => ({
+        id: r.id,
+        batchId: r.batchId,
+        date: new Date(r.date),
+        quantity: r.quantity,
+        reason: r.reason,
+        notes: r.notes,
+        createdAt: new Date(r.createdAt),
+      })),
+      skipDuplicates: true,
+    })
+  }
+
+  for (const s of backup.data.appSettings) {
+    await db.appSetting.upsert({
+      where: { key: s.key },
+      update: { value: s.value },
+      create: { key: s.key, value: s.value, updatedAt: new Date(s.updatedAt) },
+    })
+  }
+
+  console.log('✅ Data restored from backup successfully!')
+  return true
+}
+
+async function seedDemo() {
   const existing = await db.batch.count()
   if (existing > 0) {
-    console.log('Data already exists, skipping seed')
+    console.log('Data already exists, skipping demo seed')
     return
   }
 
@@ -51,7 +216,6 @@ async function seed() {
     ],
   })
 
-  // Mortality records for batch 1
   await db.mortalityRecord.createMany({
     data: [
       { batchId: batch1.id, date: new Date('2025-01-16'), quantity: 15, reason: 'stress', notes: 'Stress transportasi' },
@@ -62,13 +226,12 @@ async function seed() {
     ],
   })
 
-  // Create batch 2 - Currently active
   const batch2 = await db.batch.create({
     data: {
       name: 'Termin DOC Februari',
       terminNumber: 2,
       arrivalDate: new Date('2025-02-20'),
-      initialWeight: 0.040,
+      initialWeight: 0.04,
       quantity: 3000,
       status: 'active',
       notes: 'DOC dari PT. Japfa Comfeed',
@@ -93,7 +256,6 @@ async function seed() {
     ],
   })
 
-  // Mortality records for batch 2
   await db.mortalityRecord.createMany({
     data: [
       { batchId: batch2.id, date: new Date('2025-02-21'), quantity: 10, reason: 'stress', notes: 'Stress DOC datang' },
@@ -102,9 +264,26 @@ async function seed() {
     ],
   })
 
-  console.log('✅ Seed data created successfully!')
+  console.log('✅ Demo seed data created successfully!')
 }
 
-seed()
-  .catch(console.error)
+async function main() {
+  const existing = await db.batch.count()
+  if (existing > 0) {
+    console.log(`Database already has ${existing} batches, skipping seed.`)
+    return
+  }
+
+  // Try to restore from backup first, otherwise seed demo data
+  const restored = await restoreFromBackup()
+  if (!restored) {
+    await seedDemo()
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error('Seed failed:', e)
+    process.exit(1)
+  })
   .finally(() => db.$disconnect())

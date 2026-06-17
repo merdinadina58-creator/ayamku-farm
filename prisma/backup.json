@@ -1,0 +1,386 @@
+{
+  "exportedAt": "2026-06-17T15:44:31.570Z",
+  "counts": {
+    "batches": 2,
+    "feedRecords": 12,
+    "weightRecords": 13,
+    "mortalityRecords": 8,
+    "appSettings": 2
+  },
+  "data": {
+    "batches": [
+      {
+        "id": "cmqgid28f0000o541jpr3zqxt",
+        "name": "Termin DOC Januari",
+        "terminNumber": 1,
+        "arrivalDate": "2025-01-15T00:00:00.000Z",
+        "initialWeight": 0.038,
+        "quantity": 5000,
+        "status": "harvested",
+        "harvestDate": "2025-03-12T00:00:00.000Z",
+        "harvestWeight": 1.85,
+        "harvestQuantity": 4750,
+        "sellingPricePerKg": 22000,
+        "notes": "DOC dari PT. Charoen Pokphand",
+        "createdAt": "2026-06-16T10:37:32.176Z",
+        "updatedAt": "2026-06-16T10:37:32.176Z"
+      },
+      {
+        "id": "cmqgid28j000no541y3ziugp0",
+        "name": "Termin DOC Februari",
+        "terminNumber": 2,
+        "arrivalDate": "2025-02-20T00:00:00.000Z",
+        "initialWeight": 0.04,
+        "quantity": 3000,
+        "status": "active",
+        "harvestDate": null,
+        "harvestWeight": null,
+        "harvestQuantity": null,
+        "sellingPricePerKg": null,
+        "notes": "DOC dari PT. Japfa Comfeed",
+        "createdAt": "2026-06-16T10:37:32.179Z",
+        "updatedAt": "2026-06-16T10:37:32.179Z"
+      }
+    ],
+    "feedRecords": [
+      {
+        "id": "cmqgid28h0001o541nbzcpgps",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-15T00:00:00.000Z",
+        "feedType": "Pre-Starter",
+        "quantityKg": 500,
+        "pricePerKg": 8500,
+        "notes": "Hari 1-7",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0002o5411bcxxusf",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-22T00:00:00.000Z",
+        "feedType": "Starter",
+        "quantityKg": 1200,
+        "pricePerKg": 7800,
+        "notes": "Hari 8-14",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0003o541gx42e2wn",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-29T00:00:00.000Z",
+        "feedType": "Starter",
+        "quantityKg": 1800,
+        "pricePerKg": 7800,
+        "notes": "Hari 15-21",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0004o541jy9uj1b3",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-05T00:00:00.000Z",
+        "feedType": "Grower",
+        "quantityKg": 2500,
+        "pricePerKg": 7200,
+        "notes": "Hari 22-28",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0005o5413nset2ko",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-12T00:00:00.000Z",
+        "feedType": "Grower",
+        "quantityKg": 3000,
+        "pricePerKg": 7200,
+        "notes": "Hari 29-35",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0006o541cilu4cuq",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-19T00:00:00.000Z",
+        "feedType": "Grower",
+        "quantityKg": 3000,
+        "pricePerKg": 7200,
+        "notes": "Hari 36-42",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0007o541yyv3gg36",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-26T00:00:00.000Z",
+        "feedType": "Finisher",
+        "quantityKg": 2500,
+        "pricePerKg": 6800,
+        "notes": "Hari 43-49",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28h0008o541l4xno8ir",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-03-05T00:00:00.000Z",
+        "feedType": "Finisher",
+        "quantityKg": 2000,
+        "pricePerKg": 6800,
+        "notes": "Hari 50-56",
+        "createdAt": "2026-06-16T10:37:32.177Z"
+      },
+      {
+        "id": "cmqgid28k000oo541dlgirojg",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-02-20T00:00:00.000Z",
+        "feedType": "Pre-Starter",
+        "quantityKg": 300,
+        "pricePerKg": 8500,
+        "notes": "Hari 1-7",
+        "createdAt": "2026-06-16T10:37:32.180Z"
+      },
+      {
+        "id": "cmqgid28k000po541vdr95uup",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-02-27T00:00:00.000Z",
+        "feedType": "Starter",
+        "quantityKg": 750,
+        "pricePerKg": 7800,
+        "notes": "Hari 8-14",
+        "createdAt": "2026-06-16T10:37:32.180Z"
+      },
+      {
+        "id": "cmqgid28k000qo541y37ymsod",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-06T00:00:00.000Z",
+        "feedType": "Starter",
+        "quantityKg": 1050,
+        "pricePerKg": 7800,
+        "notes": "Hari 15-21",
+        "createdAt": "2026-06-16T10:37:32.180Z"
+      },
+      {
+        "id": "cmqgid28k000ro541e9kgnwlq",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-13T00:00:00.000Z",
+        "feedType": "Grower",
+        "quantityKg": 900,
+        "pricePerKg": 7200,
+        "notes": "Hari 22-28",
+        "createdAt": "2026-06-16T10:37:32.180Z"
+      }
+    ],
+    "weightRecords": [
+      {
+        "id": "cmqgid28h0009o541qzce8sn2",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-15T00:00:00.000Z",
+        "averageWeightGram": 38,
+        "ageDays": 1,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000ao541tgsouw1e",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-22T00:00:00.000Z",
+        "averageWeightGram": 145,
+        "ageDays": 7,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000bo5418m00jxdw",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-29T00:00:00.000Z",
+        "averageWeightGram": 380,
+        "ageDays": 14,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000co541chnto76e",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-05T00:00:00.000Z",
+        "averageWeightGram": 680,
+        "ageDays": 21,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000do541phcl5w2y",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-12T00:00:00.000Z",
+        "averageWeightGram": 1020,
+        "ageDays": 28,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000eo5418lyizzyv",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-19T00:00:00.000Z",
+        "averageWeightGram": 1350,
+        "ageDays": 35,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000fo541cvvmj17s",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-26T00:00:00.000Z",
+        "averageWeightGram": 1580,
+        "ageDays": 42,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000go541z9nt8kij",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-03-05T00:00:00.000Z",
+        "averageWeightGram": 1750,
+        "ageDays": 49,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28h000ho5417u9ke1t5",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-03-12T00:00:00.000Z",
+        "averageWeightGram": 1850,
+        "ageDays": 56,
+        "sampleCount": 50,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.178Z"
+      },
+      {
+        "id": "cmqgid28k000so541gw9b6kmx",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-02-20T00:00:00.000Z",
+        "averageWeightGram": 40,
+        "ageDays": 1,
+        "sampleCount": 30,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.181Z"
+      },
+      {
+        "id": "cmqgid28k000to541bwuvj40y",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-02-27T00:00:00.000Z",
+        "averageWeightGram": 155,
+        "ageDays": 7,
+        "sampleCount": 30,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.181Z"
+      },
+      {
+        "id": "cmqgid28k000uo541dzl3vqjf",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-06T00:00:00.000Z",
+        "averageWeightGram": 410,
+        "ageDays": 14,
+        "sampleCount": 30,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.181Z"
+      },
+      {
+        "id": "cmqgid28k000vo541grxsfw2u",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-13T00:00:00.000Z",
+        "averageWeightGram": 730,
+        "ageDays": 21,
+        "sampleCount": 30,
+        "notes": null,
+        "createdAt": "2026-06-16T10:37:32.181Z"
+      }
+    ],
+    "mortalityRecords": [
+      {
+        "id": "cmqgid28i000io541leshh2ce",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-16T00:00:00.000Z",
+        "quantity": 15,
+        "reason": "stress",
+        "notes": "Stress transportasi",
+        "createdAt": "2026-06-16T10:37:32.179Z"
+      },
+      {
+        "id": "cmqgid28i000jo541vy26dlh4",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-20T00:00:00.000Z",
+        "quantity": 8,
+        "reason": "sakit",
+        "notes": "CRD awal",
+        "createdAt": "2026-06-16T10:37:32.179Z"
+      },
+      {
+        "id": "cmqgid28i000ko54195v5h3t3",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-01-28T00:00:00.000Z",
+        "quantity": 12,
+        "reason": "sakit",
+        "notes": "Necrotic enteritis",
+        "createdAt": "2026-06-16T10:37:32.179Z"
+      },
+      {
+        "id": "cmqgid28i000lo541wdmby9w6",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-10T00:00:00.000Z",
+        "quantity": 5,
+        "reason": "kecelakaan",
+        "notes": "Penumpukan",
+        "createdAt": "2026-06-16T10:37:32.179Z"
+      },
+      {
+        "id": "cmqgid28i000mo541roh8xtpb",
+        "batchId": "cmqgid28f0000o541jpr3zqxt",
+        "date": "2025-02-25T00:00:00.000Z",
+        "quantity": 10,
+        "reason": "afkir",
+        "notes": "Afkir - pertumbuhan lambat",
+        "createdAt": "2026-06-16T10:37:32.179Z"
+      },
+      {
+        "id": "cmqgid28l000wo541s45357pm",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-02-21T00:00:00.000Z",
+        "quantity": 10,
+        "reason": "stress",
+        "notes": "Stress DOC datang",
+        "createdAt": "2026-06-16T10:37:32.182Z"
+      },
+      {
+        "id": "cmqgid28l000xo541sw4i0oem",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-01T00:00:00.000Z",
+        "quantity": 5,
+        "reason": "sakit",
+        "notes": "Diare",
+        "createdAt": "2026-06-16T10:37:32.182Z"
+      },
+      {
+        "id": "cmqgid28l000yo541d7f7wup7",
+        "batchId": "cmqgid28j000no541y3ziugp0",
+        "date": "2025-03-10T00:00:00.000Z",
+        "quantity": 3,
+        "reason": "afkir",
+        "notes": "Culling - cacat",
+        "createdAt": "2026-06-16T10:37:32.182Z"
+      }
+    ],
+    "appSettings": [
+      {
+        "key": "appName",
+        "value": "AyamKu Farm",
+        "updatedAt": "2026-06-17T15:19:06.781Z"
+      },
+      {
+        "key": "logoData",
+        "value": "data:image/jpeg;base64,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",
+        "updatedAt": "2026-06-17T15:19:06.782Z"
+      }
+    ]
+  }
+}
