@@ -88,15 +88,31 @@ export async function GET() {
 
   // Step 2: Create tables via raw SQL (using pg Pool directly)
   try {
-    const pool = new Pool({ connectionString })
+    // Vercel Postgres / Neon requires SSL. The connection string usually
+    // includes ?sslmode=require, but we also set ssl on the Pool as a fallback.
+    const pool = new Pool({
+      connectionString,
+      ssl: connectionString.includes('sslmode=require')
+        ? { rejectUnauthorized: false }
+        : undefined,
+    })
     await pool.query(CREATE_TABLES_SQL)
     await pool.end()
     steps.push({ step: 'Create tables', status: 'ok', detail: 'All 5 tables created (or already existed).' })
   } catch (e) {
+    const msg = (e as Error).message
+    // Provide diagnostic hints about the DATABASE_URL format
+    const urlLen = connectionString.length
+    const hasPrefix = connectionString.startsWith('postgres://') || connectionString.startsWith('postgresql://')
+    const hint = !hasPrefix
+      ? ` Hint: DATABASE_URL must start with 'postgres://' or 'postgresql://'. Currently it starts with '${connectionString.substring(0, 20)}...' (length ${urlLen}). Check Vercel Dashboard → Settings → Environment Variables → DATABASE_URL.`
+      : msg.includes('Invalid URL')
+        ? ` Hint: The URL format looks wrong. Make sure it's a complete connection string like: postgres://user:password@host:port/dbname?sslmode=require`
+        : ''
     steps.push({
       step: 'Create tables',
       status: 'error',
-      detail: `Failed to create tables: ${(e as Error).message}`,
+      detail: `Failed to create tables: ${msg}${hint}`,
     })
     return NextResponse.json({ steps, error: 'Table creation failed' }, { status: 500 })
   }
