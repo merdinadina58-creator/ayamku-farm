@@ -239,10 +239,14 @@ export default function HomePage() {
         fetch('/api/dashboard'),
         fetch('/api/settings'),
       ])
-      const batchData = await batchRes.json()
-      const dashData = await dashRes.json()
-      const settingsData = await settingsRes.json()
-      setBatches(batchData)
+
+      // Parse each response, guarding against non-OK responses so the UI
+      // never crashes when the database is unreachable / not yet set up.
+      const batchData = batchRes.ok ? await batchRes.json() : []
+      const dashData = dashRes.ok ? await dashRes.json() : null
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {}
+
+      setBatches(Array.isArray(batchData) ? batchData : [])
       setDashboard(dashData)
       setAppSettings({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
       setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
