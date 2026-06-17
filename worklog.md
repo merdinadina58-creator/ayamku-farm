@@ -113,3 +113,52 @@ Stage Summary:
 - All mobile responsiveness fixes applied: delete buttons visible on touch, batch detail sub-tabs as 2-col grid on mobile, stats grid responsive, currency text scales + wraps, action buttons full-width on mobile.
 - All existing functionality preserved (batch CRUD, feed/weight/mortality records, harvest, charts, FCR/mortality/profit calculations, all 5 form dialogs).
 - Lint passes with 0 errors; dev server compiles cleanly with no errors.
+
+---
+Task ID: settings-app-name-logo
+Agent: main (Z.ai Code)
+Task: User wants a settings menu to set app name and upload a logo image, which becomes the app icon when installed on Android.
+
+Work Log:
+- Read worklog.md — found environment was reset (sidebar + mobile fixes lost)
+- Added AppSetting model (key/value) to prisma/schema.prisma + db:push
+- Created API route /api/settings (GET returns {appName, logoData}; POST upserts both)
+- Created API route /api/logo (serves uploaded logo as image/png or default SVG)
+- Created API route /api/manifest (dynamic PWA manifest with custom app name + logo icons)
+- Updated layout.tsx: manifest="/api/manifest", icons={icon,apple}="/api/logo", themeColor="#10b981"
+- Delegated page.tsx rewrite to full-stack-developer subagent (Task ID: sidebar-settings-rewrite)
+  → subagent rebuilt page.tsx with sidebar layout, mobile fixes, settings section, kalender section
+- Fixed Prisma client caching issue: db.appSetting was undefined because dev server cached old
+  PrismaClient singleton. Fixed by regenerating client + restarting dev server (clearing .next cache)
+- Fixed POST /api/settings 500 error (was TypeError: Cannot read properties of undefined)
+- Verified via Agent Browser:
+  * Desktop (1440px): sidebar shows 8 nav items including "Pengaturan"; settings section renders
+    with app name input, logo upload, preview, save button
+  * Changed app name to "Ayam Jaya Farm" + uploaded test logo → saved successfully
+  * Sidebar brand shows uploaded logo image (not Bird icon) + "Ayam Jaya Farm"
+  * Mobile header (390px) shows logo + app name
+  * Hero banner shows "Selamat Datang di Ayam Jaya Farm"
+  * Footer shows "Ayam Jaya Farm"
+  * /api/logo returns HTTP 200 image/png (uploaded logo)
+  * /api/manifest returns {"name":"Ayam Jaya Farm","short_name":"Ayam Jaya Fa",...}
+  * HTML head has: <link rel="manifest" href="/api/manifest">, <link rel="icon" href="/api/logo">,
+    <link rel="apple-touch-icon" href="/api/logo">
+  * All sections (Termin, batch detail, Kalender) work with no overflow on mobile + desktop
+  * No console errors or page errors
+- Reset test data to defaults (AyamKu Farm, no logo) for clean user experience
+- Lint passes clean (exit 0)
+- Committed to git
+
+Stage Summary:
+- Settings menu (Pengaturan) fully implemented in sidebar with:
+  1. App name input — changes sidebar, header, hero, footer branding
+  2. Logo image upload — replaces Bird icon everywhere, becomes favicon + PWA icon
+  3. Live preview of how branding will look
+  4. Android install instructions (Chrome → menu → Add to Home Screen)
+  5. Save/Batal buttons with validation (image type, 2MB max)
+- PWA support: dynamic manifest + favicon + apple-touch-icon all use /api/logo
+- When user installs on Android (Add to Home Screen), the uploaded logo becomes the app icon
+  and the custom app name becomes the app label
+- Data persisted in SQLite (AppSetting table: appName, logoData keys)
+- Sidebar layout + mobile responsiveness also restored (was lost in environment reset)
+- All features browser-verified end-to-end
