@@ -74,8 +74,8 @@ export async function GET() {
   const steps: Step[] = []
 
   // Step 1: Check DATABASE_URL
-  const connectionString = process.env.DATABASE_URL
-  if (!connectionString) {
+  const rawUrl = process.env.DATABASE_URL
+  if (!rawUrl) {
     steps.push({
       step: 'Environment check',
       status: 'error',
@@ -83,7 +83,16 @@ export async function GET() {
     })
     return NextResponse.json({ steps, error: 'DATABASE_URL not configured' }, { status: 500 })
   }
-  steps.push({ step: 'Environment check', status: 'ok', detail: 'DATABASE_URL is set.' })
+  // Sanitize: strip surrounding quotes/whitespace (common copy-paste issue)
+  const connectionString = rawUrl.trim().replace(/^["'`]+|["'`]+$/g, '')
+  const wasSanitized = rawUrl !== connectionString
+  steps.push({
+    step: 'Environment check',
+    status: 'ok',
+    detail: wasSanitized
+      ? 'DATABASE_URL is set (surrounding quotes/whitespace were automatically removed).'
+      : 'DATABASE_URL is set.',
+  })
 
   // Step 2: Create tables via Prisma's raw SQL (uses the same connection as the app)
   try {
