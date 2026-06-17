@@ -187,3 +187,25 @@ Stage Summary:
 - Local sandbox preview BROKEN (no Postgres available) — expected tradeoff, user informed
 - Next step for user: import repo on Vercel dashboard, create Vercel Postgres database, set DATABASE_URL env var, deploy
 - Repo: https://github.com/merdinadina58-creator/ayamku-farm
+
+---
+Task ID: vercel-deploy-fix
+Agent: main-agent
+Task: Fix Vercel deployment error (client-side exception on ayamku-farm.vercel.app)
+
+Work Log:
+- Diagnosed root cause via curl: /api/dashboard and /api/batches returned 500 (DB tables don't exist), /api/settings returned 200 (has try/catch with defaults)
+- Found frontend crash: setBatches(batchData) set {error:"..."} object as state, then batches.map() threw
+- Fixed src/app/page.tsx fetchData(): check res.ok before parsing, Array.isArray guard, default dashboard to null
+- Added prisma db push --accept-data-loss to build script so tables auto-create on every Vercel deploy
+- Added directUrl = env("DIRECT_URL") to schema.prisma with fallback to DATABASE_URL in build script
+- Created /api/setup GET endpoint for one-click data seeding from prisma/backup.json
+- Updated .env.example to document both DATABASE_URL and DIRECT_URL
+- Lint passed clean
+- Committed (8d968a1) and pushed to GitHub — Vercel auto-deploy triggered
+
+Stage Summary:
+- Frontend now resilient to API failures (no more client-side crash)
+- Tables auto-create on deploy via build script (no manual db:push needed)
+- User can seed data by visiting https://ayamku-farm.vercel.app/api/setup
+- User MUST ensure DATABASE_URL env var is set on Vercel (from Vercel Postgres)

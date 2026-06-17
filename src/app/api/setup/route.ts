@@ -1,30 +1,108 @@
 import { NextResponse } from 'next/server'
+import { Pool } from 'pg'
 import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// SQL to create all tables (idempotent — safe to run multiple times).
+// Mirrors prisma/schema.prisma models.
+const CREATE_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS "Batch" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "terminNumber" INTEGER NOT NULL,
+  "arrivalDate" TIMESTAMP(3) NOT NULL,
+  "initialWeight" DOUBLE PRECISION NOT NULL,
+  "quantity" INTEGER NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'active',
+  "harvestDate" TIMESTAMP(3),
+  "harvestWeight" DOUBLE PRECISION,
+  "harvestQuantity" INTEGER,
+  "sellingPricePerKg" DOUBLE PRECISION,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "FeedRecord" (
+  "id" TEXT PRIMARY KEY,
+  "batchId" TEXT NOT NULL,
+  "date" TIMESTAMP(3) NOT NULL,
+  "feedType" TEXT NOT NULL,
+  "quantityKg" DOUBLE PRECISION NOT NULL,
+  "pricePerKg" DOUBLE PRECISION NOT NULL,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "FeedRecord_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "Batch"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "WeightRecord" (
+  "id" TEXT PRIMARY KEY,
+  "batchId" TEXT NOT NULL,
+  "date" TIMESTAMP(3) NOT NULL,
+  "averageWeightGram" DOUBLE PRECISION NOT NULL,
+  "ageDays" INTEGER NOT NULL,
+  "sampleCount" INTEGER NOT NULL DEFAULT 1,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "WeightRecord_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "Batch"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "MortalityRecord" (
+  "id" TEXT PRIMARY KEY,
+  "batchId" TEXT NOT NULL,
+  "date" TIMESTAMP(3) NOT NULL,
+  "quantity" INTEGER NOT NULL,
+  "reason" TEXT NOT NULL,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "MortalityRecord_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "Batch"("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "AppSetting" (
+  "key" TEXT PRIMARY KEY,
+  "value" TEXT NOT NULL,
+  "updatedAt" TIMESTAMP(3) NOT NULL
+);
+`
+
+type Step = { step: string; status: 'ok' | 'skip' | 'error'; detail: string }
+
 // GET /api/setup — one-click database setup for Vercel deployment.
-// Creates tables (via Prisma) is handled by the build script's `prisma db push`.
-// This endpoint seeds the database from prisma/backup.json if it's empty.
-// Visit https://your-app.vercel.app/api/setup after the first deploy to restore data.
+// Creates tables (if missing) and seeds data from prisma/backup.json.
+// Visit https://your-app.vercel.app/api/setup after deploying.
 export async function GET() {
-  const steps: { step: string; status: 'ok' | 'skip' | 'error'; detail: string }[] = []
+  const steps: Step[] = []
 
+  // Step 1: Check DATABASE_URL
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    steps.push({
+      step: 'Environment check',
+      status: 'error',
+      detail: 'DATABASE_URL is not set. Go to Vercel Dashboard → your project → Settings → Environment Variables → add DATABASE_URL from your Vercel Postgres database, then redeploy.',
+    })
+    return NextResponse.json({ steps, error: 'DATABASE_URL not configured' }, { status: 500 })
+  }
+  steps.push({ step: 'Environment check', status: 'ok', detail: 'DATABASE_URL is set.' })
+
+  // Step 2: Create tables via raw SQL (using pg Pool directly)
   try {
-    // Step 1: Check database connection
-    try {
-      await db.$queryRaw`SELECT 1`
-      steps.push({ step: 'Database connection', status: 'ok', detail: 'Connected successfully' })
-    } catch (e) {
-      steps.push({
-        step: 'Database connection',
-        status: 'error',
-        detail: `Cannot connect to database. Make sure DATABASE_URL is set to a valid PostgreSQL connection string. Error: ${(e as Error).message}`,
-      })
-      return NextResponse.json({ steps, error: 'Database connection failed' }, { status: 500 })
-    }
+    const pool = new Pool({ connectionString })
+    await pool.query(CREATE_TABLES_SQL)
+    await pool.end()
+    steps.push({ step: 'Create tables', status: 'ok', detail: 'All 5 tables created (or already existed).' })
+  } catch (e) {
+    steps.push({
+      step: 'Create tables',
+      status: 'error',
+      detail: `Failed to create tables: ${(e as Error).message}`,
+    })
+    return NextResponse.json({ steps, error: 'Table creation failed' }, { status: 500 })
+  }
 
-    // Step 2: Check if data already exists
+  // Step 3: Check if data already exists
+  try {
     const existingBatches = await db.batch.count()
     if (existingBatches > 0) {
       steps.push({
@@ -34,45 +112,55 @@ export async function GET() {
       })
       return NextResponse.json({
         steps,
-        message: 'Database already contains data. No action needed.',
+        message: 'Database is ready and already contains data. No action needed — visit the home page!',
       })
     }
     steps.push({ step: 'Existing data check', status: 'ok', detail: 'Database is empty, proceeding with seed.' })
+  } catch (e) {
+    steps.push({
+      step: 'Existing data check',
+      status: 'error',
+      detail: `Failed to check existing data: ${(e as Error).message}`,
+    })
+    return NextResponse.json({ steps, error: 'Data check failed' }, { status: 500 })
+  }
 
-    // Step 3: Read backup file from the repository
-    let backup: {
-      exportedAt: string
-      counts: Record<string, number>
-      data: {
-        batches: Array<Record<string, unknown>>
-        feedRecords: Array<Record<string, unknown>>
-        weightRecords: Array<Record<string, unknown>>
-        mortalityRecords: Array<Record<string, unknown>>
-        appSettings: Array<Record<string, unknown>>
-      }
+  // Step 4: Read backup file
+  type BackupData = {
+    exportedAt: string
+    counts: Record<string, number>
+    data: {
+      batches: Array<Record<string, unknown>>
+      feedRecords: Array<Record<string, unknown>>
+      weightRecords: Array<Record<string, unknown>>
+      mortalityRecords: Array<Record<string, unknown>>
+      appSettings: Array<Record<string, unknown>>
     }
+  }
 
-    try {
-      const fs = await import('fs/promises')
-      const path = await import('path')
-      const backupPath = path.join(process.cwd(), 'prisma', 'backup.json')
-      const backupContent = await fs.readFile(backupPath, 'utf-8')
-      backup = JSON.parse(backupContent)
-      steps.push({
-        step: 'Read backup file',
-        status: 'ok',
-        detail: `Loaded backup from ${backup.exportedAt} (${backup.counts.batches} batches, ${backup.counts.feedRecords} feed records, ${backup.counts.weightRecords} weight records, ${backup.counts.mortalityRecords} mortality records)`,
-      })
-    } catch (e) {
-      steps.push({
-        step: 'Read backup file',
-        status: 'error',
-        detail: `Could not read prisma/backup.json: ${(e as Error).message}`,
-      })
-      return NextResponse.json({ steps, error: 'Backup file not found' }, { status: 500 })
-    }
+  let backup: BackupData
+  try {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const backupPath = path.join(process.cwd(), 'prisma', 'backup.json')
+    const backupContent = await fs.readFile(backupPath, 'utf-8')
+    backup = JSON.parse(backupContent) as BackupData
+    steps.push({
+      step: 'Read backup file',
+      status: 'ok',
+      detail: `Loaded backup from ${backup.exportedAt} (${backup.counts.batches} batches, ${backup.counts.feedRecords} feed records, ${backup.counts.weightRecords} weight records, ${backup.counts.mortalityRecords} mortality records).`,
+    })
+  } catch (e) {
+    steps.push({
+      step: 'Read backup file',
+      status: 'error',
+      detail: `Could not read prisma/backup.json: ${(e as Error).message}`,
+    })
+    return NextResponse.json({ steps, error: 'Backup file not found' }, { status: 500 })
+  }
 
-    // Step 4: Restore batches (parent records first)
+  // Step 5: Restore batches (parent records first)
+  try {
     for (const b of backup.data.batches) {
       await db.batch.upsert({
         where: { id: b.id as string },
@@ -108,8 +196,13 @@ export async function GET() {
       })
     }
     steps.push({ step: 'Restore batches', status: 'ok', detail: `${backup.data.batches.length} batches created` })
+  } catch (e) {
+    steps.push({ step: 'Restore batches', status: 'error', detail: (e as Error).message })
+    return NextResponse.json({ steps, error: 'Batch restore failed' }, { status: 500 })
+  }
 
-    // Step 5: Restore child records
+  // Step 6: Restore child records
+  try {
     if (backup.data.feedRecords.length > 0) {
       await db.feedRecord.createMany({
         data: backup.data.feedRecords.map((r) => ({
@@ -124,7 +217,7 @@ export async function GET() {
         })),
         skipDuplicates: true,
       })
-      steps.push({ step: 'Restore feed records', status: 'ok', detail: `${backup.data.feedRecords.length} records created` })
+      steps.push({ step: 'Restore feed records', status: 'ok', detail: `${backup.data.feedRecords.length} records` })
     }
 
     if (backup.data.weightRecords.length > 0) {
@@ -141,7 +234,7 @@ export async function GET() {
         })),
         skipDuplicates: true,
       })
-      steps.push({ step: 'Restore weight records', status: 'ok', detail: `${backup.data.weightRecords.length} records created` })
+      steps.push({ step: 'Restore weight records', status: 'ok', detail: `${backup.data.weightRecords.length} records` })
     }
 
     if (backup.data.mortalityRecords.length > 0) {
@@ -157,10 +250,10 @@ export async function GET() {
         })),
         skipDuplicates: true,
       })
-      steps.push({ step: 'Restore mortality records', status: 'ok', detail: `${backup.data.mortalityRecords.length} records created` })
+      steps.push({ step: 'Restore mortality records', status: 'ok', detail: `${backup.data.mortalityRecords.length} records` })
     }
 
-    // Step 6: Restore app settings
+    // Restore app settings
     for (const s of backup.data.appSettings) {
       await db.appSetting.upsert({
         where: { key: s.key as string },
@@ -168,16 +261,15 @@ export async function GET() {
         create: { key: s.key as string, value: s.value as string, updatedAt: new Date(s.updatedAt as string) },
       })
     }
-    steps.push({ step: 'Restore app settings', status: 'ok', detail: `${backup.data.appSettings.length} settings restored` })
-
-    return NextResponse.json({
-      steps,
-      message: 'Database setup complete! Your data has been restored. You can now visit the home page.',
-      counts: backup.counts,
-    })
+    steps.push({ step: 'Restore app settings', status: 'ok', detail: `${backup.data.appSettings.length} settings` })
   } catch (e) {
-    console.error('Setup error:', e)
-    steps.push({ step: 'Unexpected error', status: 'error', detail: (e as Error).message })
-    return NextResponse.json({ steps, error: 'Setup failed' }, { status: 500 })
+    steps.push({ step: 'Restore child records', status: 'error', detail: (e as Error).message })
+    return NextResponse.json({ steps, error: 'Child record restore failed' }, { status: 500 })
   }
+
+  return NextResponse.json({
+    steps,
+    message: '✅ Database setup complete! All tables created and data restored. Visit the home page to see your farm dashboard.',
+    counts: backup.counts,
+  })
 }
