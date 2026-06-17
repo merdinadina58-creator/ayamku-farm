@@ -209,3 +209,27 @@ Stage Summary:
 - Tables auto-create on deploy via build script (no manual db:push needed)
 - User can seed data by visiting https://ayamku-farm.vercel.app/api/setup
 - User MUST ensure DATABASE_URL env var is set on Vercel (from Vercel Postgres)
+
+---
+Task ID: vercel-deploy-fix-2
+Agent: main-agent
+Task: Fix Vercel deployment — client-side exception + database connection issues
+
+Work Log:
+- Diagnosed: /api/dashboard and /api/batches returned 500 (DB not set up)
+- Diagnosed: Frontend crashed because setBatches({error:...}) then .map() threw
+- Fixed frontend (src/app/page.tsx): check res.ok, Array.isArray guard, null-safe
+- Build script: removed prisma db push (was failing builds), just 'next build'
+- Created /api/setup endpoint with raw SQL CREATE TABLE IF NOT EXISTS + seed from backup.json
+- Added URL sanitization (strip quotes/whitespace) in src/lib/db.ts and /api/setup
+- Added deep URL diagnostics: parse with URL constructor, show length/host/flags
+- Verified via Agent Browser: app renders with NO client-side errors, sidebar + dashboard visible
+- Diagnosed final issue: user's DATABASE_URL = 'postgres://user:password@host:port/db?sslmode=require'
+  (the PLACEHOLDER from .env.example — user hasn't created a real Vercel Postgres database yet)
+  Host portion literally = 'host:port/db?sslmode=require', length=51, no neon.tech, no localhost
+
+Stage Summary:
+- Client-side crash: FIXED (app renders empty state gracefully)
+- /api/setup endpoint: WORKING (correctly reports the DATABASE_URL issue)
+- Remaining user action: Create real Vercel Postgres database, connect to project, redeploy, visit /api/setup
+- All commits pushed: 8d968a1, 18caf55, 87f64bf, b6c5d2f, ca08d93, 7125380, da20473, 09425db
