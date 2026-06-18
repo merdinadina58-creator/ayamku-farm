@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bird,
-  Wheat,
   Scale,
   Calculator,
   Plus,
@@ -197,10 +196,9 @@ const MORTALITY_REASON_COLORS: Record<string, string> = {
 const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   termin: 'Termin',
-  pakan: 'Pakan',
   berat: 'Berat',
   mortalitas: 'Mortalitas',
-  peralatan: 'Peralatan',
+  biaya: 'Biaya',
   hitung: 'Perhitungan',
   kalender: 'Kalender',
   settings: 'Pengaturan',
@@ -209,10 +207,9 @@ const SECTION_LABELS: Record<string, string> = {
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
   { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
-  { id: 'pakan', label: 'Pakan', icon: Wheat, iconColor: 'text-amber-600' },
   { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
   { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
-  { id: 'peralatan', label: 'Peralatan', icon: Wrench, iconColor: 'text-indigo-600' },
+  { id: 'biaya', label: 'Biaya', icon: Wrench, iconColor: 'text-indigo-600' },
   { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
   { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
@@ -227,7 +224,7 @@ export default function HomePage() {
   const { toast } = useToast()
 
   // Sidebar + section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'pakan' | 'berat' | 'mortalitas' | 'peralatan' | 'hitung' | 'kalender' | 'settings'>('dashboard')
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'berat' | 'mortalitas' | 'biaya' | 'hitung' | 'kalender' | 'settings'>('dashboard')
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
   // Settings state
@@ -245,7 +242,6 @@ export default function HomePage() {
 
   // Dialog states
   const [addBatchOpen, setAddBatchOpen] = useState(false)
-  const [addFeedOpen, setAddFeedOpen] = useState(false)
   const [addWeightOpen, setAddWeightOpen] = useState(false)
   const [addMortalityOpen, setAddMortalityOpen] = useState(false)
   const [harvestOpen, setHarvestOpen] = useState(false)
@@ -274,9 +270,6 @@ export default function HomePage() {
   // Form states
   const [batchForm, setBatchForm] = useState({
     name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '',
-  })
-  const [feedForm, setFeedForm] = useState({
-    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '',
   })
   const [weightForm, setWeightForm] = useState({
     date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '',
@@ -363,32 +356,6 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan termin', variant: 'destructive' })
-    } finally {
-      submittingRef.current = false
-      setSubmitting(false)
-    }
-  }
-
-  const handleAddFeed = async () => {
-    const batchId = dialogBatchId || selectedBatch?.id
-    if (!batchId) return
-    if (submittingRef.current) return
-    submittingRef.current = true
-    setSubmitting(true)
-    try {
-      const res = await fetch(`/api/batches/${batchId}/feed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(feedForm),
-      })
-      if (!res.ok) throw new Error()
-      setAddFeedOpen(false)
-      setDialogBatchId('')
-      setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
-      toast({ title: 'Berhasil! 🌾', description: 'Pakan berhasil ditambahkan' })
-      fetchData()
-    } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan pakan', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -486,16 +453,6 @@ export default function HomePage() {
     }
   }
 
-  const handleDeleteFeed = async (id: string) => {
-    try {
-      await fetch(`/api/feed/${id}`, { method: 'DELETE' })
-      toast({ title: 'Dihapus', description: 'Data pakan berhasil dihapus' })
-      fetchData()
-    } catch {
-      toast({ title: 'Error', description: 'Gagal menghapus data pakan', variant: 'destructive' })
-    }
-  }
-
   const handleDeleteWeight = async (id: string) => {
     try {
       await fetch(`/api/weight/${id}`, { method: 'DELETE' })
@@ -536,10 +493,10 @@ export default function HomePage() {
   }
 
   const handleAddEquipment = async () => {
-    // Peralatan wajib terikat ke sebuah termin (batch).
+    // Biaya wajib terikat ke sebuah termin (batch).
     const batchId = dialogBatchId || selectedBatch?.id
     if (!batchId) {
-      toast({ title: 'Pilih Termin', description: 'Pilih termin tempat peralatan ini dibeli', variant: 'destructive' })
+      toast({ title: 'Pilih Termin', description: 'Pilih termin untuk catatan biaya ini', variant: 'destructive' })
       return
     }
     if (submittingRef.current) return
@@ -557,10 +514,10 @@ export default function HomePage() {
       setShowAddUnit(false)
       setNewUnitName('')
       setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
-      toast({ title: 'Berhasil! 🔧', description: 'Peralatan berhasil ditambahkan ke termin' })
+      toast({ title: 'Berhasil! 💰', description: 'Biaya berhasil ditambahkan ke termin' })
       fetchData()
     } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan peralatan', variant: 'destructive' })
+      toast({ title: 'Error', description: 'Gagal menambahkan biaya', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -568,13 +525,13 @@ export default function HomePage() {
   }
 
   const handleDeleteEquipment = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus peralatan ini?')) return
+    if (!confirm('Yakin ingin menghapus catatan biaya ini?')) return
     try {
       await fetch(`/api/equipment/${id}`, { method: 'DELETE' })
-      toast({ title: 'Dihapus', description: 'Peralatan berhasil dihapus' })
+      toast({ title: 'Dihapus', description: 'Biaya berhasil dihapus' })
       fetchData()
     } catch {
-      toast({ title: 'Error', description: 'Gagal menghapus peralatan', variant: 'destructive' })
+      toast({ title: 'Error', description: 'Gagal menghapus biaya', variant: 'destructive' })
     }
   }
 
@@ -920,26 +877,23 @@ export default function HomePage() {
                       <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
                         <div className="px-6 sm:px-10">
                           <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di {appSettings.appName}</h2>
-                          <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
+                          <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, biaya, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Stats Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
                       {[
                         { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
                         { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
                         { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
-                        { icon: Wheat, label: 'Total Pakan', value: `${dashboard?.totalFeedKg || 0} kg`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
-                        { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(dashboard?.totalFeedCost || 0), color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
                       ].map((stat, i) => (
                         <motion.div
                           key={stat.label}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.1 }}
-                          className={i === 4 ? 'col-span-2 sm:col-span-1' : ''}
                         >
                           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                             <CardContent className="p-4 sm:p-5">
@@ -1018,9 +972,9 @@ export default function HomePage() {
                                       <p className="text-xs text-muted-foreground">Umur</p>
                                       <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
                                     </div>
-                                    <div className="bg-teal-50/50 rounded-lg p-2">
-                                      <p className="text-xs text-muted-foreground">Pakan</p>
-                                      <p className="text-sm font-bold text-teal-700">{stats.totalFeed.toFixed(1)} kg</p>
+                                    <div className="bg-indigo-50/50 rounded-lg p-2">
+                                      <p className="text-xs text-muted-foreground">Biaya</p>
+                                      <p className="text-sm font-bold text-indigo-700">{formatCurrency(batch.equipment?.reduce((s, e) => s + e.quantity * e.unitPrice, 0) || 0)}</p>
                                     </div>
                                     <div className="bg-red-50/50 rounded-lg p-2">
                                       <p className="text-xs text-muted-foreground">Mati/Afkir</p>
@@ -1043,83 +997,6 @@ export default function HomePage() {
                       </div>
                     )}
                   </>
-                )}
-
-                {/* Pakan Section */}
-                {activeSection === 'pakan' && (
-                  <Card className="border-0 shadow-lg">
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                        <div className="min-w-0">
-                          <CardTitle className="flex items-center gap-2">
-                            <Wheat className="w-5 h-5 text-amber-600" />
-                            Rekap Pakan Seluruh Termin
-                          </CardTitle>
-                          <CardDescription>Ringkasan pakan per termin dan per jenis</CardDescription>
-                        </div>
-                        {batches.length > 0 && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' }); setAddFeedOpen(true) }}>
-                            <Plus className="w-4 h-4" /> Tambah Pakan
-                          </Button>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {batches.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <Wheat className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                          <p>Belum ada data pakan</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          {batches.map((batch) => {
-                            const feedByType = batch.feedRecords.reduce((acc, f) => {
-                              if (!acc[f.feedType]) acc[f.feedType] = { total: 0, cost: 0, count: 0 }
-                              acc[f.feedType].total += f.quantityKg
-                              acc[f.feedType].cost += f.quantityKg * f.pricePerKg
-                              acc[f.feedType].count += 1
-                              return acc
-                            }, {} as Record<string, { total: number; cost: number; count: number }>)
-
-                            const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
-
-                            return (
-                              <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-amber-50/20">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <h3 className="font-bold truncate">{batch.name}</h3>
-                                    <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
-                                  </div>
-                                  <div className="text-right shrink-0 ml-2">
-                                    <p className="text-lg font-bold text-amber-700">{totalFeed.toFixed(1)} kg</p>
-                                    <p className="text-xs text-muted-foreground">Total Pakan</p>
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  {Object.entries(feedByType).map(([type, data]) => (
-                                    <div key={type} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/60">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
-                                        <span className="text-sm font-medium">{type}</span>
-                                        <span className="text-xs text-muted-foreground">({data.count}x)</span>
-                                      </div>
-                                      <div className="text-right shrink-0">
-                                        <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
-                                        <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {batch.feedRecords.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center py-2">Belum ada data pakan</p>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
                 )}
 
                 {/* Berat Section */}
@@ -1320,21 +1197,21 @@ export default function HomePage() {
                   </Card>
                 )}
 
-                {/* Peralatan Section */}
-                {activeSection === 'peralatan' && (
+                {/* Biaya Section */}
+                {activeSection === 'biaya' && (
                   <Card className="border-0 shadow-lg">
                     <CardHeader>
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="min-w-0">
                           <CardTitle className="flex items-center gap-2">
                             <Wrench className="w-5 h-5 text-indigo-600" />
-                            Belanja Peralatan per Termin
+                            Catatan Biaya per Termin
                           </CardTitle>
-                          <CardDescription>Catatan pembelian peralatan, kandang, dan inventaris untuk setiap termin</CardDescription>
+                          <CardDescription>Catatan pembelian dan biaya operasional untuk setiap termin</CardDescription>
                         </div>
                         {batches.length > 0 && (
                           <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
-                            <Plus className="w-4 h-4" /> Tambah Peralatan
+                            <Plus className="w-4 h-4" /> Tambah Biaya
                           </Button>
                         )}
                       </div>
@@ -1348,7 +1225,7 @@ export default function HomePage() {
                             {/* Summary cards */}
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
                               <div className="bg-indigo-50 rounded-xl p-3 text-center">
-                                <p className="text-xs text-muted-foreground">Jenis Peralatan</p>
+                                <p className="text-xs text-muted-foreground">Jenis Biaya</p>
                                 <p className="text-lg font-bold text-indigo-700">{allEquipments.length}</p>
                               </div>
                               <div className="bg-emerald-50 rounded-xl p-3 text-center">
@@ -1365,11 +1242,11 @@ export default function HomePage() {
                               <div className="text-center py-12 text-muted-foreground">
                                 <Wrench className="w-12 h-12 mx-auto mb-3 opacity-30" />
                                 <p>Belum ada termin</p>
-                                <p className="text-xs mt-1">Buat termin terlebih dahulu sebelum mencatat pembelian peralatan</p>
+                                <p className="text-xs mt-1">Buat termin terlebih dahulu sebelum mencatat biaya</p>
                               </div>
                             ) : (
                               <div className="space-y-5">
-                                {/* Group by termin/batch — mirror pola section pakan */}
+                                {/* Group by termin/batch */}
                                 {batches.map((batch) => {
                                   const equipList = batch.equipment ?? []
                                   const batchCost = equipList.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
@@ -1390,7 +1267,7 @@ export default function HomePage() {
                                       </div>
                                       <div className="space-y-2">
                                         {equipList.length === 0 ? (
-                                          <p className="text-sm text-muted-foreground text-center py-2">Belum ada pembelian peralatan untuk termin ini</p>
+                                          <p className="text-sm text-muted-foreground text-center py-2">Belum ada catatan biaya untuk termin ini</p>
                                         ) : (
                                           equipList.map((e) => (
                                             <div key={e.id} className="group flex items-center justify-between py-2 px-3 rounded-lg bg-white/60 gap-2">
@@ -1431,7 +1308,7 @@ export default function HomePage() {
                         <Calculator className="w-5 h-5 text-rose-600" />
                         Perhitungan & Total Panen Per Termin
                       </CardTitle>
-                      <CardDescription>Kalkulasi total pakan, biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
+                      <CardDescription>Kalkulasi biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {batches.length === 0 && allEquipments.length === 0 ? (
@@ -1449,7 +1326,7 @@ export default function HomePage() {
                               <div className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
                                 <h3 className="font-bold mb-3 flex items-center gap-2">
                                   <Wrench className="w-4 h-4 text-indigo-600" />
-                                  Ringkasan Peralatan
+                                  Ringkasan Biaya
                                 </h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                   <div className="bg-indigo-50 rounded-xl p-3 text-center">
@@ -1846,15 +1723,13 @@ export default function HomePage() {
                   {(() => {
                     const stats = getBatchStats(selectedBatch)
                     return (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {[
                           { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
                           { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
                           { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
                           { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
                           { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
-                          { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
-                          { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(stats.totalCost), bg: 'bg-rose-50', text: 'text-rose-700' },
                           { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
                         ].map((stat) => (
                           <Card key={stat.label} className="border-0 shadow-md">
@@ -1901,76 +1776,19 @@ export default function HomePage() {
                     </Card>
                   )}
 
-                  {/* Detail Tabs: Feed, Weight, Mortality, Equipment */}
-                  <Tabs defaultValue="pakan" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-2 sm:flex sm:flex-wrap">
-                      <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
-                        <Wheat className="w-4 h-4" /> Pakan
-                      </TabsTrigger>
+                  {/* Detail Tabs: Weight, Mortality, Biaya */}
+                  <Tabs defaultValue="berat" className="space-y-4">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
                       <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 w-full sm:w-auto">
                         <Skull className="w-4 h-4" /> Mortalitas
                       </TabsTrigger>
-                      <TabsTrigger value="peralatan" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto col-span-2 sm:col-span-1">
-                        <Wrench className="w-4 h-4" /> Peralatan
+                      <TabsTrigger value="biaya" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto">
+                        <Wrench className="w-4 h-4" /> Biaya
                       </TabsTrigger>
                     </TabsList>
-
-                    {/* Feed Records */}
-                    <TabsContent value="pakan">
-                      <Card className="border-0 shadow-lg">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                          <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <Wheat className="w-4 h-4 text-amber-600" />
-                              Riwayat Pakan
-                            </CardTitle>
-                            <CardDescription>Catatan pemberian pakan</CardDescription>
-                          </div>
-                          {selectedBatch.status === 'active' && (
-                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => setAddFeedOpen(true)}>
-                              <Plus className="w-4 h-4" /> Tambah
-                            </Button>
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          {selectedBatch.feedRecords.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                              <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                              <p className="text-sm">Belum ada catatan pakan</p>
-                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddFeedOpen(true)}>
-                                <Plus className="w-3 h-3" /> Tambah Pakan Pertama
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                              {selectedBatch.feedRecords.map((feed) => (
-                                <div key={feed.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-2 h-8 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[feed.feedType] || '#8b5cf6' }} />
-                                    <div className="min-w-0">
-                                      <p className="font-medium text-sm truncate">{feed.feedType}</p>
-                                      <p className="text-xs text-muted-foreground">{formatDate(feed.date)}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <div className="text-right">
-                                      <p className="font-bold text-sm">{feed.quantityKg} kg</p>
-                                      <p className="text-xs text-muted-foreground">{formatCurrency(feed.quantityKg * feed.pricePerKg)}</p>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed.id) }}>
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
 
                     {/* Weight Records */}
                     <TabsContent value="berat">
@@ -2108,16 +1926,16 @@ export default function HomePage() {
                       </Card>
                     </TabsContent>
 
-                    {/* Equipment Records (per termin) */}
-                    <TabsContent value="peralatan">
+                    {/* Biaya Records (per termin) */}
+                    <TabsContent value="biaya">
                       <Card className="border-0 shadow-lg">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                           <div>
                             <CardTitle className="text-base flex items-center gap-2">
                               <Wrench className="w-4 h-4 text-indigo-600" />
-                              Riwayat Belanja Peralatan
+                              Riwayat Biaya
                             </CardTitle>
-                            <CardDescription>Pembelian peralatan & inventaris untuk termin ini</CardDescription>
+                            <CardDescription>Catatan biaya & pembelian untuk termin ini</CardDescription>
                           </div>
                           <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah
@@ -2149,9 +1967,9 @@ export default function HomePage() {
                                 {equipList.length === 0 ? (
                                   <div className="text-center py-8 text-muted-foreground">
                                     <Wrench className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                    <p className="text-sm">Belum ada pembelian peralatan untuk termin ini</p>
+                                    <p className="text-sm">Belum ada catatan biaya untuk termin ini</p>
                                     <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddEquipmentOpen(true)}>
-                                      <Plus className="w-3 h-3" /> Tambah Peralatan Pertama
+                                      <Plus className="w-3 h-3" /> Tambah Biaya Pertama
                                     </Button>
                                   </div>
                                 ) : (
@@ -2277,76 +2095,6 @@ export default function HomePage() {
             </div>
             <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={submitting || !batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Termin'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Feed Dialog */}
-      <Dialog open={addFeedOpen} onOpenChange={setAddFeedOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wheat className="w-5 h-5 text-amber-600" />
-              Tambah Catatan Pakan
-            </DialogTitle>
-            <DialogDescription>Catatan pemberian pakan{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            {!selectedBatch && (
-              <div className="space-y-2">
-                <Label>Termin</Label>
-                <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
-                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
-                  <SelectContent>
-                    {batches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Tanggal</Label>
-                <Input type="date" value={feedForm.date} onChange={(e) => setFeedForm({ ...feedForm, date: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Jenis Pakan</Label>
-                <Select value={feedForm.feedType} onValueChange={(v) => setFeedForm({ ...feedForm, feedType: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pre-Starter">Pre-Starter</SelectItem>
-                    <SelectItem value="Starter">Starter</SelectItem>
-                    <SelectItem value="Grower">Grower</SelectItem>
-                    <SelectItem value="Finisher">Finisher</SelectItem>
-                    <SelectItem value="Lainnya">Lainnya</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Jumlah (kg)</Label>
-                <Input type="number" step="0.1" min="0" placeholder="50" value={feedForm.quantityKg} onChange={(e) => setFeedForm({ ...feedForm, quantityKg: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Harga/kg (Rp)</Label>
-                <Input type="number" step="100" min="0" placeholder="7500" value={feedForm.pricePerKg} onChange={(e) => setFeedForm({ ...feedForm, pricePerKg: e.target.value })} />
-              </div>
-            </div>
-            {feedForm.quantityKg && feedForm.pricePerKg && (
-              <div className="bg-amber-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total Biaya</p>
-                <p className="text-lg font-bold text-amber-700">{formatCurrency(parseFloat(feedForm.quantityKg) * parseFloat(feedForm.pricePerKg))}</p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan opsional..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} />
-            </div>
-            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !feedForm.date || !feedForm.quantityKg || !feedForm.pricePerKg}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Pakan'}
             </Button>
           </div>
         </DialogContent>
@@ -2545,18 +2293,18 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Equipment Dialog */}
+      {/* Add Biaya Dialog */}
       <Dialog open={addEquipmentOpen} onOpenChange={setAddEquipmentOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-indigo-600" />
-              Tambah Peralatan
+              Tambah Biaya
             </DialogTitle>
-            <DialogDescription>Catat pembelian peralatan, kandang, atau inventaris{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
+            <DialogDescription>Catat pembelian dan biaya operasional{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            {/* Pilih termin — peralatan wajib terikat ke sebuah termin (seperti pakan). */}
+            {/* Pilih termin — biaya wajib terikat ke sebuah termin. */}
             {!selectedBatch && (
               <div className="space-y-2">
                 <Label>Termin</Label>
@@ -2652,7 +2400,7 @@ export default function HomePage() {
               <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
             </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Peralatan'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Biaya'}
             </Button>
           </div>
         </DialogContent>

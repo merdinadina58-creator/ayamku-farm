@@ -521,3 +521,51 @@ Stage Summary:
 - API konsisten: /api/batches include equipment; /api/equipment POST wajib batchId.
 - Browser-verified: tambah peralatan per termin + tampil di main section & batch detail tab.
 - Lint bersih, dev server berjalan di port 3000.
+
+---
+Task ID: hapus-pakan-rename-biaya
+Agent: Main Agent
+Task: Hapus fitur "Pakan" dari sidebar & navbar, dan ganti nama "Peralatan" menjadi "Biaya".
+
+Work Log:
+- Membaca worklog sebelumnya (peralatan-per-termin) untuk memahami konteks: pakan & peralatan sama-sama per-termin, user ingin konsolidasi.
+- Menghapus import `Wheat` (tidak lagi dipakai setelah pakan dihapus dari seluruh UI).
+- SECTION_LABELS: hapus `pakan: 'Pakan'`, ganti `peralatan: 'Peralatan'` → `biaya: 'Biaya'`.
+- NAV_ITEMS: hapus entry pakan, ganti `peralatan` → `biaya` (label 'Biaya', icon Wrench, text-indigo-600). Sidebar desktop & mobile navbar sama-sama pakai NAV_ITEMS, jadi otomatis hilang dari keduanya.
+- Tipe `activeSection`: hapus 'pakan' & 'peralatan', tambah 'biaya'.
+- State: hapus `addFeedOpen`/`setAddFeedOpen` & `feedForm`/`setFeedForm`.
+- Handlers: hapus `handleAddFeed` & `handleDeleteFeed` ( beserta fetch ke /api/batches/{id}/feed & /api/feed/{id} ).
+- handleAddEquipment: toast "Peralatan berhasil ditambahkan" → "Biaya berhasil ditambahkan ke termin" (emoji 🔧→💰); toast error & konfirmasi hapus juga di-rename Peralatan→Biaya.
+- Hero banner: "Kelola bibit, pakan, berat, ..." → "Kelola bibit, biaya, berat, ...".
+- Dashboard stats: hapus 2 kartu "Total Pakan" & "Biaya Pakan" (sebelumnya 5 kartu, sekarang 3). Grid `lg:grid-cols-5` → `grid-cols-3` (responsif di sm). Hapus special-case `col-span-2 sm:col-span-1` untuk kartu ke-5.
+- Termin batch card: ganti stat "Pakan (kg)" → "Biaya (Rp)" yang menampilkan `batch.equipment` total cost (bg indigo, text-indigo-700).
+- Hapus seluruh standalone "Pakan Section" (activeSection === 'pakan') — blok "Rekap Pakan Seluruh Termin".
+- "Peralatan Section" → "Biaya Section": activeSection === 'biaya'; judul "Belanja Peralatan per Termin" → "Catatan Biaya per Termin"; deskripsi & tombol "Tambah Peralatan" → "Tambah Biaya"; summary "Jenis Peralatan" → "Jenis Biaya"; empty states & teks grouping di-rename.
+- Hitung (Perhitungan) section: CardDescription "Kalkulasi total pakan, biaya, ..." → "Kalkulasi biaya, FCR, mortalitas, ..."; "Ringkasan Peralatan" → "Ringkasan Biaya". (Data feed historis di chart/pie/per-termin cards tetap dipertahankan karena bagian dari fitur Perhitungan, bukan fitur Pakan.)
+- Batch detail stats: hapus 2 kartu "Total Pakan" & "Biaya Pakan" (8→6 kartu), grid `lg:grid-cols-8` → `lg:grid-cols-6`.
+- Batch detail Tabs: hapus TabsTrigger & TabsContent "pakan"; ganti "peralatan" → "biaya"; `defaultValue="pakan"` → `defaultValue="berat"`; TabsList grid `grid-cols-2` → `grid-cols-3` (3 tab: Berat/Mortalitas/Biaya).
+- TabsContent biaya: judul "Riwayat Belanja Peralatan" → "Riwayat Biaya"; deskripsi & empty state ("Belum ada pembelian peralatan" → "Belum ada catatan biaya", "Tambah Peralatan Pertama" → "Tambah Biaya Pertama").
+- Hapus seluruh "Add Feed Dialog" (Tambah Catatan Pakan).
+- "Add Equipment Dialog" → "Add Biaya Dialog": judul "Tambah Peralatan" → "Tambah Biaya"; deskripsi "Catat pembelian peralatan, kandang, atau inventaris" → "Catat pembelian dan biaya operasional"; tombol "Simpan Peralatan" → "Simpan Biaya"; comment "(seperti pakan)" dihapus.
+- Menyimpan: FeedRecord interface, feedRecords di Batch interface, getBatchStats feed calc (totalFeed/totalCost/fcr/feedPerEkor), FEED_TYPE_COLORS, dan API routes /api/batches/{id}/feed & /api/feed/{id} tetap utuh — data feed historis masih bisa dihitung di Perhitungan. Hanya akses UI-nya yang dihapus.
+- `bun run lint` — bersih, no error.
+- Dev server sudah running (port 3000), recompile sukses (GET / 200, compile 43ms).
+- Browser-verified via Agent Browser:
+  - Sidebar (desktop): Dashboard/Termin/Berat/Mortalitas/Biaya/Perhitungan/Kalender/Pengaturan — TIDAK ada Pakan, "Biaya" gantikan "Peralatan".
+  - Hero text: "Kelola bibit, biaya, berat, kematian, dan panen...".
+  - Dashboard stats: 3 kartu (Total Termin/Ayam Hidup/Total Mortalitas) — Total Pakan & Biaya Pakan hilang.
+  - Termin card: menampilkan "Biaya Rp225.000" (bukan "Pakan X kg").
+  - Main Biaya section: judul "Catatan Biaya per Termin", tombol "Tambah Biaya", summary "Jenis Biaya/Total Item/Total Nilai".
+  - Batch detail: 3 tab (Berat/Mortalitas/Biaya), default Berat — tab Pakan hilang.
+  - Biaya tab: "Riwayat Biaya", entry tampil benar.
+  - Dialog "Tambah Biaya": judul & tombol "Simpan Biaya". Isi form (Vitamin & Antibiotik, 3 Unit × Rp75.000, tgl 25 Mei 2026) → POST /api/equipment 201 → toast "Berhasil! 💰 Biaya berhasil ditambahkan ke termin" → entry muncul di main section & batch detail tab.
+  - Hapus test entry via DELETE /api/equipment/{id} → 200.
+  - Perhitungan section: description & "Ringkasan Biaya" ter-rename, tetap render.
+  - Tidak ada page error / console error / compile error.
+  - Screenshot: /home/z/my-project/upload/biaya-section.png & biaya-section-with-entry.png
+
+Stage Summary:
+- Fitur "Pakan" dihapus sepenuhnya dari UI: sidebar, mobile navbar, standalone section, batch detail tab, dan Tambah Pakan dialog (termasuk state feedForm/addFeedOpen & handler handleAddFeed/handleDeleteFeed). Backend API & FeedRecord model tetap utuh untuk data historis di Perhitungan.
+- "Peralatan" di-rename menjadi "Biaya" di seluruh UI: nav, section title, batch detail tab, dialog, tombol, toast, empty states, dan Ringkasan di Perhitungan.
+- Dashboard & batch-detail stat cards "Total Pakan"/"Biaya Pakan" dihapus; Termin card sekarang menampilkan "Biaya" (total equipment cost per batch).
+- Lint bersih, dev server jalan di port 3000, browser-verified end-to-end (tambah biaya → tampil di main section & batch detail).
