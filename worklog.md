@@ -752,3 +752,59 @@ Stage Summary:
 - Batch detail dialog sekarang punya 6 tab — semua pencatatan per termin dalam satu view: Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender.
 - Setiap tab terikat ke selectedBatch — data yang tampil hanya untuk termin yang sedang dibuka, lebih akurat & detail.
 - Production Vercel live dengan commit 2d1c26b.
+
+---
+Task ID: add-edit-all-features
+Agent: full-stack-developer
+Task: Tambah fitur edit untuk Termin, Berat, Mortalitas, Biaya (Panen sudah ada). Perhitungan & Kalender auto-update dari data sumber.
+
+Work Log:
+- Membaca worklog.md untuk konteks (perubahan terakhir: pindah Panen/Perhitungan/Kalender ke tab batch detail, sidebar 6 item).
+- Membaca src/app/page.tsx (2500 lines) untuk memahami struktur: state dialog, handler (handleAddBatch/Weight/Mortality/Equipment), dialog components, list locations.
+- Step 1 — Tambah 4 editing state (editingBatch/Weight/Mortality/Equipment, typed Batch | null, WeightRecord | null, dst) di blok state dialog (line 281-285).
+- Step 2 — Tambah 4 openEdit function (openEditBatch, openEditWeight, openEditMortality, openEditEquipment) sebelum openHarvestDialog (line 522-574). Setiap function: set editing state + pre-fill form dengan data existing + buka dialog.
+- Step 3 — Modify 4 handler (handleAddBatch, handleAddWeight, handleAddMortality, handleAddEquipment) jadi dual-purpose add+edit:
+  * Capture `const isEdit = !!editingXxx` di awal.
+  * Jika edit: PUT /api/{resource}/${editId} dengan field relevan (batch: name/terminNumber/arrivalDate/initialWeight/quantity/notes; weight: date/averageWeightGram/ageDays/sampleCount/notes; mortality: date/quantity/reason/notes; equipment: name/category/quantity/unit/unitPrice/purchaseDate/notes TANPA batchId).
+  * Jika add: behavior POST lama (tidak berubah).
+  * Setelah PUT success: clear editingXxx, reset form, toast conditional ('berhasil diperbarui' vs 'berhasil ditambahkan'), await fetchData(), lalu fetch fresh /api/batches untuk update selectedBatch jika user sedang di batch-detail view (agar weightRecords/mortalityRecords/equipment di detail view ikut refresh).
+  * Pertahankan submittingRef/submitting guard untuk anti double-submit.
+- Step 4 — Modify 4 dialog jadi dual-purpose:
+  * Dialog onOpenChange: `{ (open) => { setXxxOpen(open); if (!open) setEditingXxx(null) } }` — clear editing state saat dialog ditutup ( baik via X, overlay click, atau ESC).
+  * DialogTitle: conditional `editingXxx ? 'Edit ...' : 'Tambah ...'`
+  * DialogDescription: conditional sesuai mode
+  * Submit button text: conditional `editingXxx ? 'Simpan Perubahan' : 'Simpan ...'`
+- Step 5 — Tambah Edit (Pencil) button di 7 lokasi list (semua sebelum tombol delete yang sudah ada, kecuali Global Mortalitas timeline yang sebelumnya read-only — sekarang tambah edit + delete):
+  * A) Batch detail header: tombol "Edit" (emerald outline) sebelum tombol Panen.
+  * B) Termin card quick actions: tombol "Edit" (emerald outline, Pencil icon) sebagai tombol PERTAMA sebelum Detail — onClick dengan stopPropagation.
+  * C) Batch detail Weight tab list: icon Pencil (slate-600, group-hover) sebelum icon Trash2.
+  * D) Global Mortalitas section timeline: tambahkan div dengan group + edit (Pencil, slate-600) + delete (Trash2, red-500) button — sebelumnya hanya menampilkan teks tanpa button.
+  * E) Batch detail Mortality tab list: icon Pencil sebelum icon Trash2.
+  * F) Global Biaya section list: icon Pencil (slate-600) sebelum icon Trash2.
+  * G) Batch detail Biaya tab list: icon Pencil sebelum icon Trash2.
+  * Semua edit button pakai styling konsisten: text-slate-600 hover:text-slate-800 (bukan red), opacity-50 sm:opacity-0 sm:group-hover:opacity-100 (show on hover di desktop, always visible di mobile).
+- Step 6 — Reset editing state di semua tombol "Tambah":
+  * Sidebar "Tambah Termin" button (line 932): setEditingBatch(null) + reset batchForm.
+  * Header desktop "Tambah Termin" button (line 1048): same.
+  * Empty state "Tambah Termin Pertama" (line 1125): same.
+  * Termin card quick action "+Berat" (line 1221) & "+Biaya" (line 1224): setEditingWeight(null) / setEditingEquipment(null).
+  * Global Berat "Tambah Berat" (line 1254): setEditingWeight(null).
+  * Global Mortalitas "Tambah Mortalitas" (line 1326): setEditingMortality(null).
+  * Global Biaya "Tambah Biaya" (line 1452): setEditingEquipment(null).
+  * Batch detail Weight tab "Tambah" (line 1782) + empty state "Tambah Data Pertama" (line 1792): setEditingWeight(null) + reset weightForm.
+  * Batch detail Mortality tab "Tambah" (line 1843) + empty state (line 1875): setEditingMortality(null) + reset mortalityForm.
+  * Batch detail Biaya tab "Tambah" (line 1923) + empty state "Tambah Biaya Pertama" (line 1954): setEditingEquipment(null) + reset equipmentForm.
+- Step 7 — Perhitungan & Kalender tabs: TIDAK perlu code change. Keduanya adalah derived views yang auto-update dari state `batches`. Setelah setiap edit PUT, fetchData() refetch batches → getBatchStats() dan calendarEvents useMemo recompute otomatis di render berikutnya.
+- `bun run lint` — PASS, exit code 0, no error no warning.
+- Dev server log: ✓ Compiled in 1847ms, GET / 200. Tidak ada compile error baru. Pre-existing DATABASE_URL error (SQLite env vs PostgreSQL db.ts) tetap muncul — BUKAN caused by task ini, tidak bisa diperbaiki dari sisi sandbox (production Vercel menggunakan DATABASE_URL=postgres).
+
+Stage Summary:
+- Fitur edit sekarang lengkap untuk SEMUA fitur: Termin, Berat, Mortalitas, Biaya (Panen sudah ada sebelumnya). User bisa klik icon Pencil di mana saja untuk memperbaiki data entry mistakes.
+- 4 dialog (Add Batch, Add Weight, Add Mortality, Add Equipment) sekarang dual-purpose: tombol "Tambah" → mode add (POST), tombol "Edit/Pencil" → mode edit (PUT). Title, description, button text conditional pada editing state.
+- 7 lokasi list ditambah edit button: batch detail header, termin card quick action, batch detail weight tab, global mortalitas timeline (sebelumnya read-only, sekarang juga dapat delete button), batch detail mortalitas tab, global biaya list, batch detail biaya tab.
+- Semua tombol "Tambah" reset editing state sebelum membuka dialog, sehingga tidak ada state warpage antara add & edit mode.
+- Dialog onOpenChange juga clear editing state saat ditutup (X / overlay / ESC), sehingga dialog selalu mulai fresh.
+- Setelah PUT success: clear editing state + reset form + toast + fetchData() + fetch fresh /api/batches untuk update selectedBatch jika user sedang di batch-detail view. Ini memastikan batch detail tabs (Berat/Mortalitas/Biaya/Panen/Perhitungan/Kalender) semua merefresh data setelah edit.
+- Perhitungan & Kalender tabs auto-update karena derived dari state `batches` yang di-refresh via fetchData() setelah setiap edit.
+- Lint PASS, dev server compiles, page serves 200, tidak ada error baru. File size: 2500 → 2708 lines (+208 lines untuk state, openEdit functions, edit-mode branches di handler, edit buttons di list, dialog conditional text).
+- Pre-existing issue (BUKAN caused by task ini): local .env DATABASE_URL = SQLite, db.ts & schema.prisma menggunakan PostgreSQL untuk Vercel. Local dev API gagal load data tapi production Vercel bekerja normal.

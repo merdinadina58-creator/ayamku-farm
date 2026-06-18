@@ -278,6 +278,12 @@ export default function HomePage() {
     harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
 
+  // Edit mode states — null = add mode, object = edit mode
+  const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
+  const [editingWeight, setEditingWeight] = useState<WeightRecord | null>(null)
+  const [editingMortality, setEditingMortality] = useState<MortalityRecord | null>(null)
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
+
   // ============================================================
   // Auto-compute chicken age (umur) untuk form timbang berat.
   // Umur dihitung dari (tanggal timbang - tanggal masuk batch).
@@ -340,19 +346,53 @@ export default function HomePage() {
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    const isEdit = !!editingBatch
     try {
-      const res = await fetch('/api/batches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(batchForm),
-      })
-      if (!res.ok) throw new Error()
-      setAddBatchOpen(false)
-      setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' })
-      toast({ title: 'Berhasil! 🐔', description: 'Termin baru berhasil ditambahkan' })
-      fetchData()
+      if (isEdit) {
+        const editId = editingBatch!.id
+        const res = await fetch(`/api/batches/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: batchForm.name,
+            terminNumber: batchForm.terminNumber,
+            arrivalDate: batchForm.arrivalDate,
+            initialWeight: batchForm.initialWeight,
+            quantity: batchForm.quantity,
+            notes: batchForm.notes,
+          }),
+        })
+        if (!res.ok) throw new Error()
+        setAddBatchOpen(false)
+        setEditingBatch(null)
+        setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' })
+        toast({ title: 'Berhasil! ✏️', description: 'Termin berhasil diperbarui' })
+        await fetchData()
+        // Refresh selectedBatch if user is viewing the edited batch in detail view
+        if (view === 'batch-detail' && selectedBatch?.id === editId) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === editId)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else {
+        const res = await fetch('/api/batches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(batchForm),
+        })
+        if (!res.ok) throw new Error()
+        setAddBatchOpen(false)
+        setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' })
+        toast({ title: 'Berhasil! 🐔', description: 'Termin baru berhasil ditambahkan' })
+        fetchData()
+      }
     } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan termin', variant: 'destructive' })
+      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui termin' : 'Gagal menambahkan termin', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -367,6 +407,7 @@ export default function HomePage() {
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    const isEdit = !!editingWeight
     try {
       const payload = {
         date: weightForm.date,
@@ -375,19 +416,45 @@ export default function HomePage() {
         sampleCount: weightForm.sampleCount,
         notes: weightForm.notes,
       }
-      const res = await fetch(`/api/batches/${batchId}/weight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error()
-      setAddWeightOpen(false)
-      setDialogBatchId('')
-      setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
-      toast({ title: 'Berhasil! ⚖️', description: 'Data berat berhasil ditambahkan' })
-      fetchData()
+      if (isEdit) {
+        const editId = editingWeight!.id
+        const res = await fetch(`/api/weight/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error()
+        setAddWeightOpen(false)
+        setEditingWeight(null)
+        setDialogBatchId('')
+        setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
+        toast({ title: 'Berhasil! ✏️', description: 'Data berat berhasil diperbarui' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id === batchId) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === batchId)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else {
+        const res = await fetch(`/api/batches/${batchId}/weight`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error()
+        setAddWeightOpen(false)
+        setDialogBatchId('')
+        setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
+        toast({ title: 'Berhasil! ⚖️', description: 'Data berat berhasil ditambahkan' })
+        fetchData()
+      }
     } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan data berat', variant: 'destructive' })
+      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui data berat' : 'Gagal menambahkan data berat', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -400,24 +467,110 @@ export default function HomePage() {
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    const isEdit = !!editingMortality
     try {
-      const res = await fetch(`/api/batches/${batchId}/mortality`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mortalityForm),
-      })
-      if (!res.ok) throw new Error()
-      setAddMortalityOpen(false)
-      setDialogBatchId('')
-      setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' })
-      toast({ title: 'Berhasil!', description: 'Data kematian berhasil ditambahkan' })
-      fetchData()
+      if (isEdit) {
+        const editId = editingMortality!.id
+        const res = await fetch(`/api/mortality/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: mortalityForm.date,
+            quantity: mortalityForm.quantity,
+            reason: mortalityForm.reason,
+            notes: mortalityForm.notes,
+          }),
+        })
+        if (!res.ok) throw new Error()
+        setAddMortalityOpen(false)
+        setEditingMortality(null)
+        setDialogBatchId('')
+        setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' })
+        toast({ title: 'Berhasil! ✏️', description: 'Data mortalitas berhasil diperbarui' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id === batchId) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === batchId)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else {
+        const res = await fetch(`/api/batches/${batchId}/mortality`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mortalityForm),
+        })
+        if (!res.ok) throw new Error()
+        setAddMortalityOpen(false)
+        setDialogBatchId('')
+        setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' })
+        toast({ title: 'Berhasil!', description: 'Data kematian berhasil ditambahkan' })
+        fetchData()
+      }
     } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan data kematian', variant: 'destructive' })
+      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui data mortalitas' : 'Gagal menambahkan data kematian', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
     }
+  }
+
+  const openEditBatch = (batch: Batch) => {
+    setEditingBatch(batch)
+    setBatchForm({
+      name: batch.name,
+      terminNumber: batch.terminNumber.toString(),
+      arrivalDate: batch.arrivalDate ? new Date(batch.arrivalDate).toISOString().split('T')[0] : '',
+      initialWeight: batch.initialWeight.toString(),
+      quantity: batch.quantity.toString(),
+      notes: batch.notes || '',
+    })
+    setAddBatchOpen(true)
+  }
+
+  const openEditWeight = (weight: WeightRecord, batch: Batch) => {
+    setEditingWeight(weight)
+    setSelectedBatch(batch)
+    setWeightForm({
+      date: weight.date ? new Date(weight.date).toISOString().split('T')[0] : '',
+      averageWeightGram: weight.averageWeightGram.toString(),
+      ageDays: weight.ageDays.toString(),
+      sampleCount: weight.sampleCount.toString(),
+      notes: weight.notes || '',
+    })
+    setAddWeightOpen(true)
+  }
+
+  const openEditMortality = (m: MortalityRecord, batch: Batch) => {
+    setEditingMortality(m)
+    setSelectedBatch(batch)
+    setMortalityForm({
+      date: m.date ? new Date(m.date).toISOString().split('T')[0] : '',
+      quantity: m.quantity.toString(),
+      reason: m.reason,
+      notes: m.notes || '',
+    })
+    setAddMortalityOpen(true)
+  }
+
+  const openEditEquipment = (e: Equipment) => {
+    setEditingEquipment(e)
+    setEquipmentForm({
+      name: e.name,
+      category: e.category,
+      quantity: e.quantity.toString(),
+      unit: e.unit,
+      unitPrice: e.unitPrice.toString(),
+      purchaseDate: e.purchaseDate ? new Date(e.purchaseDate).toISOString().split('T')[0] : '',
+      notes: e.notes || '',
+    })
+    setShowAddUnit(false)
+    setNewUnitName('')
+    setAddEquipmentOpen(true)
   }
 
   const openHarvestDialog = (batch: Batch) => {
@@ -517,22 +670,51 @@ export default function HomePage() {
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    const isEdit = !!editingEquipment
     try {
-      const res = await fetch('/api/equipment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...equipmentForm, batchId }),
-      })
-      if (!res.ok) throw new Error()
-      setAddEquipmentOpen(false)
-      setDialogBatchId('')
-      setShowAddUnit(false)
-      setNewUnitName('')
-      setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
-      toast({ title: 'Berhasil! 💰', description: 'Biaya berhasil ditambahkan ke termin' })
-      fetchData()
+      if (isEdit) {
+        const editId = editingEquipment!.id
+        const res = await fetch(`/api/equipment/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...equipmentForm }),
+        })
+        if (!res.ok) throw new Error()
+        setAddEquipmentOpen(false)
+        setEditingEquipment(null)
+        setDialogBatchId('')
+        setShowAddUnit(false)
+        setNewUnitName('')
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+        toast({ title: 'Berhasil! ✏️', description: 'Biaya berhasil diperbarui' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id === batchId) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === batchId)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else {
+        const res = await fetch('/api/equipment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...equipmentForm, batchId }),
+        })
+        if (!res.ok) throw new Error()
+        setAddEquipmentOpen(false)
+        setDialogBatchId('')
+        setShowAddUnit(false)
+        setNewUnitName('')
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+        toast({ title: 'Berhasil! 💰', description: 'Biaya berhasil ditambahkan ke termin' })
+        fetchData()
+      }
     } catch {
-      toast({ title: 'Error', description: 'Gagal menambahkan biaya', variant: 'destructive' })
+      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui biaya' : 'Gagal menambahkan biaya', variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -747,7 +929,7 @@ export default function HomePage() {
       {/* Tambah Termin button */}
       <div className="p-3">
         <Button
-          onClick={() => setAddBatchOpen(true)}
+          onClick={() => { setEditingBatch(null); setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' }); setAddBatchOpen(true) }}
           className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
         >
           <Plus className="w-4 h-4" /> Tambah Termin
@@ -863,7 +1045,7 @@ export default function HomePage() {
             </div>
             {/* Desktop Tambah Termin button */}
             <Button
-              onClick={() => setAddBatchOpen(true)}
+              onClick={() => { setEditingBatch(null); setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' }); setAddBatchOpen(true) }}
               className="hidden lg:flex bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -940,7 +1122,7 @@ export default function HomePage() {
                           </div>
                           <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
                           <p className="text-muted-foreground text-sm mt-1">Mulai tambahkan bibit ayam pertama Anda</p>
-                          <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-700 gap-2" onClick={() => setAddBatchOpen(true)}>
+                          <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-700 gap-2" onClick={() => { setEditingBatch(null); setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' }); setAddBatchOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah Termin Pertama
                           </Button>
                         </CardContent>
@@ -1030,13 +1212,16 @@ export default function HomePage() {
                                   )}
                                   {/* Quick action buttons - stopPropagation to prevent card click */}
                                   <div className="flex gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openEditBatch(batch) }}>
+                                      <Pencil className="w-3 h-3" /> Edit
+                                    </Button>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openBatchDetail(batch)}>
                                       <ChevronRight className="w-3 h-3" /> Detail
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setDialogBatchId(batch.id); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setEditingWeight(null); setDialogBatchId(batch.id); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Berat
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
                                     </Button>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openHarvestDialog(batch)}>
@@ -1066,7 +1251,7 @@ export default function HomePage() {
                           <CardDescription>Grafik pertumbuhan berat ayam per termin</CardDescription>
                         </div>
                         {batches.length > 0 && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setEditingWeight(null); setDialogBatchId(batches[0]?.id || ''); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah Berat
                           </Button>
                         )}
@@ -1138,7 +1323,7 @@ export default function HomePage() {
                           <CardDescription>Data ayam mati, afkir, dan tidak layak jual</CardDescription>
                         </div>
                         {batches.length > 0 && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' }); setAddMortalityOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => { setEditingMortality(null); setDialogBatchId(batches[0]?.id || ''); setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' }); setAddMortalityOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah Mortalitas
                           </Button>
                         )}
@@ -1227,13 +1412,21 @@ export default function HomePage() {
                                   <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
                                     <p className="text-xs font-medium text-muted-foreground mb-1">Riwayat Kematian:</p>
                                     {batch.mortalityRecords.map((m) => (
-                                      <div key={m.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
+                                      <div key={m.id} className="group flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
                                         <div className="flex items-center gap-2 min-w-0">
                                           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
                                           <span className="text-xs">{formatDate(m.date)}</span>
                                           <span className="text-xs text-muted-foreground truncate">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
                                         </div>
-                                        <span className="text-xs font-bold shrink-0">{m.quantity} ekor</span>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <span className="text-xs font-bold mr-1">{m.quantity} ekor</span>
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-slate-600 hover:text-slate-800" onClick={() => openEditMortality(m, batch)}>
+                                            <Pencil className="w-3 h-3" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-red-500 hover:text-red-700" onClick={() => handleDeleteMortality(m.id)}>
+                                            <Trash2 className="w-3 h-3" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -1264,7 +1457,7 @@ export default function HomePage() {
                           <CardDescription>Catatan pembelian dan biaya operasional untuk setiap termin</CardDescription>
                         </div>
                         {batches.length > 0 && (
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setDialogBatchId(batches[0]?.id || ''); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah Biaya
                           </Button>
                         )}
@@ -1334,6 +1527,9 @@ export default function HomePage() {
                                               </div>
                                               <div className="flex items-center gap-2 shrink-0">
                                                 <span className="text-sm font-bold">{formatCurrency(e.quantity * e.unitPrice)}</span>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-slate-600 hover:text-slate-800" onClick={() => openEditEquipment(e)}>
+                                                  <Pencil className="w-3.5 h-3.5" />
+                                                </Button>
                                                 <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-red-500 hover:text-red-700" onClick={() => handleDeleteEquipment(e.id)}>
                                                   <Trash2 className="w-3.5 h-3.5" />
                                                 </Button>
@@ -1475,6 +1671,9 @@ export default function HomePage() {
                       </p>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
+                      <Button variant="outline" className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex-1 sm:flex-none" onClick={() => openEditBatch(selectedBatch)}>
+                        <Pencil className="w-4 h-4" /> Edit
+                      </Button>
                       <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => openHarvestDialog(selectedBatch)}>
                         {selectedBatch.status === 'active' ? (
                           <><CheckCircle2 className="w-4 h-4" /> Panen</>
@@ -1580,7 +1779,7 @@ export default function HomePage() {
                             <CardDescription>Catatan timbang berat ayam</CardDescription>
                           </div>
                           {selectedBatch.status === 'active' && (
-                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => setAddWeightOpen(true)}>
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setEditingWeight(null); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                               <Plus className="w-4 h-4" /> Tambah
                             </Button>
                           )}
@@ -1590,7 +1789,7 @@ export default function HomePage() {
                             <div className="text-center py-8 text-muted-foreground">
                               <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
                               <p className="text-sm">Belum ada catatan berat</p>
-                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddWeightOpen(true)}>
+                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingWeight(null); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                                 <Plus className="w-3 h-3" /> Tambah Data Pertama
                               </Button>
                             </div>
@@ -1614,6 +1813,9 @@ export default function HomePage() {
                                         +{(weight.averageWeightGram - selectedBatch.initialWeight * 1000).toFixed(0)}g
                                       </p>
                                     </div>
+                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); openEditWeight(weight, selectedBatch) }}>
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
                                     <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteWeight(weight.id) }}>
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
@@ -1638,7 +1840,7 @@ export default function HomePage() {
                             <CardDescription>Catatan ayam mati, afkir, dan tidak layak jual</CardDescription>
                           </div>
                           {selectedBatch.status === 'active' && (
-                            <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => setAddMortalityOpen(true)}>
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => { setEditingMortality(null); setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' }); setAddMortalityOpen(true) }}>
                               <Plus className="w-4 h-4" /> Tambah
                             </Button>
                           )}
@@ -1670,7 +1872,7 @@ export default function HomePage() {
                                   <div className="text-center py-8 text-muted-foreground">
                                     <Skull className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                     <p className="text-sm">Belum ada catatan mortalitas</p>
-                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddMortalityOpen(true)}>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingMortality(null); setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' }); setAddMortalityOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Tambah Data Pertama
                                     </Button>
                                   </div>
@@ -1689,6 +1891,9 @@ export default function HomePage() {
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                           <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(e) => { e.stopPropagation(); openEditMortality(m, selectedBatch) }}>
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </Button>
                                           <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
@@ -1715,7 +1920,7 @@ export default function HomePage() {
                             </CardTitle>
                             <CardDescription>Catatan biaya & pembelian untuk termin ini</CardDescription>
                           </div>
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah
                           </Button>
                         </CardHeader>
@@ -1746,7 +1951,7 @@ export default function HomePage() {
                                   <div className="text-center py-8 text-muted-foreground">
                                     <Wrench className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                     <p className="text-sm">Belum ada catatan biaya untuk termin ini</p>
-                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddEquipmentOpen(true)}>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Tambah Biaya Pertama
                                     </Button>
                                   </div>
@@ -1765,6 +1970,9 @@ export default function HomePage() {
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                           <p className="font-bold text-sm">{formatCurrency(e.quantity * e.unitPrice)}</p>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(ev) => { ev.stopPropagation(); openEditEquipment(e) }}>
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </Button>
                                           <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); handleDeleteEquipment(e.id) }}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
@@ -2084,14 +2292,14 @@ export default function HomePage() {
       </div>
 
       {/* Add Batch Dialog */}
-      <Dialog open={addBatchOpen} onOpenChange={setAddBatchOpen}>
+      <Dialog open={addBatchOpen} onOpenChange={(open) => { setAddBatchOpen(open); if (!open) setEditingBatch(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-emerald-600" />
-              Tambah Termin Baru
+              {editingBatch ? 'Edit Termin' : 'Tambah Termin Baru'}
             </DialogTitle>
-            <DialogDescription>Tambahkan bibit ayam baru ke peternakan</DialogDescription>
+            <DialogDescription>{editingBatch ? 'Perbarui data termin' : 'Tambahkan bibit ayam baru ke peternakan'}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-3">
@@ -2123,21 +2331,21 @@ export default function HomePage() {
               <Textarea id="batch-notes" placeholder="Catatan opsional..." value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} />
             </div>
             <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={submitting || !batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Termin'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingBatch ? 'Simpan Perubahan' : 'Simpan Termin')}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Add Weight Dialog */}
-      <Dialog open={addWeightOpen} onOpenChange={setAddWeightOpen}>
+      <Dialog open={addWeightOpen} onOpenChange={(open) => { setAddWeightOpen(open); if (!open) setEditingWeight(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Scale className="w-5 h-5 text-teal-600" />
-              Tambah Data Timbang
+              {editingWeight ? 'Edit Data Timbang' : 'Tambah Data Timbang'}
             </DialogTitle>
-            <DialogDescription>Catatan berat ayam{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
+            <DialogDescription>{editingWeight ? `Perbarui data berat untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan berat ayam${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {!selectedBatch && (
@@ -2193,21 +2401,21 @@ export default function HomePage() {
               <Textarea placeholder="Catatan opsional..." value={weightForm.notes} onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })} />
             </div>
             <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !weightForm.date || !weightForm.averageWeightGram || computedAgeDays === null}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Data Timbang'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingWeight ? 'Simpan Perubahan' : 'Simpan Data Timbang')}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Add Mortality Dialog */}
-      <Dialog open={addMortalityOpen} onOpenChange={setAddMortalityOpen}>
+      <Dialog open={addMortalityOpen} onOpenChange={(open) => { setAddMortalityOpen(open); if (!open) setEditingMortality(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Skull className="w-5 h-5 text-red-600" />
-              Tambah Data Mortalitas
+              {editingMortality ? 'Edit Data Mortalitas' : 'Tambah Data Mortalitas'}
             </DialogTitle>
-            <DialogDescription>Catatan ayam mati/afkir{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
+            <DialogDescription>{editingMortality ? `Perbarui data mortalitas untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan ayam mati/afkir${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {!selectedBatch && (
@@ -2263,7 +2471,7 @@ export default function HomePage() {
               )
             })()}
             <Button onClick={handleAddMortality} className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !mortalityForm.date || !mortalityForm.quantity}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Data Mortalitas'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingMortality ? 'Simpan Perubahan' : 'Simpan Data Mortalitas')}
             </Button>
           </div>
         </DialogContent>
@@ -2327,14 +2535,14 @@ export default function HomePage() {
       </Dialog>
 
       {/* Add Biaya Dialog */}
-      <Dialog open={addEquipmentOpen} onOpenChange={setAddEquipmentOpen}>
+      <Dialog open={addEquipmentOpen} onOpenChange={(open) => { setAddEquipmentOpen(open); if (!open) setEditingEquipment(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-indigo-600" />
-              Tambah Biaya
+              {editingEquipment ? 'Edit Biaya' : 'Tambah Biaya'}
             </DialogTitle>
-            <DialogDescription>Catat pembelian dan biaya operasional{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
+            <DialogDescription>{editingEquipment ? 'Perbarui catatan biaya' : `Catat pembelian dan biaya operasional${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {/* Pilih termin — biaya wajib terikat ke sebuah termin. */}
@@ -2433,7 +2641,7 @@ export default function HomePage() {
               <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
             </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Biaya'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
             </Button>
           </div>
         </DialogContent>
