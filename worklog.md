@@ -664,3 +664,20 @@ Stage Summary:
 - Navbar horizontal dengan semua section (termasuk Panen & Kalender) sekarang tampil di header — user bisa akses cepat tanpa scroll sidebar.
 - Section Termin sekarang menampilkan SEMUA pencatatan per termin dalam satu kartu: 6 stats lengkap (Awal/Hidup/Umur/Berat/Biaya/Mati), progress bar berat, info panen (jika sudah panen), dan 4 quick action buttons untuk input cepat.
 - Production Vercel live dengan perubahan ini. Local sandbox DB masih broken (SQLite vs PostgreSQL mismatch) tapi production berfungsi normal.
+
+---
+Task ID: revert-navbar-tabs
+Agent: Main Agent
+Task: Hapus horizontal navbar tabs yang sebelumnya ditambahkan di header (bukan yang user maksud).
+
+Work Log:
+- User feedback: "bukan seperti itu yang saya maksud, tolong hapus yang di navbar tadi".
+- Edit src/app/page.tsx: hapus blok "Horizontal Navbar - all sections accessible from top" (24 baris) dari dalam <header>. Header kembali ke struktur semula: brand + desktop Tambah Termin button, tanpa tab bar.
+- KEEP: enhanced Termin cards (6 stats + panen info strip + quick action buttons) — user tidak meminta hapus ini, hanya navbar.
+- Lint: bersih.
+- Git: commit c54ce78 push ke GitHub → Vercel auto-deploy success (T+45s).
+
+Stage Summary:
+- Navbar horizontal tabs dihapus dari header. Navigasi kembali hanya via sidebar (seperti sebelum task navbar-termin-enhance).
+- Enhanced Termin cards tetap dipertahankan.
+- Production Vercel live dengan revert ini.
