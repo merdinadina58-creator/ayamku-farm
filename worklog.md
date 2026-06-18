@@ -569,3 +569,22 @@ Stage Summary:
 - "Peralatan" di-rename menjadi "Biaya" di seluruh UI: nav, section title, batch detail tab, dialog, tombol, toast, empty states, dan Ringkasan di Perhitungan.
 - Dashboard & batch-detail stat cards "Total Pakan"/"Biaya Pakan" dihapus; Termin card sekarang menampilkan "Biaya" (total equipment cost per batch).
 - Lint bersih, dev server jalan di port 3000, browser-verified end-to-end (tambah biaya → tampil di main section & batch detail).
+
+---
+Task ID: push-deploy
+Agent: Main Agent
+Task: Push commit ke GitHub dan verifikasi deployment Vercel.
+
+Work Log:
+- User memberikan GitHub PAT (ghp_***).
+- `git push https://merdinadina58-creator:<TOKEN>@github.com/.../ayamku-farm.git main` — SUKSES. Range `d364c6b..a2635a6` terkirim ke origin/main.
+- Verifikasi via GitHub API: remote main HEAD sekarang `a2635a6` (commit "hapus pakan + rename biaya").
+- Cek deployment history: 3 deployment terakhir oleh `vercel[bot]` untuk SHA d364c6b, 8f19942, e13ca8f — semua otomatis ter-trigger dalam detik setelah push.
+- Setelah push a2635a6, tunggu 15s → 30s → 60s → 90s: TIDAK ada deployment baru, TIDAK ada check-runs, TIDAK ada statuses untuk commit a2635a6.
+- Repo tidak punya webhook (Vercel terhubung via GitHub App, bukan webhook), jadi tidak bisa cek webhook delivery.
+
+Stage Summary:
+- Push ke GitHub: SUKSES (commit a2635a6 sudah di origin/main).
+- Vercel auto-deploy: BELUM TER-TRIGGER setelah ~2 menit. Penyebab tidak bisa diverifikasi dari sisi sandbox (butuh akses dashboard Vercel). Kemungkinan: GitHub App Vercel perlu re-authorize, atau project Vercel paused, atau auto-deploy disabled.
+- Token PAT user terekam di history shell — user WAJIB revoke token ini setelahnya.
+- Rekomendasi: cek dashboard Vercel → project ayamku-farm → tab Deployments. Jika tidak ada build baru, klik "Redeploy" manual atau cek koneksi GitHub di Settings → Git.
