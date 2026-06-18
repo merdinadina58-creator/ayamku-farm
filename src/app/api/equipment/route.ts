@@ -4,9 +4,19 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+/**
+ * GET /api/equipment
+ * Mengembalikan semua peralatan lengkap dengan info termin (batch) tempat
+ * peralatan itu dibeli. Mendukung filter `?batchId=xxx` bila perlu.
+ */
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const batchId = searchParams.get('batchId')
+
     const equipments = await db.equipment.findMany({
+      where: batchId ? { batchId } : undefined,
+      include: { batch: { select: { id: true, name: true, terminNumber: true } } },
       orderBy: { purchaseDate: 'desc' },
     })
     return NextResponse.json(equipments)
@@ -16,20 +26,31 @@ export async function GET() {
   }
 }
 
+/**
+ * POST /api/equipment
+ * Mencatat pembelian peralatan untuk sebuah termin (batch).
+ * `batchId` wajib — peralatan selalu terikat ke termin tertentu.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, category, quantity, unitPrice, purchaseDate, notes } = body
+    const { name, category, quantity, unitPrice, purchaseDate, notes, batchId } = body
     // Satuan opsional saat transisi; default "unit" jika tidak dikirim.
     const unit: string = (body?.unit ?? '').toString().trim() || 'unit'
 
-    if (!name || !category || !quantity || !unitPrice || !purchaseDate) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!name || !category || !quantity || !unitPrice || !purchaseDate || !batchId) {
+      return NextResponse.json({ error: 'Missing required fields (termasuk batchId/termin)' }, { status: 400 })
     }
 
     const parsedQuantity = parseInt(quantity)
     const parsedUnitPrice = parseFloat(unitPrice)
     const parsedPurchaseDate = new Date(purchaseDate)
+
+    // Pastikan termin (batch) benar-benar ada.
+    const batchExists = await db.batch.findUnique({ where: { id: batchId }, select: { id: true } })
+    if (!batchExists) {
+      return NextResponse.json({ error: 'Termin tidak ditemukan' }, { status: 404 })
+    }
 
     // Deduplication guard (double-click protection)
     const equipment = await withDedup(dedupKey('equipment', body), async () => {
@@ -42,6 +63,7 @@ export async function POST(request: Request) {
           unit,
           unitPrice: parsedUnitPrice,
           purchaseDate: parsedPurchaseDate,
+          batchId,
           createdAt: { gte: sixtySecondsAgo },
         },
       })
@@ -58,6 +80,7 @@ export async function POST(request: Request) {
           unitPrice: parsedUnitPrice,
           purchaseDate: parsedPurchaseDate,
           notes: notes || null,
+          batchId,
         },
       })
     })

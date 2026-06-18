@@ -8,6 +8,7 @@ export async function GET() {
         feedRecords: true,
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: true,
+        equipment: true,
       },
     })
 

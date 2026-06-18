@@ -9,6 +9,7 @@ export async function GET() {
         feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: { orderBy: { date: 'desc' } },
+        equipment: { orderBy: { purchaseDate: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },
     })

@@ -476,3 +476,48 @@ Stage Summary:
 - Backend tidak berubah (API sudah menerima ageDays dari client); perhitungan di frontend konsisten dengan cara dashboard sudah hitung ageDays (line ~660).
 - Browser-verified: 3 skenario (umur normal 2 hari, umur 7 hari + simpan sukses, tanggal invalid → warning + disabled).
 - Lint bersih, dev server berjalan di port 3000.
+
+---
+Task ID: peralatan-per-termin
+Agent: Main Agent
+Task: Ubah fitur Peralatan dari inventaris global terpisah → menjadi "belanja per termin" (terikat ke batch), sama seperti Pakan. Peralatan = apa saja yang dibeli untuk ayam pada termin tertentu.
+
+Work Log:
+- Menganalisis struktur: Pakan sudah terikat batch (batchId + tab di batch detail), tapi Peralatan masih global (tidak ada batchId, section terpisah).
+- Schema (prisma/schema.prisma): tambah `batchId String?` + `batch Batch?` relation ke Equipment; tambah `equipment Equipment[]` ke Batch model. Nullable untuk backward compat data lama.
+- Run `bun run db:push` — schema tersinkron ke Neon, Prisma Client di-regenerate.
+- API /api/batches GET: tambah `equipment: { orderBy: { purchaseDate: 'desc' } }` ke include (peralatan nested di setiap batch, sama seperti feedRecords/weightRecords/mortalityRecords).
+- API /api/dashboard GET: tambah `equipment: true` ke include.
+- API /api/equipment: rewrite GET (include batch relation, support ?batchId= filter) + POST (wajibkan batchId, validasi batch exists, include batchId di dedup key & DB check).
+- Frontend (page.tsx):
+  - Equipment interface: tambah batchId + batch?. Batch interface: tambah equipment[].
+  - Hapus `equipments` state terpisah + hapus fetch `/api/equipment` dari fetchData. Peralatan sekarang datang nested di batches (sama seperti pakan/berat/mortalitas).
+  - Tambah `allEquipments = useMemo(() => batches.flatMap(b => b.equipment ?? []), [batches])` untuk summary di Hitung section.
+  - handleAddEquipment: batchId wajib (dari dialogBatchId || selectedBatch?.id); kirim {...equipmentForm, batchId}; reset dialogBatchId; toast "Peralatan berhasil ditambahkan ke termin".
+  - Rewrite main "Peralatan" section: judul "Belanja Peralatan per Termin", group by batch (mirror pola pakan section). Setiap termin card menampilkan equipment list + total item & nilai. Tombol Tambah set dialogBatchId ke batch pertama. Empty state "Belum ada termin" jika tidak ada batch.
+  - Tambah tab "Peralatan" ke-4 di batch detail (TabsList jadi 4 tab: Pakan/Berat/Mortalitas/Peralatan). TabsContent peralatan menampilkan summary (jenis/item/nilai) + list peralatan untuk termin itu.
+  - Dialog Tambah Peralatan: tambah dropdown Termin di paling atas (saat tidak ada selectedBatch), mirip dialog pakan/berat/mortalitas. Tombol Simpan disabled jika tidak ada batch terpilih.
+  - Hitung section: ganti semua referensi `equipments` → `allEquipments`.
+- Run `bun run lint` — bersih, no error.
+- Restart dev server (schema berubah, perlu Prisma Client baru).
+- Verifikasi API via curl: POST equipment dengan batchId → tersimpan dengan batchId; GET /api/batches → equipment nested di batch.
+- Verifikasi UI via Agent Browser:
+  - Section "Peralatan" sekarang "Belanja Peralatan per Termin" — grouping per batch, setiap termin card menampilkan equipment-nya.
+  - Dialog Tambah Peralatan punya dropdown Termin di paling atas.
+  - Isi form: Termin "Bulan Mei — Termin #1", Nama "Tempat Minum Galon", 10 Pcs × Rp 15.000 → Total Rp 150.000. Simpan → toast "Berhasil! 🔧 Peralatan berhasil ditambahkan ke termin".
+  - Setelah reload, section Peralatan menampilkan: Jenis 1, Total Item 10, Total Nilai Rp 150.000, card "Bulan Mei Termin #1 — 1 jenis — 10 item — Rp 150.000 — Tempat Minum Galon 10 Pcs × Rp 15.000".
+  - Batch detail: 4 tab (Pakan/Berat/Mortalitas/Peralatan). Klik tab Peralatan → "Riwayat Belanja Peralatan — Pembelian peralatan & inventaris untuk termin ini — Jenis 1, Total Item 10, Total Nilai Rp 150.000 — Tempat Minum Galon 10 Pcs × Rp 15.000 • 23 Mei 2026 — Rp 150.000".
+  - Bersihkan data test.
+  - Screenshot: /home/z/my-project/upload/peralatan-per-termin.png
+
+Stage Summary:
+- Fitur Peralatan tidak lagi terpisah sebagai inventaris global. Sekarang peralatan = belanja per termin, terikat ke batch (sama persis polanya dengan Pakan).
+- 3 tempat akses peralatan per termin:
+  1. Main section "Peralatan" → rekap semua termin, grouping per batch.
+  2. Batch detail → tab "Peralatan" (ke-4 setelah Pakan/Berat/Mortalitas).
+  3. Hitung section → ringkasan total biaya peralatan (allEquipments derived dari batches).
+- Dialog Tambah Peralatan wajib pilih Termin (dropdown), seperti dialog pakan/berat/mortalitas.
+- Schema: Equipment.batchId (nullable untuk data lama) + Batch.equipment[] relation. onDelete Cascade (hapus termin → peralatannya ikut terhapus).
+- API konsisten: /api/batches include equipment; /api/equipment POST wajib batchId.
+- Browser-verified: tambah peralatan per termin + tampil di main section & batch detail tab.
+- Lint bersih, dev server berjalan di port 3000.

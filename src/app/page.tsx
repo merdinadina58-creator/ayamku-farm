@@ -98,6 +98,7 @@ interface Batch {
   feedRecords: FeedRecord[]
   weightRecords: WeightRecord[]
   mortalityRecords: MortalityRecord[]
+  equipment: Equipment[]
 }
 
 interface DashboardData {
@@ -148,7 +149,10 @@ interface Equipment {
   unitPrice: number
   purchaseDate: string
   notes: string | null
+  batchId: string | null
+  batch?: { id: string; name: string; terminNumber: number }
   createdAt: string
+  updatedAt: string
 }
 
 interface Unit {
@@ -251,8 +255,9 @@ export default function HomePage() {
   // we need the user to pick which batch the record belongs to.
   const [dialogBatchId, setDialogBatchId] = useState('')
 
-  // Equipment data + form
-  const [equipments, setEquipments] = useState<Equipment[]>([])
+  // Equipment form — peralatan dibeli PER TERMIN (terikat ke batch).
+  // Tidak ada lagi state `equipments` terpisah; semua peralatan datang
+  // nested di setiap batch (batches[].equipment), sama seperti pakan/berat/mortalitas.
   const [equipmentForm, setEquipmentForm] = useState({
     name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '',
   })
@@ -300,13 +305,20 @@ export default function HomePage() {
     return Math.floor(diffMs / (1000 * 60 * 60 * 24))
   }, [weightBatch, weightForm.date])
 
+  // Semua peralatan dari seluruh termin, diturunkan dari state `batches`
+  // (peralatan datang nested di setiap batch). Dipakai untuk ringkasan di
+  // section Hitung. Tidak ada fetch terpisah lagi.
+  const allEquipments = useMemo(
+    () => batches.flatMap((b) => b.equipment ?? []),
+    [batches]
+  )
+
   const fetchData = useCallback(async () => {
     try {
-      const [batchRes, dashRes, settingsRes, equipRes, unitsRes] = await Promise.all([
+      const [batchRes, dashRes, settingsRes, unitsRes] = await Promise.all([
         fetch('/api/batches'),
         fetch('/api/dashboard'),
         fetch('/api/settings'),
-        fetch('/api/equipment'),
         fetch('/api/units'),
       ])
 
@@ -315,7 +327,6 @@ export default function HomePage() {
       const batchData = batchRes.ok ? await batchRes.json() : []
       const dashData = dashRes.ok ? await dashRes.json() : null
       const settingsData = settingsRes.ok ? await settingsRes.json() : {}
-      const equipData = equipRes.ok ? await equipRes.json() : []
       const unitsData = unitsRes.ok ? await unitsRes.json() : []
 
       setBatches(Array.isArray(batchData) ? batchData : [])
@@ -323,7 +334,6 @@ export default function HomePage() {
       setAppSettings({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
       setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
       setLogoPreview(settingsData.logoData || '')
-      setEquipments(Array.isArray(equipData) ? equipData : [])
       setUnits(Array.isArray(unitsData) ? unitsData : [])
     } catch {
       toast({ title: 'Error', description: 'Gagal memuat data', variant: 'destructive' })
@@ -526,6 +536,12 @@ export default function HomePage() {
   }
 
   const handleAddEquipment = async () => {
+    // Peralatan wajib terikat ke sebuah termin (batch).
+    const batchId = dialogBatchId || selectedBatch?.id
+    if (!batchId) {
+      toast({ title: 'Pilih Termin', description: 'Pilih termin tempat peralatan ini dibeli', variant: 'destructive' })
+      return
+    }
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
@@ -533,14 +549,15 @@ export default function HomePage() {
       const res = await fetch('/api/equipment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(equipmentForm),
+        body: JSON.stringify({ ...equipmentForm, batchId }),
       })
       if (!res.ok) throw new Error()
       setAddEquipmentOpen(false)
+      setDialogBatchId('')
       setShowAddUnit(false)
       setNewUnitName('')
       setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
-      toast({ title: 'Berhasil! 🔧', description: 'Peralatan berhasil ditambahkan' })
+      toast({ title: 'Berhasil! 🔧', description: 'Peralatan berhasil ditambahkan ke termin' })
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan peralatan', variant: 'destructive' })
@@ -1311,33 +1328,28 @@ export default function HomePage() {
                         <div className="min-w-0">
                           <CardTitle className="flex items-center gap-2">
                             <Wrench className="w-5 h-5 text-indigo-600" />
-                            Peralatan Peternakan
+                            Belanja Peralatan per Termin
                           </CardTitle>
-                          <CardDescription>Catatan pembelian peralatan, kandang, dan inventaris</CardDescription>
+                          <CardDescription>Catatan pembelian peralatan, kandang, dan inventaris untuk setiap termin</CardDescription>
                         </div>
-                        <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
-                          <Plus className="w-4 h-4" /> Tambah Peralatan
-                        </Button>
+                        {batches.length > 0 && (
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                            <Plus className="w-4 h-4" /> Tambah Peralatan
+                          </Button>
+                        )}
                       </div>
                     </CardHeader>
                     <CardContent>
                       {(() => {
-                        const totalItems = equipments.reduce((s, e) => s + e.quantity, 0)
-                        const totalCost = equipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
-                        const byCategory = equipments.reduce((acc, e) => {
-                          if (!acc[e.category]) acc[e.category] = { count: 0, cost: 0, items: 0 }
-                          acc[e.category].count += 1
-                          acc[e.category].items += e.quantity
-                          acc[e.category].cost += e.quantity * e.unitPrice
-                          return acc
-                        }, {} as Record<string, { count: number; cost: number; items: number }>)
+                        const totalItems = allEquipments.reduce((s, e) => s + e.quantity, 0)
+                        const totalCost = allEquipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
                         return (
                           <>
                             {/* Summary cards */}
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
                               <div className="bg-indigo-50 rounded-xl p-3 text-center">
                                 <p className="text-xs text-muted-foreground">Jenis Peralatan</p>
-                                <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
+                                <p className="text-lg font-bold text-indigo-700">{allEquipments.length}</p>
                               </div>
                               <div className="bg-emerald-50 rounded-xl p-3 text-center">
                                 <p className="text-xs text-muted-foreground">Total Item</p>
@@ -1349,49 +1361,59 @@ export default function HomePage() {
                               </div>
                             </div>
 
-                            {equipments.length === 0 ? (
+                            {batches.length === 0 ? (
                               <div className="text-center py-12 text-muted-foreground">
                                 <Wrench className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p>Belum ada data peralatan</p>
-                                <p className="text-xs mt-1">Klik "Tambah Peralatan" untuk mencatat pembelian alat</p>
+                                <p>Belum ada termin</p>
+                                <p className="text-xs mt-1">Buat termin terlebih dahulu sebelum mencatat pembelian peralatan</p>
                               </div>
                             ) : (
                               <div className="space-y-5">
-                                {/* Group by category */}
-                                {Object.entries(byCategory).map(([category, data]) => (
-                                  <div key={category} className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
-                                    <div className="flex items-center justify-between mb-3 gap-2">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <Wrench className="w-4 h-4 text-indigo-600 shrink-0" />
-                                        <h3 className="font-bold truncate">{category}</h3>
-                                        <Badge variant="outline" className="text-xs shrink-0">{data.count} jenis</Badge>
-                                      </div>
-                                      <div className="text-right shrink-0 ml-2">
-                                        <p className="text-sm font-bold text-indigo-700">{data.items.toLocaleString('id-ID')} item</p>
-                                        <p className="text-xs text-muted-foreground">{formatCurrency(data.cost)}</p>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                      {equipments.filter((e) => e.category === category).map((e) => (
-                                        <div key={e.id} className="group flex items-center justify-between py-2 px-3 rounded-lg bg-white/60 gap-2">
-                                          <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-medium truncate">{e.name}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                              {e.quantity} {e.unit} × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}
-                                              {e.notes ? ` • ${e.notes}` : ''}
-                                            </p>
-                                          </div>
-                                          <div className="flex items-center gap-2 shrink-0">
-                                            <span className="text-sm font-bold">{formatCurrency(e.quantity * e.unitPrice)}</span>
-                                            <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-red-500 hover:text-red-700" onClick={() => handleDeleteEquipment(e.id)}>
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
-                                          </div>
+                                {/* Group by termin/batch — mirror pola section pakan */}
+                                {batches.map((batch) => {
+                                  const equipList = batch.equipment ?? []
+                                  const batchCost = equipList.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+                                  const batchItems = equipList.reduce((s, e) => s + e.quantity, 0)
+                                  return (
+                                    <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
+                                      <div className="flex items-center justify-between mb-3 gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <Wrench className="w-4 h-4 text-indigo-600 shrink-0" />
+                                          <h3 className="font-bold truncate">{batch.name}</h3>
+                                          <Badge variant="outline" className="text-xs shrink-0">Termin #{batch.terminNumber}</Badge>
+                                          <Badge variant="outline" className="text-xs shrink-0">{equipList.length} jenis</Badge>
                                         </div>
-                                      ))}
+                                        <div className="text-right shrink-0 ml-2">
+                                          <p className="text-sm font-bold text-indigo-700">{batchItems.toLocaleString('id-ID')} item</p>
+                                          <p className="text-xs text-muted-foreground">{formatCurrency(batchCost)}</p>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {equipList.length === 0 ? (
+                                          <p className="text-sm text-muted-foreground text-center py-2">Belum ada pembelian peralatan untuk termin ini</p>
+                                        ) : (
+                                          equipList.map((e) => (
+                                            <div key={e.id} className="group flex items-center justify-between py-2 px-3 rounded-lg bg-white/60 gap-2">
+                                              <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">{e.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {e.quantity} {e.unit} × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}
+                                                  {e.notes ? ` • ${e.notes}` : ''}
+                                                </p>
+                                              </div>
+                                              <div className="flex items-center gap-2 shrink-0">
+                                                <span className="text-sm font-bold">{formatCurrency(e.quantity * e.unitPrice)}</span>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-red-500 hover:text-red-700" onClick={() => handleDeleteEquipment(e.id)}>
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             )}
                           </>
@@ -1412,7 +1434,7 @@ export default function HomePage() {
                       <CardDescription>Kalkulasi total pakan, biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {batches.length === 0 && equipments.length === 0 ? (
+                      {batches.length === 0 && allEquipments.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                           <Calculator className="w-12 h-12 mx-auto mb-3 opacity-30" />
                           <p>Belum ada data untuk dihitung</p>
@@ -1420,9 +1442,9 @@ export default function HomePage() {
                       ) : (
                         <div className="space-y-6">
                           {/* Equipment cost summary */}
-                          {equipments.length > 0 && (() => {
-                            const totalEquipCost = equipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
-                            const totalEquipItems = equipments.reduce((s, e) => s + e.quantity, 0)
+                          {allEquipments.length > 0 && (() => {
+                            const totalEquipCost = allEquipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+                            const totalEquipItems = allEquipments.reduce((s, e) => s + e.quantity, 0)
                             return (
                               <div className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
                                 <h3 className="font-bold mb-3 flex items-center gap-2">
@@ -1432,7 +1454,7 @@ export default function HomePage() {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                   <div className="bg-indigo-50 rounded-xl p-3 text-center">
                                     <p className="text-xs text-muted-foreground">Jenis</p>
-                                    <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
+                                    <p className="text-lg font-bold text-indigo-700">{allEquipments.length}</p>
                                   </div>
                                   <div className="bg-emerald-50 rounded-xl p-3 text-center">
                                     <p className="text-xs text-muted-foreground">Total Item</p>
@@ -1879,17 +1901,20 @@ export default function HomePage() {
                     </Card>
                   )}
 
-                  {/* Detail Tabs: Feed, Weight, Mortality */}
+                  {/* Detail Tabs: Feed, Weight, Mortality, Equipment */}
                   <Tabs defaultValue="pakan" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-2 sm:flex">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-2 sm:flex sm:flex-wrap">
                       <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
                         <Wheat className="w-4 h-4" /> Pakan
                       </TabsTrigger>
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
-                      <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 w-full sm:w-auto col-span-2 sm:col-span-1">
+                      <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 w-full sm:w-auto">
                         <Skull className="w-4 h-4" /> Mortalitas
+                      </TabsTrigger>
+                      <TabsTrigger value="peralatan" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto col-span-2 sm:col-span-1">
+                        <Wrench className="w-4 h-4" /> Peralatan
                       </TabsTrigger>
                     </TabsList>
 
@@ -2069,6 +2094,82 @@ export default function HomePage() {
                                         <div className="flex items-center gap-3 shrink-0">
                                           <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
                                           <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Equipment Records (per termin) */}
+                    <TabsContent value="peralatan">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Wrench className="w-4 h-4 text-indigo-600" />
+                              Riwayat Belanja Peralatan
+                            </CardTitle>
+                            <CardDescription>Pembelian peralatan & inventaris untuk termin ini</CardDescription>
+                          </div>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                            <Plus className="w-4 h-4" /> Tambah
+                          </Button>
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const equipList = selectedBatch.equipment ?? []
+                            const totalCost = equipList.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+                            const totalItems = equipList.reduce((s, e) => s + e.quantity, 0)
+                            return (
+                              <>
+                                {/* Summary row */}
+                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                  <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Jenis</p>
+                                    <p className="text-lg font-bold text-indigo-700">{equipList.length}</p>
+                                  </div>
+                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Item</p>
+                                    <p className="text-lg font-bold text-emerald-700">{totalItems.toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Nilai</p>
+                                    <p className="text-sm sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(totalCost)}</p>
+                                  </div>
+                                </div>
+
+                                {equipList.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <Wrench className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">Belum ada pembelian peralatan untuk termin ini</p>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddEquipmentOpen(true)}>
+                                      <Plus className="w-3 h-3" /> Tambah Peralatan Pertama
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                                    {equipList.map((e) => (
+                                      <div key={e.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-50/50 to-transparent hover:from-indigo-50 transition-colors group">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                                            <Wrench className="w-5 h-5 text-indigo-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="font-medium text-sm truncate">{e.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{e.quantity} {e.unit} × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}{e.notes ? ` • ${e.notes}` : ''}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          <p className="font-bold text-sm">{formatCurrency(e.quantity * e.unitPrice)}</p>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); handleDeleteEquipment(e.id) }}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
                                         </div>
@@ -2452,9 +2553,23 @@ export default function HomePage() {
               <Wrench className="w-5 h-5 text-indigo-600" />
               Tambah Peralatan
             </DialogTitle>
-            <DialogDescription>Catat pembelian peralatan, kandang, atau inventaris</DialogDescription>
+            <DialogDescription>Catat pembelian peralatan, kandang, atau inventaris{selectedBatch ? ` untuk ${selectedBatch.name}` : ''}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Pilih termin — peralatan wajib terikat ke sebuah termin (seperti pakan). */}
+            {!selectedBatch && (
+              <div className="space-y-2">
+                <Label>Termin</Label>
+                <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
+                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
+                  <SelectContent>
+                    {batches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Nama Barang</Label>
               <Input placeholder="mis. Broiler Pelet, Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
@@ -2536,7 +2651,7 @@ export default function HomePage() {
               <Label>Catatan</Label>
               <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
             </div>
-            <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
+            <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Peralatan'}
             </Button>
           </div>

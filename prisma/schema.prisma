@@ -30,6 +30,7 @@ model Batch {
   feedRecords      FeedRecord[]
   weightRecords    WeightRecord[]
   mortalityRecords MortalityRecord[]
+  equipment        Equipment[]
 }
 
 model FeedRecord {
@@ -85,8 +86,11 @@ model Equipment {
   unitPrice    Float    // harga per satuan (Rp)
   purchaseDate DateTime // tanggal pembelian
   notes        String?
+  batchId      String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  batch        Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 // Master daftar satuan (Sak, Karung, Liter, kg, dll).
