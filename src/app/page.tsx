@@ -200,9 +200,6 @@ const SECTION_LABELS: Record<string, string> = {
   berat: 'Berat',
   mortalitas: 'Mortalitas',
   biaya: 'Biaya',
-  panen: 'Panen',
-  hitung: 'Perhitungan',
-  kalender: 'Kalender',
   settings: 'Pengaturan',
 }
 
@@ -212,9 +209,6 @@ const NAV_ITEMS = [
   { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
   { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
   { id: 'biaya', label: 'Biaya', icon: Wrench, iconColor: 'text-indigo-600' },
-  { id: 'panen', label: 'Panen', icon: ShoppingBasket, iconColor: 'text-amber-600' },
-  { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
-  { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
 ] as const
 
@@ -227,7 +221,7 @@ export default function HomePage() {
   const { toast } = useToast()
 
   // Sidebar + section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'berat' | 'mortalitas' | 'biaya' | 'panen' | 'hitung' | 'kalender' | 'settings'>('dashboard')
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'berat' | 'mortalitas' | 'biaya' | 'settings'>('dashboard')
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
   // Settings state
@@ -1360,466 +1354,6 @@ export default function HomePage() {
                   </Card>
                 )}
 
-                {/* Panen Section */}
-                {activeSection === 'panen' && (() => {
-                  const harvestedBatches = batches.filter(b => b.status === 'harvested')
-                  const activeBatches = batches.filter(b => b.status === 'active')
-                  const totalHarvestQty = harvestedBatches.reduce((s, b) => s + (b.harvestQuantity || 0), 0)
-                  const totalHarvestKg = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0)), 0)
-                  const totalRevenue = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0) * (b.sellingPricePerKg || 0)), 0)
-                  return (
-                    <div className="space-y-4">
-                      {/* Summary cards */}
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                        <Card className="border-0 shadow-md">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                                <ShoppingBasket className="w-4 h-4 text-amber-600" />
-                              </div>
-                              <p className="text-xs text-muted-foreground">Termin Panen</p>
-                            </div>
-                            <p className="text-2xl font-bold text-amber-700">{harvestedBatches.length}</p>
-                            <p className="text-xs text-muted-foreground">dari {batches.length} termin</p>
-                          </CardContent>
-                        </Card>
-                        <Card className="border-0 shadow-md">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                                <Bird className="w-4 h-4 text-orange-600" />
-                              </div>
-                              <p className="text-xs text-muted-foreground">Total Ekor Panen</p>
-                            </div>
-                            <p className="text-2xl font-bold text-orange-700">{totalHarvestQty.toLocaleString('id-ID')}</p>
-                            <p className="text-xs text-muted-foreground">ekor</p>
-                          </CardContent>
-                        </Card>
-                        <Card className="border-0 shadow-md">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
-                                <Scale className="w-4 h-4 text-teal-600" />
-                              </div>
-                              <p className="text-xs text-muted-foreground">Total Berat Panen</p>
-                            </div>
-                            <p className="text-2xl font-bold text-teal-700">{totalHarvestKg.toFixed(1)}</p>
-                            <p className="text-xs text-muted-foreground">kg</p>
-                          </CardContent>
-                        </Card>
-                        <Card className="border-0 shadow-md">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                              </div>
-                              <p className="text-xs text-muted-foreground">Total Pendapatan</p>
-                            </div>
-                            <p className="text-xl sm:text-2xl font-bold text-green-700 break-words">{formatCurrency(totalRevenue)}</p>
-                            <p className="text-xs text-muted-foreground">dari {harvestedBatches.length} panen</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      {/* Main card with batch list */}
-                      <Card className="border-0 shadow-lg">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <ShoppingBasket className="w-5 h-5 text-amber-600" />
-                            Riwayat Panen per Termin
-                          </CardTitle>
-                          <CardDescription>
-                            {batches.length === 0
-                              ? 'Tambahkan termin terlebih dahulu untuk mencatat panen'
-                              : 'Catat dan kelola data panen untuk setiap termin ayam'}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          {batches.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center">
-                              <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-3">
-                                <ShoppingBasket className="w-8 h-8 text-amber-400" />
-                              </div>
-                              <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
-                              <p className="text-muted-foreground text-sm mt-1 max-w-sm">
-                                Untuk mencatat panen, tambahkan termin (batch ayam) terlebih dahulu di menu Termin.
-                              </p>
-                              <Button className="mt-4 gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700" onClick={() => setActiveSection('termin')}>
-                                <Package className="w-4 h-4" /> Ke Menu Termin
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                              {/* Harvested batches first */}
-                              {harvestedBatches.map((batch) => {
-                                const revenue = (batch.harvestQuantity || 0) * (batch.harvestWeight || 0) * (batch.sellingPricePerKg || 0)
-                                return (
-                                  <Card key={batch.id} className="border-amber-200 bg-amber-50/40 overflow-hidden">
-                                    <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
-                                    <CardContent className="p-4">
-                                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                            <h4 className="font-bold truncate">{batch.name}</h4>
-                                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Panen</Badge>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground mb-2">
-                                            Tgl Panen: {batch.harvestDate ? formatDate(batch.harvestDate) : '—'} • Termin #{batch.terminNumber}
-                                          </p>
-                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Jumlah</p>
-                                              <p className="text-sm font-bold text-amber-700">{(batch.harvestQuantity || 0).toLocaleString('id-ID')} ekor</p>
-                                            </div>
-                                            <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Berat/Ekor</p>
-                                              <p className="text-sm font-bold text-orange-700">{(batch.harvestWeight || 0).toFixed(2)} kg</p>
-                                            </div>
-                                            <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Harga/kg</p>
-                                              <p className="text-sm font-bold text-emerald-700">{formatCurrency(batch.sellingPricePerKg || 0)}</p>
-                                            </div>
-                                            <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Pendapatan</p>
-                                              <p className="text-sm font-bold text-green-700 break-words">{formatCurrency(revenue)}</p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <Button variant="outline" size="sm" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100 shrink-0" onClick={() => openHarvestDialog(batch)}>
-                                          <Pencil className="w-4 h-4" /> Edit Panen
-                                        </Button>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                )
-                              })}
-
-                              {/* Active batches (not yet harvested) */}
-                              {activeBatches.map((batch) => {
-                                const stats = getBatchStats(batch)
-                                return (
-                                  <Card key={batch.id} className="border-emerald-200 overflow-hidden">
-                                    <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
-                                    <CardContent className="p-4">
-                                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                            <h4 className="font-bold truncate">{batch.name}</h4>
-                                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Aktif</Badge>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground">
-                                            Termin #{batch.terminNumber} • {stats.aliveCount.toLocaleString('id-ID')} ekor hidup • Umur {stats.ageDays} hari • Tiba {formatDate(batch.arrivalDate)}
-                                          </p>
-                                        </div>
-                                        <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openHarvestDialog(batch)}>
-                                          <CheckCircle2 className="w-4 h-4" /> Panen
-                                        </Button>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                )
-                              })}
-
-                              {batches.length > 0 && harvestedBatches.length === 0 && activeBatches.length > 0 && (
-                                <p className="text-center text-xs text-muted-foreground pt-2">
-                                  Belum ada termin yang dipanen. Klik tombol <span className="font-semibold text-amber-700">Panen</span> pada termin di atas untuk mencatat panen.
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )
-                })()}
-
-                {/* Hitung Section */}
-                {activeSection === 'hitung' && (
-                  <Card className="border-0 shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calculator className="w-5 h-5 text-rose-600" />
-                        Perhitungan & Total Panen Per Termin
-                      </CardTitle>
-                      <CardDescription>Kalkulasi biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {batches.length === 0 && allEquipments.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <Calculator className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                          <p>Belum ada data untuk dihitung</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          {/* Equipment cost summary */}
-                          {allEquipments.length > 0 && (() => {
-                            const totalEquipCost = allEquipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
-                            const totalEquipItems = allEquipments.reduce((s, e) => s + e.quantity, 0)
-                            return (
-                              <div className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
-                                <h3 className="font-bold mb-3 flex items-center gap-2">
-                                  <Wrench className="w-4 h-4 text-indigo-600" />
-                                  Ringkasan Biaya
-                                </h3>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                  <div className="bg-indigo-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Jenis</p>
-                                    <p className="text-lg font-bold text-indigo-700">{allEquipments.length}</p>
-                                  </div>
-                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Total Item</p>
-                                    <p className="text-lg font-bold text-emerald-700">{totalEquipItems.toLocaleString('id-ID')}</p>
-                                  </div>
-                                  <div className="bg-amber-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
-                                    <p className="text-xs text-muted-foreground">Total Nilai</p>
-                                    <p className="text-base sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(totalEquipCost)}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })()}
-                          {/* Summary Chart */}
-                          {dashboard && dashboard.batchSummaries.length > 0 && (
-                            <div className="border rounded-xl p-4 bg-gradient-to-br from-white to-rose-50/20">
-                              <h3 className="font-bold mb-4 flex items-center gap-2">
-                                <BarChart3 className="w-4 h-4 text-rose-600" />
-                                Perbandingan Per Termin
-                              </h3>
-                              <div className="h-72">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={dashboard.batchSummaries.map((b) => ({
-                                    name: b.name,
-                                    'Total Pakan (kg)': b.totalFeedKg,
-                                    'Biaya (Rp ribu)': Math.round(b.totalFeedCost / 1000),
-                                    'Mati/Afkir': b.totalDead,
-                                  }))}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                    <YAxis tick={{ fontSize: 11 }} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="Total Pakan (kg)" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="Biaya (Rp ribu)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="Mati/Afkir" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Per-termin detail cards */}
-                          {batches.map((batch) => {
-                            const stats = getBatchStats(batch)
-                            const feedByType = batch.feedRecords.reduce((acc, f) => {
-                              if (!acc[f.feedType]) acc[f.feedType] = { total: 0, cost: 0 }
-                              acc[f.feedType].total += f.quantityKg
-                              acc[f.feedType].cost += f.quantityKg * f.pricePerKg
-                              return acc
-                            }, {} as Record<string, { total: number; cost: number }>)
-
-                            const pieData = Object.entries(feedByType).map(([type, data]) => ({
-                              name: type,
-                              value: data.total,
-                              cost: data.cost,
-                            }))
-
-                            return (
-                              <div key={batch.id} className="border rounded-xl overflow-hidden">
-                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <h3 className="font-bold text-lg truncate">{batch.name}</h3>
-                                    <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor awal • {stats.ageDays} hari</p>
-                                  </div>
-                                  <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} shrink-0>
-                                    {batch.status === 'active' ? 'Aktif' : 'Panen'}
-                                  </Badge>
-                                </div>
-                                <div className="p-4">
-                                  {/* Feed & Cost stats */}
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Total Pakan</p>
-                                      <p className="text-lg font-bold text-emerald-700">{stats.totalFeed.toFixed(1)} kg</p>
-                                    </div>
-                                    <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Total Biaya</p>
-                                      <p className="text-base sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(stats.totalCost)}</p>
-                                    </div>
-                                    <div className="bg-teal-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
-                                      <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
-                                    </div>
-                                    <div className="bg-violet-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">FCR</p>
-                                      <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Mortality & Harvest stats */}
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                                    <div className="bg-red-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
-                                      <p className="text-lg font-bold text-red-700">{stats.totalDead} ekor</p>
-                                      <p className="text-xs text-red-500">{stats.mortalityRate.toFixed(1)}%</p>
-                                    </div>
-                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Hidup</p>
-                                      <p className="text-lg font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
-                                    </div>
-                                    <div className="bg-orange-50 rounded-xl p-3 text-center">
-                                      <p className="text-xs text-muted-foreground">Total Panen</p>
-                                      <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
-                                      {stats.harvestQty > 0 && <p className="text-xs text-muted-foreground">{stats.harvestQty} ekor × {stats.harvestWt} kg</p>}
-                                    </div>
-                                    <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                                      <p className="text-xs text-muted-foreground">{batch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
-                                      <p className={`text-base sm:text-lg font-bold break-words ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
-                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground break-words">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
-                                    </div>
-                                  </div>
-
-                                  {/* Pie chart for feed distribution */}
-                                  {pieData.length > 0 && (
-                                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                                      <div className="w-48 h-48 shrink-0">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                          <PieChart>
-                                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                                              {pieData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={FEED_TYPE_COLORS[entry.name] || COLORS[index % COLORS.length]} />
-                                              ))}
-                                            </Pie>
-                                            <Tooltip formatter={(value: number) => [`${value.toFixed(1)} kg`, 'Jumlah']} />
-                                          </PieChart>
-                                        </ResponsiveContainer>
-                                      </div>
-                                      <div className="flex-1 space-y-2 w-full">
-                                        {Object.entries(feedByType).map(([type, data]) => (
-                                          <div key={type} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-gray-50">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
-                                              <span className="text-sm font-medium">{type}</span>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                              <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
-                                              <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {batch.feedRecords.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center py-4">Belum ada data pakan untuk termin ini</p>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Kalender Section */}
-                {activeSection === 'kalender' && (
-                  <Card className="border-0 shadow-lg">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CalendarDays className="w-5 h-5 text-emerald-600" />
-                        Kalender Peternakan
-                      </CardTitle>
-                      <CardDescription>Jadwal kedatangan bibit (Tiba) dan panen ayam per termin</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {batches.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                          <p>Belum ada termin untuk ditampilkan di kalender</p>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Month navigation */}
-                          <div className="flex items-center justify-between mb-4">
-                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
-                              <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <h3 className="text-base font-bold capitalize">
-                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-                            </h3>
-                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </div>
-
-                          {/* Day name headers */}
-                          <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
-                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
-                            ))}
-                          </div>
-
-                          {/* Calendar grid */}
-                          <div className="grid grid-cols-7 gap-1">
-                            {calendarCells.map((cell, i) => {
-                              if (!cell.date) {
-                                return <div key={`blank-${i}`} className="min-h-[60px] sm:min-h-[80px]" />
-                              }
-                              const events = cell.events
-                              const hasTiba = events.some((e) => e.type === 'tiba')
-                              const hasPanen = events.some((e) => e.type === 'panen')
-                              const isToday = new Date().toDateString() === cell.date.toDateString()
-                              return (
-                                <button
-                                  key={cell.day}
-                                  onClick={() => events.length > 0 && setDayDetail({ date: cell.date!, events })}
-                                  className={`min-h-[60px] sm:min-h-[80px] p-1.5 rounded-lg border text-left transition-all ${
-                                    events.length > 0
-                                      ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer'
-                                      : 'border-gray-100'
-                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
-                                >
-                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
-                                  {hasTiba && (
-                                    <div className="mt-1 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">Tiba</span>
-                                    </div>
-                                  )}
-                                  {hasPanen && (
-                                    <div className="mt-0.5 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                      <span className="block text-[10px] font-medium text-amber-700 truncate">Panen</span>
-                                    </div>
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
-
-                          {/* Legend */}
-                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500" />
-                              <span className="text-muted-foreground">Panen</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
-                              <span className="text-muted-foreground">Hari ini</span>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
                 {/* Settings Section */}
                 {activeSection === 'settings' && (
                   <Card className="border-0 shadow-lg">
@@ -2013,7 +1547,7 @@ export default function HomePage() {
 
                   {/* Detail Tabs: Weight, Mortality, Biaya */}
                   <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:flex sm:flex-wrap">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-6 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -2022,6 +1556,15 @@ export default function HomePage() {
                       </TabsTrigger>
                       <TabsTrigger value="biaya" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto">
                         <Wrench className="w-4 h-4" /> Biaya
+                      </TabsTrigger>
+                      <TabsTrigger value="panen" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
+                        <ShoppingBasket className="w-4 h-4" /> Panen
+                      </TabsTrigger>
+                      <TabsTrigger value="hitung" className="gap-2 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 w-full sm:w-auto">
+                        <Calculator className="w-4 h-4" /> Perhitungan
+                      </TabsTrigger>
+                      <TabsTrigger value="kalender" className="gap-2 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 w-full sm:w-auto">
+                        <CalendarDays className="w-4 h-4" /> Kalender
                       </TabsTrigger>
                     </TabsList>
 
@@ -2233,6 +1776,257 @@ export default function HomePage() {
                               </>
                             )
                           })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Panen Records (per termin) */}
+                    <TabsContent value="panen">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <ShoppingBasket className="w-4 h-4 text-amber-600" />
+                              Data Panen
+                            </CardTitle>
+                            <CardDescription>Informasi panen untuk termin {selectedBatch.name}</CardDescription>
+                          </div>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openHarvestDialog(selectedBatch)}>
+                            {selectedBatch.status === 'harvested' ? <><Pencil className="w-4 h-4" /> Edit Panen</> : <><CheckCircle2 className="w-4 h-4" /> Panen</>}
+                          </Button>
+                        </CardHeader>
+                        <CardContent>
+                          {selectedBatch.status === 'harvested' ? (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Tanggal Panen</p>
+                                  <p className="text-sm font-bold text-amber-700">{selectedBatch.harvestDate ? formatDate(selectedBatch.harvestDate) : '—'}</p>
+                                </div>
+                                <div className="bg-orange-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Jumlah Panen</p>
+                                  <p className="text-lg font-bold text-orange-700">{(selectedBatch.harvestQuantity || 0).toLocaleString('id-ID')} ekor</p>
+                                </div>
+                                <div className="bg-teal-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Berat/Ekor</p>
+                                  <p className="text-lg font-bold text-teal-700">{(selectedBatch.harvestWeight || 0).toFixed(2)} kg</p>
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Harga/kg</p>
+                                  <p className="text-sm font-bold text-emerald-700">{formatCurrency(selectedBatch.sellingPricePerKg || 0)}</p>
+                                </div>
+                              </div>
+                              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                                <div className="grid grid-cols-2 gap-4 text-center">
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+                                    <p className="text-xl font-bold text-amber-700">{((selectedBatch.harvestQuantity || 0) * (selectedBatch.harvestWeight || 0)).toFixed(1)} kg</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Total Pendapatan</p>
+                                    <p className="text-base sm:text-xl font-bold text-green-700 break-words">{formatCurrency((selectedBatch.harvestQuantity || 0) * (selectedBatch.harvestWeight || 0) * (selectedBatch.sellingPricePerKg || 0))}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <ShoppingBasket className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                              <p className="text-sm">Termin ini belum dipanen</p>
+                              <p className="text-xs mt-1">Klik tombol Panen untuk mencatat data panen</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Perhitungan (per termin) */}
+                    <TabsContent value="hitung">
+                      {(() => {
+                        const stats = getBatchStats(selectedBatch)
+                        const equipList = selectedBatch.equipment ?? []
+                        const equipCost = equipList.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+                        const totalCost = stats.totalCost + equipCost
+                        return (
+                          <Card className="border-0 shadow-lg">
+                            <CardHeader>
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Calculator className="w-4 h-4 text-rose-600" />
+                                Perhitungan Termin {selectedBatch.name}
+                              </CardTitle>
+                              <CardDescription>Kalkulasi biaya, FCR, mortalitas, dan profit untuk termin ini</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Total Biaya</p>
+                                  <p className="text-sm sm:text-lg font-bold text-indigo-700 break-words">{formatCurrency(totalCost)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Biaya Operasional</p>
+                                  <p className="text-sm sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(equipCost)}</p>
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Pakan</p>
+                                  <p className="text-lg font-bold text-emerald-700">{stats.totalFeed.toFixed(1)} kg</p>
+                                </div>
+                                <div className="bg-teal-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
+                                  <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-violet-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">FCR</p>
+                                  <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-red-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+                                  <p className="text-lg font-bold text-red-700">{stats.totalDead} ekor</p>
+                                  <p className="text-xs text-red-500">{stats.mortalityRate.toFixed(1)}%</p>
+                                </div>
+                                <div className="bg-green-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Hidup</p>
+                                  <p className="text-lg font-bold text-green-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Umur</p>
+                                  <p className="text-lg font-bold text-amber-700">{stats.ageDays} hari</p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-orange-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Total Panen</p>
+                                  <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+                                  {stats.harvestQty > 0 && <p className="text-xs text-muted-foreground">{stats.harvestQty} ekor × {stats.harvestWt} kg</p>}
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Pendapatan</p>
+                                  <p className="text-sm sm:text-lg font-bold text-emerald-700 break-words">{formatCurrency(stats.totalHarvestValue)}</p>
+                                </div>
+                                <div className={`rounded-xl p-3 text-center col-span-2 ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                                  <p className="text-xs text-muted-foreground">{selectedBatch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
+                                  <p className={`text-lg sm:text-xl font-bold break-words ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+                                </div>
+                              </div>
+                              {equipList.length > 0 && (
+                                <div className="border rounded-xl p-3 bg-gradient-to-r from-white to-indigo-50/20">
+                                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                                    <Wrench className="w-4 h-4 text-indigo-600" />
+                                    Rincian Biaya ({equipList.length} item)
+                                  </h4>
+                                  <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                    {equipList.map((e) => (
+                                      <div key={e.id} className="flex items-center justify-between py-1 px-2 rounded-lg bg-white/60">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <span className="text-sm font-medium truncate">{e.name}</span>
+                                          <span className="text-xs text-muted-foreground">{e.quantity} {e.unit}</span>
+                                        </div>
+                                        <span className="text-sm font-bold shrink-0">{formatCurrency(e.quantity * e.unitPrice)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )
+                      })()}
+                    </TabsContent>
+
+                    {/* Kalender (per termin) */}
+                    <TabsContent value="kalender">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CalendarDays className="w-4 h-4 text-emerald-600" />
+                            Kalender Termin {selectedBatch.name}
+                          </CardTitle>
+                          <CardDescription>Jadwal kedatangan dan panen untuk termin ini</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                            <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Tiba (Bibit Masuk)</p>
+                              <p className="text-sm font-bold text-emerald-700">{formatDate(selectedBatch.arrivalDate)}</p>
+                              <p className="text-xs text-muted-foreground">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
+                            </div>
+                            <div className="bg-amber-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Panen</p>
+                              <p className="text-sm font-bold text-amber-700">{selectedBatch.harvestDate ? formatDate(selectedBatch.harvestDate) : 'Belum panen'}</p>
+                              <p className="text-xs text-muted-foreground">{selectedBatch.harvestQuantity ? `${selectedBatch.harvestQuantity.toLocaleString('id-ID')} ekor` : '—'}</p>
+                            </div>
+                            <div className="bg-teal-50 rounded-xl p-3 text-center">
+                              <p className="text-xs text-muted-foreground">Umur</p>
+                              <p className="text-sm font-bold text-teal-700">{getBatchStats(selectedBatch).ageDays} hari</p>
+                              <p className="text-xs text-muted-foreground">{selectedBatch.status === 'active' ? 'Masih aktif' : 'Sudah panen'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mb-4">
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
+                              <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <h3 className="text-base font-bold capitalize">
+                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                            </h3>
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
+                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {calendarCells.map((cell, i) => {
+                              if (!cell.date) {
+                                return <div key={`blank-${i}`} className="min-h-[50px] sm:min-h-[60px]" />
+                              }
+                              const events = cell.events.filter((e) => e.batch.id === selectedBatch.id)
+                              const hasTiba = events.some((e) => e.type === 'tiba')
+                              const hasPanen = events.some((e) => e.type === 'panen')
+                              const isToday = new Date().toDateString() === cell.date.toDateString()
+                              return (
+                                <div
+                                  key={cell.day}
+                                  className={`min-h-[50px] sm:min-h-[60px] p-1.5 rounded-lg border text-left transition-all ${
+                                    events.length > 0
+                                      ? 'border-emerald-200 bg-emerald-50/30'
+                                      : 'border-gray-100'
+                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
+                                >
+                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
+                                  {hasTiba && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">Tiba</span>
+                                    </div>
+                                  )}
+                                  {hasPanen && (
+                                    <div className="mt-0.5 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-amber-700 truncate">Panen</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span className="text-muted-foreground">Panen</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
+                              <span className="text-muted-foreground">Hari ini</span>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     </TabsContent>
