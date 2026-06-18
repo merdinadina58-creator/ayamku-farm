@@ -20,6 +20,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { name, category, quantity, unitPrice, purchaseDate, notes } = body
+    // Satuan opsional saat transisi; default "unit" jika tidak dikirim.
+    const unit: string = (body?.unit ?? '').toString().trim() || 'unit'
 
     if (!name || !category || !quantity || !unitPrice || !purchaseDate) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
           name,
           category,
           quantity: parsedQuantity,
+          unit,
           unitPrice: parsedUnitPrice,
           purchaseDate: parsedPurchaseDate,
           createdAt: { gte: sixtySecondsAgo },
@@ -51,6 +54,7 @@ export async function POST(request: Request) {
           name,
           category,
           quantity: parsedQuantity,
+          unit,
           unitPrice: parsedUnitPrice,
           purchaseDate: parsedPurchaseDate,
           notes: notes || null,

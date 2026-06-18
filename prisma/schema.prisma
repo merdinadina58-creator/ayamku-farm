@@ -78,12 +78,22 @@ model AppSetting {
 
 model Equipment {
   id           String   @id @default(cuid())
-  name         String   // nama peralatan, mis. "Tempat Minum Otomatis"
+  name         String   // nama barang, mis. "Broiler Pelet", "Tempat Minum Otomatis"
   category     String   // kategori: Kandang, Peralatan Pakan & Minum, dll
-  quantity     Int      // jumlah unit
-  unitPrice    Float    // harga per unit (Rp)
+  quantity     Int      // jumlah
+  unit         String   @default("unit") // satuan: Sak, Karung, Liter, kg, dll
+  unitPrice    Float    // harga per satuan (Rp)
   purchaseDate DateTime // tanggal pembelian
   notes        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// Master daftar satuan (Sak, Karung, Liter, kg, dll).
+// Pengguna bisa menambah satuan baru lewat UI; satuan tersimpan di sini
+// agar tetap tersedia di dropdown pada sesi berikutnya.
+model Unit {
+  id        String   @id @default(cuid())
+  name      String   @unique // nama satuan, mis. "Sak"
+  createdAt DateTime @default(now())
 }

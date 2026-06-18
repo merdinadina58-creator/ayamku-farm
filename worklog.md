@@ -395,3 +395,46 @@ Stage Summary:
 - Equipment cost summary appears in Perhitungan section
 - All new features work on mobile + desktop, with double-submit protection (withDedup)
 - Schema + /api/setup updated so Vercel deployment will auto-create Equipment table
+
+---
+Task ID: satuan-feature
+Agent: Main Agent
+Task: Tambah field Satuan (bisa dipilih + bisa tambah satuan baru) ke fitur Peralatan, sesuai contoh user: Nama Barang / Jumlah / Satuan (Sak, Karung, Liter, kg, dll) / Harga / Total Harga otomatis.
+
+Work Log:
+- Menganalisis gambar upload (modal "Tambah Catatan Pakan" yang sudah ada) via VLM — user jelas ingin fitur Peralatan punya field satuan.
+- Menemukan fitur Equipment sudah ada (schema + API + UI) tapi belum ada field satuan — unit hardcoded "unit".
+- Update prisma/schema.prisma: tambah `unit String @default("unit")` ke model Equipment + model `Unit` baru (id, name @unique, createdAt) untuk master daftar satuan.
+- Tambah DIRECT_URL ke .env (schema butuh directUrl untuk prisma CLI).
+- Run `bun run db:push` — schema tersinkron ke Neon PostgreSQL, Prisma Client di-regenerate.
+- Buat /api/units/route.ts: GET (auto-seed 15 satuan default: Sak, Karung, Liter, kg, dll jika tabel kosong) + POST (tambah satuan baru, capitalize nama, case-insensitive dedup + withDedup guard).
+- Buat /api/units/[id]/route.ts: DELETE satuan.
+- Update /api/equipment/route.ts POST: terima field `unit`, include di dedup key & DB dedup check.
+- Update src/app/page.tsx:
+  - Tambah `unit: string` ke interface Equipment + interface Unit baru.
+  - Tambah `unit: 'Unit'` ke equipmentForm state + state units/showAddUnit/newUnitName/savingUnit.
+  - Fetch /api/units di fetchData (parallel dengan fetch lain).
+  - handleAddUnit: POST satuan baru, update state units, auto-pilih satuan baru di form.
+  - Reset form di handleAddEquipment & tombol "Tambah Peralatan" include unit + clear showAddUnit/newUnitName.
+  - Rebuild dialog "Tambah Peralatan": Nama Barang, Kategori, grid Jumlah + Satuan (Select dengan semua satuan + opsi "➕ Tambah Satuan Baru…"), inline add-unit UI (input + Simpan + Batal) saat opsi tambah dipilih, Harga/satuan (label dinamis), Tanggal, kartu Total Harga (tampilkan "5 Sak × Rp 500.000 = Rp 2.500.000"), Catatan, tombol Simpan.
+  - Display list: "{e.quantity} {e.unit} × ..." (sebelumnya hardcoded "unit").
+  - Summary cards: "Total Item" (sebelumnya "Total Unit") di section Peralatan & dashboard.
+- Run `bun run lint` — bersih, no error.
+- Restart dev server dengan `env -u DATABASE_URL` (shell punya stale DATABASE_URL=file: SQLite path yang menimpa .env).
+- Verifikasi API via curl: /api/units (15 default auto-seeded), POST "sak"→"Sak", POST equipment "Broiler Pelet, 5 Sak, 500000" → total 2.500.000 (persis contoh user).
+- Verifikasi UI via Agent Browser:
+  - Navigasi ke section Peralatan, buka dialog "Tambah Peralatan".
+  - Isi Nama Barang "Broiler Pelet", Jumlah 5, pilih Satuan "Sak" dari dropdown (15 satuan + opsi tambah), Harga 500000, tanggal.
+  - Kartu Total Harga menampilkan "5 Sak × Rp 500.000 = Rp 2.500.000" — label "Harga / Sak (Rp)" dinamis.
+  - Simpan → toast "Berhasil! 🔧 Peralatan berhasil ditambahkan", list menampilkan "Broiler Pelet — 5 Sak × Rp 500.000 • 18 Jun 2025 — Rp 2.500.000".
+  - Test "Tambah Satuan Baru": pilih opsi "➕ Tambah Satuan Baru…", ketik "Kaleng", Simpan → satuan "Kaleng" tersimpan ke DB (16 total) & auto-terpilih di form.
+  - Bersihkan data test (Broiler Pelet dihapus via API; satuan "Kaleng" dipertahankan sebagai satuan valid).
+- Screenshot: /home/z/my-project/upload/peralatan-success.png, peralatan-empty.png
+
+Stage Summary:
+- Fitur Satuan lengkap end-to-end: schema (Equipment.unit + Unit model), API (/api/units GET auto-seed + POST dedup, /api/units/[id] DELETE, /api/equipment POST terima unit), UI (dialog dengan Select satuan + inline tambah satuan baru, label dinamis, kartu Total Harga dengan rincian, display unit di list).
+- 15 satuan default auto-seeded (Sak, Karung, Liter, kg, gram, Ekor, Unit, Pcs, Botol, Galur, Pak, Box, Meter, Roll, Set).
+- User bisa pilih satuan dari dropdown ATAU tambah satuan baru yang langsung tersimpan & tersedia untuk semua peralatan berikutnya.
+- Dedup guard diterapkan (withDedup + DB check) untuk satuan & equipment, konsisten dengan fix duplikasi sebelumnya.
+- Browser-verified: alur lengkap (pilih satuan + tambah satuan baru + simpan + tampil di list) berfungsi sempurna.
+- Lint bersih, dev server berjalan di port 3000.

@@ -144,10 +144,16 @@ interface Equipment {
   name: string
   category: string
   quantity: number
+  unit: string
   unitPrice: number
   purchaseDate: string
   notes: string | null
   createdAt: string
+}
+
+interface Unit {
+  id: string
+  name: string
 }
 
 const EQUIPMENT_CATEGORIES = [
@@ -248,8 +254,13 @@ export default function HomePage() {
   // Equipment data + form
   const [equipments, setEquipments] = useState<Equipment[]>([])
   const [equipmentForm, setEquipmentForm] = useState({
-    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '',
+    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '',
   })
+  // Master daftar satuan (Sak, Karung, Liter, kg, dll) + state untuk tambah satuan baru
+  const [units, setUnits] = useState<Unit[]>([])
+  const [showAddUnit, setShowAddUnit] = useState(false)
+  const [newUnitName, setNewUnitName] = useState('')
+  const [savingUnit, setSavingUnit] = useState(false)
 
   // Submission guard: prevents double-submit (double-click / race condition)
   const [submitting, setSubmitting] = useState(false)
@@ -274,11 +285,12 @@ export default function HomePage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [batchRes, dashRes, settingsRes, equipRes] = await Promise.all([
+      const [batchRes, dashRes, settingsRes, equipRes, unitsRes] = await Promise.all([
         fetch('/api/batches'),
         fetch('/api/dashboard'),
         fetch('/api/settings'),
         fetch('/api/equipment'),
+        fetch('/api/units'),
       ])
 
       // Parse each response, guarding against non-OK responses so the UI
@@ -287,6 +299,7 @@ export default function HomePage() {
       const dashData = dashRes.ok ? await dashRes.json() : null
       const settingsData = settingsRes.ok ? await settingsRes.json() : {}
       const equipData = equipRes.ok ? await equipRes.json() : []
+      const unitsData = unitsRes.ok ? await unitsRes.json() : []
 
       setBatches(Array.isArray(batchData) ? batchData : [])
       setDashboard(dashData)
@@ -294,6 +307,7 @@ export default function HomePage() {
       setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
       setLogoPreview(settingsData.logoData || '')
       setEquipments(Array.isArray(equipData) ? equipData : [])
+      setUnits(Array.isArray(unitsData) ? unitsData : [])
     } catch {
       toast({ title: 'Error', description: 'Gagal memuat data', variant: 'destructive' })
     } finally {
@@ -497,7 +511,9 @@ export default function HomePage() {
       })
       if (!res.ok) throw new Error()
       setAddEquipmentOpen(false)
-      setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '' })
+      setShowAddUnit(false)
+      setNewUnitName('')
+      setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
       toast({ title: 'Berhasil! 🔧', description: 'Peralatan berhasil ditambahkan' })
       fetchData()
     } catch {
@@ -516,6 +532,41 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menghapus peralatan', variant: 'destructive' })
+    }
+  }
+
+  // Tambah satuan baru (Sak, Karung, Liter, kg, dll) ke master daftar.
+  // Satuan baru otomatis terpilih di form peralatan setelah disimpan.
+  const handleAddUnit = async () => {
+    const name = newUnitName.trim()
+    if (!name) {
+      toast({ title: 'Oops', description: 'Nama satuan tidak boleh kosong', variant: 'destructive' })
+      return
+    }
+    if (savingUnit) return
+    setSavingUnit(true)
+    try {
+      const res = await fetch('/api/units', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error()
+      const created: Unit = await res.json()
+      // Tambahkan ke daftar satuan (hindari duplikat di state), urut abjad.
+      setUnits((prev) =>
+        prev.some((u) => u.name.toLowerCase() === created.name.toLowerCase())
+          ? prev
+          : [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setEquipmentForm((prev) => ({ ...prev, unit: created.name }))
+      setNewUnitName('')
+      setShowAddUnit(false)
+      toast({ title: 'Satuan ditambahkan ✅', description: `Satuan "${created.name}" siap dipakai` })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menambah satuan', variant: 'destructive' })
+    } finally {
+      setSavingUnit(false)
     }
   }
 
@@ -1238,7 +1289,7 @@ export default function HomePage() {
                           </CardTitle>
                           <CardDescription>Catatan pembelian peralatan, kandang, dan inventaris</CardDescription>
                         </div>
-                        <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '' }); setAddEquipmentOpen(true) }}>
+                        <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                           <Plus className="w-4 h-4" /> Tambah Peralatan
                         </Button>
                       </div>
@@ -1263,7 +1314,7 @@ export default function HomePage() {
                                 <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
                               </div>
                               <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                <p className="text-xs text-muted-foreground">Total Unit</p>
+                                <p className="text-xs text-muted-foreground">Total Item</p>
                                 <p className="text-lg font-bold text-emerald-700">{totalItems.toLocaleString('id-ID')}</p>
                               </div>
                               <div className="bg-amber-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
@@ -1290,7 +1341,7 @@ export default function HomePage() {
                                         <Badge variant="outline" className="text-xs shrink-0">{data.count} jenis</Badge>
                                       </div>
                                       <div className="text-right shrink-0 ml-2">
-                                        <p className="text-sm font-bold text-indigo-700">{data.items.toLocaleString('id-ID')} unit</p>
+                                        <p className="text-sm font-bold text-indigo-700">{data.items.toLocaleString('id-ID')} item</p>
                                         <p className="text-xs text-muted-foreground">{formatCurrency(data.cost)}</p>
                                       </div>
                                     </div>
@@ -1300,7 +1351,7 @@ export default function HomePage() {
                                           <div className="min-w-0 flex-1">
                                             <p className="text-sm font-medium truncate">{e.name}</p>
                                             <p className="text-xs text-muted-foreground">
-                                              {e.quantity} unit × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}
+                                              {e.quantity} {e.unit} × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}
                                               {e.notes ? ` • ${e.notes}` : ''}
                                             </p>
                                           </div>
@@ -1358,7 +1409,7 @@ export default function HomePage() {
                                     <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
                                   </div>
                                   <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Total Unit</p>
+                                    <p className="text-xs text-muted-foreground">Total Item</p>
                                     <p className="text-lg font-bold text-emerald-700">{totalEquipItems.toLocaleString('id-ID')}</p>
                                   </div>
                                   <div className="bg-amber-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
@@ -2365,8 +2416,8 @@ export default function HomePage() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Nama Peralatan</Label>
-              <Input placeholder="mis. Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
+              <Label>Nama Barang</Label>
+              <Input placeholder="mis. Broiler Pelet, Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Kategori</Label>
@@ -2381,13 +2432,52 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Jumlah (unit)</Label>
-                <Input type="number" min="1" placeholder="10" value={equipmentForm.quantity} onChange={(e) => setEquipmentForm({ ...equipmentForm, quantity: e.target.value })} />
+                <Label>Jumlah</Label>
+                <Input type="number" min="1" placeholder="5" value={equipmentForm.quantity} onChange={(e) => setEquipmentForm({ ...equipmentForm, quantity: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Harga/unit (Rp)</Label>
-                <Input type="number" step="100" min="0" placeholder="35000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
+                <Label>Satuan</Label>
+                <Select
+                  value={showAddUnit ? '__add_new__' : equipmentForm.unit}
+                  onValueChange={(v) => {
+                    if (v === '__add_new__') {
+                      setShowAddUnit(true)
+                    } else {
+                      setShowAddUnit(false)
+                      setEquipmentForm({ ...equipmentForm, unit: v })
+                    }
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih satuan" /></SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                    ))}
+                    <SelectItem value="__add_new__">➕ Tambah Satuan Baru…</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+            {showAddUnit && (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                <Input
+                  placeholder="Satuan baru, mis. Sak, Karung, Liter…"
+                  value={newUnitName}
+                  onChange={(e) => setNewUnitName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit() } }}
+                  autoFocus
+                />
+                <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddUnit} disabled={savingUnit || !newUnitName.trim()}>
+                  {savingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddUnit(false); setNewUnitName('') }}>
+                  Batal
+                </Button>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Harga / {equipmentForm.unit || 'satuan'} (Rp)</Label>
+              <Input type="number" step="100" min="0" placeholder="500000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Tanggal Beli</Label>
@@ -2395,8 +2485,11 @@ export default function HomePage() {
             </div>
             {equipmentForm.quantity && equipmentForm.unitPrice && (
               <div className="bg-indigo-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total Nilai</p>
+                <p className="text-xs text-muted-foreground">Total Harga</p>
                 <p className="text-lg font-bold text-indigo-700">{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {equipmentForm.quantity || 0} {equipmentForm.unit || 'satuan'} × {formatCurrency(parseFloat(equipmentForm.unitPrice) || 0)}
+                </p>
               </div>
             )}
             <div className="space-y-2">
