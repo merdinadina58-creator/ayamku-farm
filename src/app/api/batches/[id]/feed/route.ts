@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { withDedup, dedupKey } from '@/lib/dedup'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -31,15 +32,40 @@ export async function POST(
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const feedRecord = await db.feedRecord.create({
-      data: {
-        batchId: id,
-        date: new Date(date),
-        feedType,
-        quantityKg: parseFloat(quantityKg),
-        pricePerKg: parseFloat(pricePerKg),
-        notes: notes || null,
-      },
+    const parsedDate = new Date(date)
+    const parsedQuantityKg = parseFloat(quantityKg)
+    const parsedPricePerKg = parseFloat(pricePerKg)
+
+    // Wrap check-and-create in an atomic in-memory dedup so that concurrent
+    // identical requests (double-click race condition) share a single result.
+    const feedRecord = await withDedup(dedupKey(`feed:${id}`, body), async () => {
+      // Deduplication guard: if an identical feed record was created in the
+      // last 60 seconds (e.g. from a double-click), return the existing one.
+      const sixtySecondsAgo = new Date(Date.now() - 60_000)
+      const existing = await db.feedRecord.findFirst({
+        where: {
+          batchId: id,
+          date: parsedDate,
+          feedType,
+          quantityKg: parsedQuantityKg,
+          pricePerKg: parsedPricePerKg,
+          createdAt: { gte: sixtySecondsAgo },
+        },
+      })
+      if (existing) {
+        return existing
+      }
+
+      return db.feedRecord.create({
+        data: {
+          batchId: id,
+          date: parsedDate,
+          feedType,
+          quantityKg: parsedQuantityKg,
+          pricePerKg: parsedPricePerKg,
+          notes: notes || null,
+        },
+      })
     })
 
     return NextResponse.json(feedRecord, { status: 201 })

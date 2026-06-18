@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bird,
@@ -30,6 +30,7 @@ import {
   Image as ImageIcon,
   Save,
   Info,
+  Loader2,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -215,6 +216,10 @@ export default function HomePage() {
   const [addMortalityOpen, setAddMortalityOpen] = useState(false)
   const [harvestOpen, setHarvestOpen] = useState(false)
 
+  // Submission guard: prevents double-submit (double-click / race condition)
+  const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+
   // Form states
   const [batchForm, setBatchForm] = useState({
     name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '',
@@ -263,6 +268,9 @@ export default function HomePage() {
   }, [fetchData])
 
   const handleAddBatch = async () => {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
     try {
       const res = await fetch('/api/batches', {
         method: 'POST',
@@ -276,11 +284,17 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan termin', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
   const handleAddFeed = async () => {
     if (!selectedBatch) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
     try {
       const res = await fetch(`/api/batches/${selectedBatch.id}/feed`, {
         method: 'POST',
@@ -294,11 +308,17 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan pakan', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
   const handleAddWeight = async () => {
     if (!selectedBatch) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
     try {
       const res = await fetch(`/api/batches/${selectedBatch.id}/weight`, {
         method: 'POST',
@@ -312,11 +332,17 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan data berat', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
   const handleAddMortality = async () => {
     if (!selectedBatch) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
     try {
       const res = await fetch(`/api/batches/${selectedBatch.id}/mortality`, {
         method: 'POST',
@@ -330,11 +356,17 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menambahkan data kematian', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
   const handleHarvest = async () => {
     if (!selectedBatch) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
     try {
       const res = await fetch(`/api/batches/${selectedBatch.id}`, {
         method: 'PUT',
@@ -354,6 +386,9 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal memperbarui status panen', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
@@ -1433,7 +1468,7 @@ export default function HomePage() {
                           Batal
                         </Button>
                         <Button onClick={handleSaveSettings} disabled={savingSettings} className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800">
-                          <Save className="w-4 h-4" /> {savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                          {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'}
                         </Button>
                       </div>
                     </CardContent>
@@ -1832,8 +1867,8 @@ export default function HomePage() {
               <Label htmlFor="batch-notes">Catatan</Label>
               <Textarea id="batch-notes" placeholder="Catatan opsional..." value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} />
             </div>
-            <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={!batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
-              Simpan Termin
+            <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={submitting || !batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Termin'}
             </Button>
           </div>
         </DialogContent>
@@ -1889,8 +1924,8 @@ export default function HomePage() {
               <Label>Catatan</Label>
               <Textarea placeholder="Catatan opsional..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} />
             </div>
-            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={!feedForm.date || !feedForm.quantityKg || !feedForm.pricePerKg}>
-              Simpan Pakan
+            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.quantityKg || !feedForm.pricePerKg}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Pakan'}
             </Button>
           </div>
         </DialogContent>
@@ -1932,8 +1967,8 @@ export default function HomePage() {
               <Label>Catatan</Label>
               <Textarea placeholder="Catatan opsional..." value={weightForm.notes} onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })} />
             </div>
-            <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={!weightForm.date || !weightForm.averageWeightGram || !weightForm.ageDays}>
-              Simpan Data Timbang
+            <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={submitting || !weightForm.date || !weightForm.averageWeightGram || !weightForm.ageDays}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Data Timbang'}
             </Button>
           </div>
         </DialogContent>
@@ -1985,8 +2020,8 @@ export default function HomePage() {
                 </p>
               </div>
             )}
-            <Button onClick={handleAddMortality} className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" disabled={!mortalityForm.date || !mortalityForm.quantity}>
-              Simpan Data Mortalitas
+            <Button onClick={handleAddMortality} className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" disabled={submitting || !mortalityForm.date || !mortalityForm.quantity}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Data Mortalitas'}
             </Button>
           </div>
         </DialogContent>
@@ -2038,8 +2073,8 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={!harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
-              Konfirmasi Panen
+            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Konfirmasi Panen'}
             </Button>
           </div>
         </DialogContent>

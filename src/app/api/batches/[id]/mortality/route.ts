@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { withDedup, dedupKey } from '@/lib/dedup'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -31,14 +32,37 @@ export async function POST(
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const mortalityRecord = await db.mortalityRecord.create({
-      data: {
-        batchId: id,
-        date: new Date(date),
-        quantity: parseInt(quantity),
-        reason,
-        notes: notes || null,
-      },
+    const parsedDate = new Date(date)
+    const parsedQuantity = parseInt(quantity)
+
+    // Wrap check-and-create in an atomic in-memory dedup so that concurrent
+    // identical requests (double-click race condition) share a single result.
+    const mortalityRecord = await withDedup(dedupKey(`mortality:${id}`, body), async () => {
+      // Deduplication guard: if an identical mortality record was created in
+      // the last 60 seconds (e.g. from a double-click), return the existing one.
+      const sixtySecondsAgo = new Date(Date.now() - 60_000)
+      const existing = await db.mortalityRecord.findFirst({
+        where: {
+          batchId: id,
+          date: parsedDate,
+          quantity: parsedQuantity,
+          reason,
+          createdAt: { gte: sixtySecondsAgo },
+        },
+      })
+      if (existing) {
+        return existing
+      }
+
+      return db.mortalityRecord.create({
+        data: {
+          batchId: id,
+          date: parsedDate,
+          quantity: parsedQuantity,
+          reason,
+          notes: notes || null,
+        },
+      })
     })
 
     return NextResponse.json(mortalityRecord, { status: 201 })

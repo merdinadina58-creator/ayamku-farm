@@ -56,3 +56,5 @@ server.log
 # SQLite database files (local only)
 db/*.db
 db/*.db-journal
+test-*.png
+*.png
