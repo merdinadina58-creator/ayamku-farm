@@ -609,3 +609,43 @@ Stage Summary:
 - Root cause Vercel tidak auto-deploy untuk commit a2635a6: webhook missed event (bukan code issue). Empty commit push berhasil memaksa Vercel re-trigger deployment.
 - Token PAT user (ghp_***) masih aktif — user tetap perlu revoke setelah sesi ini.
 - Production URL: https://ayamku-farm.vercel.app (verified HTTP 200, metadata updated).
+
+---
+Task ID: fitur-panen-section
+Agent: Main Agent
+Task: User melaporkan "ada history panen di aplikasi setelah deploy, tetapi tidak ada fitur panen saya temukan" — analisa screenshot, fix, dan deploy.
+
+Work Log:
+- Analisa screenshot user via VLM CLI: screenshot menampilkan card "Total Panen" (3.000 ekor, 5400 kg, Rp 135jt, profit Rp 135jt) di dalam batch detail dialog untuk batch yang sudah harvested. User tidak menemukan cara input/edit panen.
+- Investigasi kode: fitur Panen sebenarnya ADA tapi tersembunyi — tombol "Panen" hanya muncul di header dialog batch detail, DAN hanya untuk batch active (status==='active'). Batch yang sudah harvested tidak bisa edit data panen. Tidak ada section Panen di sidebar.
+- Root cause: discoverability issue. User lihat card "Total Panen" (read-only summary) tapi tidak bisa find cara input/edit.
+- Fix 1: Tambah `panen` ke SECTION_LABELS, NAV_ITEMS (icon ShoppingBasket, warna text-amber-600), dan type activeSection. Posisi: setelah Biaya, sebelum Perhitungan.
+- Fix 2: Tambah function `openHarvestDialog(batch)` — pre-fill form dengan data existing untuk edit mode, kosong untuk new harvest mode.
+- Fix 3: Tambah section "Panen" baru (~170 baris) dengan:
+  - 4 summary cards: Termin Panen (count), Total Ekor Panen, Total Berat Panen (kg), Total Pendapatan (Rp)
+  - Card "Riwayat Panen per Termin" dengan list batch grouped: harvested (border amber, tombol Edit Panen) di atas, active (border emerald, tombol Panen gradient amber) di bawah
+  - Empty state: jika belum ada termin, arahkan user ke menu Termin
+  - max-h-[60vh] overflow-y-auto untuk list panjang
+- Fix 4: Modify batch detail header — tombol sekarang tampil untuk SEMUA batch: "Panen" (icon CheckCircle2) untuk active, "Edit Panen" (icon Pencil) untuk harvested.
+- Fix 5: Modify Harvest Dialog — title "Panen Ayam" → "Edit Data Panen" (edit mode), description conditional, button text "Konfirmasi Panen" → "Simpan Perubahan" (edit mode). Toast "Ayam berhasil dipanen" → "Data panen berhasil diperbarui" (edit mode).
+- Fix 6: Import Pencil icon dari lucide-react.
+- Lint: bersih, no error.
+- Browser-verified via Agent Browser:
+  - Sidebar: menu "Panen" muncul antara Biaya & Perhitungan.
+  - Klik Panen → section "Panen" aktif, heading "Panen", 4 summary cards, card "Riwayat Panen per Termin".
+  - Batch harvested "Bulan Mei" tampil dengan badge Panen, tgl panen, 4 stats (Jumlah 3.000 ekor, Berat/Ekor 1.80 kg, Harga/kg Rp25.000, Pendapatan), tombol "Edit Panen".
+  - Klik Edit Panen → dialog "Edit Data Panen" terbuka, form pre-filled (tgl 18 Jun 2026, 3000 ekor, 1.8 kg, Rp25.000), tombol "Simpan Perubahan".
+  - Edit berat 1.8 → 1.85, klik Simpan → toast "Berhasil! 🎉 Data panen berhasil diperbarui".
+  - API verifikasi: harvestWeight=1.85 tersimpan di DB.
+  - Reload → section Panen menampilkan Berat/Ekor 1.85 kg, Total Pendapatan Rp138.750.000 (3000×1.85×25000).
+  - Rollback data user ke 1.8 kg via API PUT.
+  - Screenshot: /home/z/my-project/upload/panen-section-final.png
+- Deploy: commit d40480e push ke GitHub → Vercel auto-deploy success (T+45s).
+
+Stage Summary:
+- Fitur Panen sekarang punya section tersendiri di sidebar (icon ShoppingBasket, warna amber) — user bisa langsung akses tanpa buka detail termin.
+- 4 summary cards aggregate: Termin Panen, Total Ekor Panen, Total Berat Panen, Total Pendapatan.
+- List semua batch: yang sudah panen (tombol Edit Panen) di atas, yang aktif (tombol Panen) di bawah.
+- Edit mode: batch yang sudah panen sekarang BISA diedit datanya (sebelumnya tidak bisa). Dialog pre-fill form, title "Edit Data Panen", tombol "Simpan Perubahan".
+- Batch detail dialog: tombol Panen/Edit Panen tampil untuk semua status.
+- Production Vercel: commit d40480e deployed successfully. URL: https://ayamku-farm.vercel.app
