@@ -263,3 +263,33 @@ Stage Summary:
 - User should re-upload a 512x512px PNG for best quality (current JPEG still works
   but is upscaled from 151x148 which may look blurry)
 - All commits pushed: 5d4e2de, 40f78f8
+
+---
+Task ID: sandbox-sync-neon
+Agent: main-agent
+Task: Start sandbox dev server and sync with GitHub + Neon database
+
+Work Log:
+- Synced local repo with GitHub (pushed 1 extra commit — worklog update)
+- Created .env.local with Neon DATABASE_URL (same as Vercel uses)
+- Updated .env with Neon DATABASE_URL (overrides old SQLite path)
+- Ran prisma generate for PostgreSQL client
+- Tested DB connection from sandbox to Neon: ✅ 2 batches found
+- Created /tmp/start-next.sh wrapper script that sets DATABASE_URL env var
+  before starting next dev (shell env had old SQLite value that overrode .env)
+- Started dev server via start-stop-daemon on port 3000
+- Verified all endpoints work:
+  - GET / → 200 (page renders with logo, sidebar, dashboard)
+  - GET /api/settings → returns appName + logoData (user's uploaded JPEG logo)
+  - GET /api/batches → 2 batches (both "Mei", created by user)
+  - GET /api/dashboard → 1200 chickens alive, 2 active batches
+  - GET /api/logo → PNG 512x512 RGBA (sharp conversion working)
+  - GET /api/manifest → 4 icons declared, type image/png
+- Agent Browser verification: page renders with logo image, all 8 nav buttons, no errors
+
+Stage Summary:
+- Sandbox preview now FULLY matches Vercel deployment
+- Both use same Neon PostgreSQL database (ep-falling-silence-aosp5dh1)
+- User's uploaded logo displays in sidebar + served as PNG 512x512
+- All data (2 batches, settings) synced between sandbox and production
+- Dev server running on port 3000, auto-restart via start-stop-daemon
