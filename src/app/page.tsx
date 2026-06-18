@@ -876,30 +876,6 @@ export default function HomePage() {
               <span>Tambah Termin</span>
             </Button>
           </div>
-
-          {/* Horizontal Navbar - all sections accessible from top */}
-          <div className="border-t border-emerald-100 bg-white/50 overflow-x-auto custom-scrollbar">
-            <div className="flex gap-1 px-4 sm:px-6 py-2 min-w-max">
-              {NAV_ITEMS.map((item) => {
-                const isActive = view === 'dashboard' && activeSection === item.id
-                const Icon = item.icon
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => { setActiveSection(item.id); setView('dashboard'); setSelectedBatch(null) }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                      isActive
-                        ? 'bg-emerald-100 text-emerald-700 shadow-sm'
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? item.iconColor : 'text-gray-400'}`} />
-                    {item.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
         </header>
 
         {/* Main Content */}
