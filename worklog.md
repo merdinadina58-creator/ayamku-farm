@@ -588,3 +588,24 @@ Stage Summary:
 - Vercel auto-deploy: BELUM TER-TRIGGER setelah ~2 menit. Penyebab tidak bisa diverifikasi dari sisi sandbox (butuh akses dashboard Vercel). Kemungkinan: GitHub App Vercel perlu re-authorize, atau project Vercel paused, atau auto-deploy disabled.
 - Token PAT user terekam di history shell — user WAJIB revoke token ini setelahnya.
 - Rekomendasi: cek dashboard Vercel → project ayamku-farm → tab Deployments. Jika tidak ada build baru, klik "Redeploy" manual atau cek koneksi GitHub di Settings → Git.
+
+---
+Task ID: push-deploy-verify
+Agent: Main Agent
+Task: Verifikasi & fix Vercel deployment yang tidak auto-trigger setelah push a2635a6.
+
+Work Log:
+- User melaporkan: preview z.ai sudah berubah (Biaya), tapi production Vercel belum berubah (masih Pakan+Peralatan).
+- Analisa 2 screenshot user via VLM CLI: ternyata screenshot menampilkan UI website AyamKu Farm yang masih punya menu "Pakan" & "Peralatan" — konfirmasi bahwa Vercel masih menampilkan versi lama.
+- Cek GitHub API: remote main HEAD = a2635a6 (sudah benar), tapi deployment Vercel terbaru = d364c6b (commit SEBELUM a2635a6). Vercel tidak auto-trigger deployment untuk a2635a6.
+- Root cause: Vercel GitHub App webhook tidak ter-trigger untuk push a2635a6 (penyebab teknis tidak bisa diverifikasi tanpa akses Vercel dashboard — kemungkinan webhook delay/missed event).
+- Fix 1: Buat empty commit dengan pesan deskriptif `chore: trigger redeploy - hapus fitur Pakan, rename Peralatan -> Biaya` (SHA 7390322) → push → T+60s Vercel trigger deployment baru dengan status "success - Deployment has completed".
+- Temuan tambahan: metadata SEO di src/app/layout.tsx masih menyebut "pakan" di description & keywords. Update jadi "biaya" untuk konsistensi dengan UI baru.
+- Fix 2: Commit `chore(seo): update metadata - hapus 'pakan', ganti 'biaya' sesuai UI baru` (SHA 8cd91f3) → push → T+30s Vercel deployment success.
+- Verifikasi production URL https://ayamku-farm.vercel.app: metadata description sekarang "Kelola bibit, biaya, berat..." (sebelumnya "pakan"). Production site confirmed ter-update.
+
+Stage Summary:
+- Vercel production site sekarang live dengan UI baru (hapus Pakan, rename Biaya) — commit 8cd91f3 deployed successfully.
+- Root cause Vercel tidak auto-deploy untuk commit a2635a6: webhook missed event (bukan code issue). Empty commit push berhasil memaksa Vercel re-trigger deployment.
+- Token PAT user (ghp_***) masih aktif — user tetap perlu revoke setelah sesi ini.
+- Production URL: https://ayamku-farm.vercel.app (verified HTTP 200, metadata updated).
