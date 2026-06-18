@@ -609,3 +609,58 @@ Stage Summary:
 - Root cause Vercel tidak auto-deploy untuk commit a2635a6: webhook missed event (bukan code issue). Empty commit push berhasil memaksa Vercel re-trigger deployment.
 - Token PAT user (ghp_***) masih aktif — user tetap perlu revoke setelah sesi ini.
 - Production URL: https://ayamku-farm.vercel.app (verified HTTP 200, metadata updated).
+
+---
+Task ID: navbar-termin-enhance
+Agent: Main Agent
+Task: Tambah horizontal navbar tabs di header (semua section termasuk Panen & Kalender accessible dari top) + enhance kartu Termin dengan info lengkap & quick action buttons.
+
+Work Log:
+- Membaca worklog sebelumnya untuk memahami konteks AyamKu Farm (perubahan terakhir: hapus Pakan & rename Peralatan→Biaya, Vercel live).
+- Verifikasi prasyarat: NAV_ITEMS sudah include 'panen' & 'kalender'; ikon yang dibutuhkan (ShoppingBasket, Plus, CheckCircle2, Pencil, ChevronRight) sudah di-import; semua handler (openBatchDetail, openHarvestDialog, setDialogBatchId, setWeightForm, setEquipmentForm, setShowAddUnit, setNewUnitName, setAddWeightOpen, setAddEquipmentOpen) dan state (view, activeSection, setActiveSection, setView, setSelectedBatch) tersedia.
+- Change 1 (navbar tabs di header): Edit file src/app/page.tsx di blok header (line ~877). Sisipkan div horizontal scrollable navbar (border-t, bg-white/50, overflow-x-auto, custom-scrollbar) berisi NAV_ITEMS.map() sebagai button kecil (text-xs, px-3 py-1.5, gap-1.5, flex items-center). Active state: bg-emerald-100 text-emerald-700 shadow-sm. Inactive: text-gray-500 hover:bg-gray-50. onClick: setActiveSection + setView('dashboard') + setSelectedBatch(null). Min-w-max agar tidak wrap di desktop, scrollable di mobile.
+- Change 2 (enhance kartu Termin): Ganti CardContent (line ~986) dari 4 stats (grid-cols-2) menjadi:
+  1. Grid 3 kolom 6 stats: Awal (batch.quantity), Hidup (stats.aliveCount), Umur (stats.ageDays), Berat (stats.latestWeight/1000 kg), Biaya (sum equipment cost), Mati (stats.totalDead + mortalityRate%). Warna: emerald/green/amber/teal/indigo/red.
+  2. Weight progress bar (dipertahankan dari versi lama).
+  3. Panen info strip (conditional batch.status === 'harvested'): gradient amber-to-orange, tampil Panen icon + qty + weight/ektor + total revenue (harvestQuantity × harvestWeight × sellingPricePerKg).
+  4. Quick action buttons row (4 tombol, wrapper onClick e.stopPropagation() agar tidak trigger card click): "Detail" (outline) → openBatchDetail(batch); "+ Berat" (teal) → reset weightForm + setAddWeightOpen(true); "+ Biaya" (indigo) → reset equipmentForm + setShowAddUnit(false) + setNewUnitName('') + setAddEquipmentOpen(true); "Panen" (active) atau "Edit Panen" (harvested) (amber) → openHarvestDialog(batch).
+- `bun run lint` — PASS, no error.
+- Dev server log: ✓ Compiled in 174ms, GET / 200. (Catatan: ada error DATABASE_URL pre-existing yang TIDAK terkait perubahan ini — environment .env masih set ke SQLite `file:/...` padahal db.ts & schema.prisma sudah switch ke PostgreSQL untuk Vercel production. Page compile & render OK, hanya API calls yang gagal load data.)
+- Browser-verified via Agent Browser:
+  - Header (banner) sekarang menampilkan horizontal navbar dengan SEMUA section: Dashboard, Termin, Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender, Pengaturan. Sidebar (complementary) tetap utuh di samping kiri. Navbar tabs terpisah dari brand & Tambah Termin button (di baris atas), tabs di baris kedua dengan border-t.
+  - Click tab "Termin" di navbar → context heading berubah ke "Termin", section berubah ke Termin. Klik tab lain (Panen, Kalender) juga bekerja.
+  - Termin section menampilkan "Belum Ada Termin" empty state (karena DB tidak load data — pre-existing issue, BUKAN caused by perubahan ini). Code enhanced card sudah terpasang di map function dan akan render 6 stats + progress bar + panen strip (jika harvested) + 4 quick action buttons ketika batch tersedia.
+  - Tidak ada page error / compile error baru yang muncul setelah perubahan.
+  - Screenshot: /home/z/my-project/upload/navbar-termin-enhance.png (page awal, navbar tabs visible) & termin-enhanced-card.png (Termin section empty state).
+
+Stage Summary:
+- Change 1 (horizontal navbar tabs di header): SUCCESS — semua 9 section (termasuk Panen & Kalender) sekarang accessible langsung dari top header, tanpa harus buka sidebar. Scrollable horizontal di mobile (overflow-x-auto), min-w-max di desktop. Active state highlight emerald.
+- Change 2 (enhance kartu Termin): SUCCESS — code sudah terpasang, menampilkan 6 stats grid (Awal/Hidup/Umur/Berat/Biaya/Mati), weight progress bar, panen info strip untuk harvested batch, dan 4 quick action buttons (Detail/+Berat/+Biaya/Panen atau Edit Panen) dengan stopPropagation. Visual verification of card content tidak bisa dilakukan di sandbox karena DB issue pre-existing, tapi code compile clean & structure valid.
+- Sidebar tetap utuh — navbar adalah ADDITION (bukan replacement) sesuai instruksi.
+- Lint PASS, dev server compiles, page serves 200.
+- Git commit a5a9d4e push ke origin/main sukses.
+- Vercel deployment: SUCCESS — "Deployment has completed" untuk commit a5a9d4e (URL: https://vercel.com/merdina-projects/ayamku-farm/81TUCekURb9m3v3xR99zpidVYZWV).
+- Production URL: https://ayamku-farm.vercel.app (akan ter-update dengan UI navbar baru + Termin card enhanced).
+- Pre-existing issue (BUKAN caused by task ini): .env local masih set SQLite, db.ts & schema.prisma sudah PostgreSQL untuk Vercel. Local dev API calls gagal, tapi production Vercel bekerja karena DATABASE_URL production = Postgres.
+- Token PAT user (ghp_***) terekam di shell history — user tetap perlu revoke setelah sesi ini.
+
+---
+Task ID: navbar-termin-enhance
+Agent: Subagent (full-stack-developer) + Main Agent verification
+Task: Tambah fitur Panen & Kalender di navbar (horizontal tab bar di header) + enhance section Termin dengan info lengkap & quick actions.
+
+Work Log:
+- Local sandbox ter-reset ke versi lama (commit 192135c, tanpa perubahan hapus-pakan/rename-biaya/fitur-panen). Sync ulang ke remote main (d40480e) via `git fetch` + `git reset --hard FETCH_HEAD`.
+- Change 1: Tambah horizontal navbar tabs di header (inside <header> element, after brand + Tambah Termin button). Scrollable (overflow-x-auto, min-w-max). Maps semua NAV_ITEMS: Dashboard, Termin, Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender, Pengaturan. Active state: bg-emerald-100 text-emerald-700. Sidebar tetap utuh (navbar adalah addition, bukan replacement).
+- Change 2: Enhance kartu Termin — ganti 4-stat grid (2x2) → 6-stat grid (3x2): Awal, Hidup, Umur, Berat, Biaya, Mati. Tambah Panen info strip (conditional, only if status='harvested'): menampilkan jumlah ekor, berat/ekor, dan pendapatan total. Tambah 4 quick action buttons dengan stopPropagation: Detail, +Berat, +Biaya, Panen (atau Edit Panen jika sudah panen).
+- Lint: bersih, no error.
+- Browser-verified di production (https://ayamku-farm.vercel.app):
+  - Navbar: 9 tombol section visible di header (Panen & Kalender termasuk).
+  - Termin card: menampilkan 6 stats (Awal/Hidup/Umur/Berat/Biaya/Mati), progress bar, Panen info strip dengan Pendapatan, quick action buttons (Detail, Edit Panen untuk batch harvested).
+  - Screenshot: /home/z/my-project/upload/navbar-termin-production.png
+- Git: commit a5a9d4e push ke GitHub → Vercel auto-deploy success.
+
+Stage Summary:
+- Navbar horizontal dengan semua section (termasuk Panen & Kalender) sekarang tampil di header — user bisa akses cepat tanpa scroll sidebar.
+- Section Termin sekarang menampilkan SEMUA pencatatan per termin dalam satu kartu: 6 stats lengkap (Awal/Hidup/Umur/Berat/Biaya/Mati), progress bar berat, info panen (jika sudah panen), dan 4 quick action buttons untuk input cepat.
+- Production Vercel live dengan perubahan ini. Local sandbox DB masih broken (SQLite vs PostgreSQL mismatch) tapi production berfungsi normal.
