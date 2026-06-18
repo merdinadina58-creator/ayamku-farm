@@ -438,3 +438,41 @@ Stage Summary:
 - Dedup guard diterapkan (withDedup + DB check) untuk satuan & equipment, konsisten dengan fix duplikasi sebelumnya.
 - Browser-verified: alur lengkap (pilih satuan + tambah satuan baru + simpan + tampil di list) berfungsi sempurna.
 - Lint bersih, dev server berjalan di port 3000.
+
+---
+Task ID: auto-age-weight
+Agent: Main Agent
+Task: Otomatisasi perhitungan umur ayam di form Timbang Berat — umur dihitung dari (tanggal timbang - tanggal masuk batch), pengguna tidak perlu input umur lagi.
+
+Work Log:
+- Menganalisis gambar upload (modal "Tambah Data Timbang" dengan field "Umur (hari)" manual) via VLM.
+- Baca implementasi saat ini: weightForm state punya ageDays (string), dialog punya input manual "Umur (hari)", handleAddWeight kirim weightForm langsung, button disabled jika !weightForm.ageDays.
+- Identifikasi batch aktif untuk perhitungan: selectedBatch (dari batch detail view) ATAU batches.find(id === dialogBatchId) (dari main section dengan dropdown Termin).
+- Tambah computed value `weightBatch` + `computedAgeDays` (useMemo) di page.tsx:
+  - Hitung Math.floor((tanggalTimbang - arrivalDate) / (1000*60*60*24))
+  - Return null jika batch tidak ada, tanggal kosong/invalid, atau tanggal timbang < tanggal masuk.
+- Update handleAddWeight: kirim payload eksplisit dengan ageDays: String(computedAgeDays), guard `if (computedAgeDays === null) return` di awal.
+- Rebuild dialog "Tambah Data Timbang":
+  - Ganti label "Tanggal" → "Tanggal Timbang".
+  - Ganti input "Umur (hari)" menjadi display read-only "Umur Ayam (otomatis)" (bg-teal-50, border-teal-200, text-teal-700) yang menampilkan "{N} hari" atau "—" jika belum bisa dihitung.
+  - Tambah info "Masuk: {formatDate(arrivalDate)}" di bawah umur agar user transparan dari mana umur dihitung.
+  - Tambah peringatan amber jika tanggal timbang < tanggal masuk: "Tanggal timbang sebelum tanggal masuk batch — periksa kembali tanggalnya."
+  - Update disabled button: ganti `!weightForm.ageDays` → `computedAgeDays === null`.
+- API route /api/batches/[id]/weight TIDAK diubah (sudah menerima ageDays dari client; sekarang dikirim otomatis terhitung).
+- Run `bun run lint` — bersih, no error.
+- Verifikasi via Agent Browser (batch "Bulan Mei" masuk 2026-05-22):
+  - Buka dialog Tambah Data Timbang — field "Umur Ayam (otomatis)" tampil sebagai display, bukan input.
+  - Set tanggal 2026-05-24 → umur otomatis "2 hari" + info "Masuk: 22 Mei 2026" (persis contoh user: masuk 17, timbang 19 → 2 hari).
+  - Test tanggal 2026-05-20 (sebelum masuk) → umur "—" + peringatan amber muncul + tombol Simpan disabled.
+  - Set tanggal 2026-05-29 + berat 500g → umur "7 hari", tombol Simpan enabled, klik Simpan → tersimpan.
+  - Verifikasi database: weight record tersimpan dengan ageDays=7 (otomatis, bukan input manual).
+  - Bersihkan data test (delete weight record via API).
+  - Screenshot: /home/z/my-project/upload/berat-auto-age.png
+
+Stage Summary:
+- Field "Umur (hari)" di form Timbang Berat sekarang otomatis terhitung dari tanggal timbang - tanggal masuk batch. Pengguna cukup pilih termin & tanggal timbang, sistem hitung umur otomatis.
+- Display read-only (bg-teal-50) menampilkan "{N} hari" + info "Masuk: {tanggal}" untuk transparansi.
+- Guard: jika tanggal timbang < tanggal masuk, tampilkan peringatan & umur "—" & tombol Simpan disabled.
+- Backend tidak berubah (API sudah menerima ageDays dari client); perhitungan di frontend konsisten dengan cara dashboard sudah hitung ageDays (line ~660).
+- Browser-verified: 3 skenario (umur normal 2 hari, umur 7 hari + simpan sukses, tanggal invalid → warning + disabled).
+- Lint bersih, dev server berjalan di port 3000.

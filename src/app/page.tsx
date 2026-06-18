@@ -283,6 +283,23 @@ export default function HomePage() {
     harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
 
+  // ============================================================
+  // Auto-compute chicken age (umur) untuk form timbang berat.
+  // Umur dihitung dari (tanggal timbang - tanggal masuk batch).
+  // Batch aktif = selectedBatch (dari detail view) atau batch yang
+  // dipilih di dropdown Termin dialog (dialogBatchId).
+  // ============================================================
+  const weightBatch = selectedBatch || batches.find((b) => b.id === dialogBatchId) || null
+  const computedAgeDays = useMemo(() => {
+    if (!weightBatch || !weightForm.date) return null
+    const arrival = new Date(weightBatch.arrivalDate)
+    const weigh = new Date(weightForm.date)
+    if (isNaN(arrival.getTime()) || isNaN(weigh.getTime())) return null
+    const diffMs = weigh.getTime() - arrival.getTime()
+    if (diffMs < 0) return null // tanggal timbang sebelum tanggal masuk
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  }, [weightBatch, weightForm.date])
+
   const fetchData = useCallback(async () => {
     try {
       const [batchRes, dashRes, settingsRes, equipRes, unitsRes] = await Promise.all([
@@ -371,14 +388,23 @@ export default function HomePage() {
   const handleAddWeight = async () => {
     const batchId = dialogBatchId || selectedBatch?.id
     if (!batchId) return
+    // Umur ayam harus sudah otomatis terhitung dari tanggal timbang & tanggal masuk.
+    if (computedAgeDays === null) return
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
     try {
+      const payload = {
+        date: weightForm.date,
+        averageWeightGram: weightForm.averageWeightGram,
+        ageDays: String(computedAgeDays),
+        sampleCount: weightForm.sampleCount,
+        notes: weightForm.notes,
+      }
       const res = await fetch(`/api/batches/${batchId}/weight`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(weightForm),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error()
       setAddWeightOpen(false)
@@ -2250,19 +2276,33 @@ export default function HomePage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Tanggal</Label>
+              <Label>Tanggal Timbang</Label>
               <Input type="date" value={weightForm.date} onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })} />
             </div>
+            {/* Umur ayam otomatis terhitung dari tanggal timbang - tanggal masuk batch.
+                Pengguna tidak perlu menginput umur lagi. */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Umur (hari)</Label>
-                <Input type="number" min="0" placeholder="7" value={weightForm.ageDays} onChange={(e) => setWeightForm({ ...weightForm, ageDays: e.target.value })} />
+                <Label>Umur Ayam (otomatis)</Label>
+                <div className="flex h-9 items-center rounded-md border border-teal-200 bg-teal-50 px-3 text-sm font-bold text-teal-700">
+                  {computedAgeDays !== null ? `${computedAgeDays} hari` : '—'}
+                </div>
+                {weightBatch && (
+                  <p className="text-xs text-muted-foreground">
+                    Masuk: {formatDate(weightBatch.arrivalDate)}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Jumlah Sampel</Label>
                 <Input type="number" min="1" value={weightForm.sampleCount} onChange={(e) => setWeightForm({ ...weightForm, sampleCount: e.target.value })} />
               </div>
             </div>
+            {weightForm.date && weightBatch && computedAgeDays === null && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+                Tanggal timbang sebelum tanggal masuk batch — periksa kembali tanggalnya.
+              </p>
+            )}
             <div className="space-y-2">
               <Label>Berat Rata-rata (gram)</Label>
               <Input type="number" step="1" min="0" placeholder="160" value={weightForm.averageWeightGram} onChange={(e) => setWeightForm({ ...weightForm, averageWeightGram: e.target.value })} />
@@ -2274,7 +2314,7 @@ export default function HomePage() {
               <Label>Catatan</Label>
               <Textarea placeholder="Catatan opsional..." value={weightForm.notes} onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })} />
             </div>
-            <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !weightForm.date || !weightForm.averageWeightGram || !weightForm.ageDays}>
+            <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !weightForm.date || !weightForm.averageWeightGram || computedAgeDays === null}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Data Timbang'}
             </Button>
           </div>
