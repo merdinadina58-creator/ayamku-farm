@@ -233,3 +233,33 @@ Stage Summary:
 - /api/setup endpoint: WORKING (correctly reports the DATABASE_URL issue)
 - Remaining user action: Create real Vercel Postgres database, connect to project, redeploy, visit /api/setup
 - All commits pushed: 8d968a1, 18caf55, 87f64bf, b6c5d2f, ca08d93, 7125380, da20473, 09425db
+
+---
+Task ID: pwa-icon-fix
+Agent: main-agent
+Task: Fix logo not appearing as web/PWA/Android icon (only showing in app sidebar)
+
+Work Log:
+- Diagnosed: user uploaded 151x148 JPEG logo, but manifest declared type:image/png
+  → type mismatch caused browsers to reject the icon
+- Diagnosed: Apple touch icon strictly requires PNG format, JPEG was ignored
+- Diagnosed: No size hints in HTML <link> tags
+- Fix 1: /api/logo now converts ANY uploaded format to 512x512 PNG via sharp
+  with transparent padding (fit:contain) so non-square images become square
+- Fix 2: /api/manifest now always declares type:'image/png' (matches /api/logo output)
+  with proper sizes (192x192, 512x512) and purposes (any + maskable)
+- Fix 3: src/app/layout.tsx metadata.icons now has multiple size entries
+  (192x192, 512x512, 180x180 for apple), shortcut icon, appleWebApp config
+- Fix 4: src/app/page.tsx handleLogoUpload now checks image dimensions and warns
+  user if < 192px (too small) or non-square (will be padded)
+- Fix 5: Updated settings UI help text: "Disarankan: gambar persegi 512×512px PNG
+  dengan latar transparan untuk ikon tajam di Android & iOS"
+- Verified on Vercel: /api/logo serves PNG 512x512 RGBA (427KB), manifest correct,
+  HTML head has all proper icon links
+
+Stage Summary:
+- Logo now works as: browser tab favicon, Apple touch icon (iOS), PWA home screen
+  icon (Android), maskable icon (adaptive)
+- User should re-upload a 512x512px PNG for best quality (current JPEG still works
+  but is upscaled from 151x148 which may look blurry)
+- All commits pushed: 5d4e2de, 40f78f8
