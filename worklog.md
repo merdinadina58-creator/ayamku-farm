@@ -681,3 +681,74 @@ Stage Summary:
 - Navbar horizontal tabs dihapus dari header. Navigasi kembali hanya via sidebar (seperti sebelum task navbar-termin-enhance).
 - Enhanced Termin cards tetap dipertahankan.
 - Production Vercel live dengan revert ini.
+
+---
+Task ID: move-sections-to-batch-tabs
+Agent: Subagent (full-stack-developer)
+Task: Pindah 3 fitur (Panen, Perhitungan, Kalender) dari sidebar ke tab di batch detail dialog. Sidebar 9→6 item, batch detail 3→6 tab.
+
+Work Log:
+- Membaca worklog.md untuk konteks (perubahan terakhir: hapus Pakan, rename Biaya, navbar tabs dihapus).
+- Verifikasi struktur awal page.tsx (2706 lines): 9 NAV_ITEMS, 9 SECTION_LABELS, 9 activeSection states, 4 global sections (Panen/Hitung/Kalender/Settings) di main view, 3 tabs (Berat/Mortalitas/Biaya) di batch detail.
+- Step 1-3: Update constants — SECTION_LABELS hapus panen/hitung/kalender (9→6 keys), NAV_ITEMS hapus 3 entry (9→6 items), activeSection type narrow ke 6 value union.
+- Step 4: Hapus 3 global section blocks — gunakan `sed -i '1357,1816d'` untuk hapus range dari `{/* Panen Section */}` (line 1357) sampai blank line sebelum `{/* Settings Section */}` (line 1816). File berkurang dari 2701 → 2240 lines. Verifikasi: grep "Settings Section" masih ada di line 1357, tidak ada lagi "activeSection === 'panen/hitung/kalender'".
+- Step 5: Update TabsList di batch detail — ganti `grid grid-cols-3` → `grid grid-cols-3 sm:grid-cols-6`, tambah 3 TabsTrigger baru: panen (amber, ShoppingBasket), hitung (rose, Calculator), kalender (emerald, CalendarDays). Total 6 tabs.
+- Step 6: Tambah 3 TabsContent baru setelah biaya `</TabsContent>`:
+  * Panen tab: card dengan header (icon + title + tombol Panen/Edit Panen via openHarvestDialog), grid 4 stat cards (Tanggal/Jumlah/Berat/Harga) jika harvested, total berat + pendapatan strip, empty state "Termin ini belum dipanen" jika active.
+  * Hitung tab: IIFE dengan getBatchStats + equipList dari selectedBatch.equipment, 12 stat cards (Total Biaya/Biaya Ops/Pakan/Pakan/Ekor/FCR/Mati/Hidup/Umur/Total Panen/Pendapatan/Profit) dalam 3 grid rows, rincian biaya list (max-h-48 scrollable).
+  * Kalender tab: timeline 3 cards (Tiba/Panen/Umur), month nav (prev/next button setCalendarMonth), day header, calendar grid pakai calendarCells tapi filter `e.batch.id === selectedBatch.id` (hanya event batch ini yang di-highlight), legend.
+- Restore `{/* Total Panen Card (only for harvested batches) */}` comment yang tak sengaja terhapus saat edit TabsContent.
+- Lint: `bun run lint` exit 0, no error no warning.
+- Dev log: page compiles in 131ms, GET / 200. Pre-existing DATABASE_URL error (SQLite env vs postgres db.ts requirement) tetap ada — bukan caused by task ini.
+- Browser verify (Agent Browser):
+  * Sidebar (desktop): 6 items terlihat — Dashboard, Termin, Berat, Mortalitas, Biaya, Pengaturan. TIDAK ada Panen/Perhitungan/Kalender. Screenshot: /home/z/my-project/upload/sidebar-6-items.png.
+  * Termin section: "Belum Ada Termin" (DB issue pre-existing — tidak bisa test batch detail dialog via browser).
+  * Code inspection: 6 TabsTrigger + 6 TabsContent ter-verifikasi via grep (berat/mortalitas/biaya/panen/hitung/kalender).
+- Git: commit 2d1c26b push ke origin/main sukses.
+- Vercel: tunggu 60s, status "success - Deployment has completed" untuk commit 2d1c26b. URL: https://vercel.com/merdina-projects/ayamku-farm/DEJMrmVdYi8Eg33YuqDhh2NXsSTy.
+
+Stage Summary:
+- Sidebar berkurang dari 9 → 6 menu (hapus Panen, Perhitungan, Kalender). Sidebar sekarang: Dashboard, Termin, Berat, Mortalitas, Biaya, Pengaturan.
+- Batch detail dialog sekarang punya 6 tab (sebelumnya 3): Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender.
+- Tab Panen: menampilkan data panen spesifik per-termin dengan tombol Panen/Edit Panen. Empty state untuk termin belum dipanen.
+- Tab Perhitungan: stats lengkap per-termin (biaya, FCR, mortalitas, profit) + rincian biaya list. Sebelumnya global untuk semua batch, sekarang spesifik per-termin.
+- Tab Kalender: kalender bulanan dengan filter hanya event dari batch yang sedang dilihat + timeline 3 cards (Tiba/Panen/Umur). Sebelumnya global, sekarang per-termin.
+- 3 global section blocks dihapus (Panen/Hitung/Kalender yang menampilkan semua batch) — digantikan oleh per-batch tabs yang lebih contextual.
+- Settings section tetap utuh, dipindah ke line 1357 (sebelumnya 1823) setelah penghapusan 3 section.
+- File size: 2706 → 2499 lines (208 lines lebih kecil meski tambah 3 tabsContent, karena 3 global sections lebih besar dari 3 per-batch tabsContent).
+- Lint PASS, dev server compiles, page serves 200.
+- Production Vercel live dengan perubahan ini.
+- Browser-verify sidebar 6 items ✓. Batch detail 6 tabs verified via code inspection (DB issue pre-existing mencegah browser-test dialog terbuka).
+
+---
+Task ID: move-sections-to-batch-tabs
+Agent: Subagent (full-stack-developer) + Main Agent verification
+Task: Pindah fitur Panen, Perhitungan, Kalender dari sidebar ke tab di batch detail dialog agar pencatatan per termin lebih detail.
+
+Work Log:
+- User request: "fitur panen, perhitungan dan kalender yang ada di sidebar, pindahkan ke navbar pada semua fitur disebelah berat, mortalitas dan biaya pada setiap termin agar lebih detail pencatatan setiap termin"
+- Main agent analisa gambar & konfirmasi pemahaman dengan user → user confirmed "ya".
+- Subagent (full-stack-developer) menjalankan implementasi:
+  1. NAV_ITEMS: 9→6 item (hapus panen, hitung, kalender; keep dashboard/termin/berat/mortalitas/biaya/settings)
+  2. SECTION_LABELS: 9→6 key
+  3. activeSection type: 9→6 value
+  4. Hapus 3 global section (Panen/Hitung/Kalender) via sed — 460 baris dihapus
+  5. Batch detail Tabs: 3→6 tab (tambah Panen, Perhitungan, Kalender)
+  6. 3 TabsContent baru dengan konteks per-batch (selectedBatch):
+     - Panen: data panen (tgl/jumlah/berat/harga/pendapatan) + tombol Panen/Edit Panen
+     - Perhitungan: 12 stat cards (Total Biaya, Biaya Operasional, Pakan, Pakan/Ekor, FCR, Mati, Hidup, Umur, Total Panen, Pendapatan, Profit) + rincian biaya
+     - Kalender: timeline (Tiba/Panen/Umur) + calendar grid filter hanya events batch ini
+  7. Lint: pass
+  8. Commit 2d1c26b, push ke GitHub, Vercel deploy success
+- Main agent browser-verified di production (https://ayamku-farm.vercel.app):
+  - Sidebar: 6 item (Dashboard/Termin/Berat/Mortalitas/Biaya/Pengaturan) — TIDAK ada Panen/Perhitungan/Kalender ✓
+  - Batch detail dialog: 6 tab (Berat/Mortalitas/Biaya/Panen/Perhitungan/Kalender) ✓
+  - Tab Panen: menampilkan Jumlah Panen, Pendapatan, Edit Panen button ✓
+  - Tab Perhitungan: menampilkan FCR, Hidup, Mati/Afkir, Umur, Total Panen stats ✓
+  - Screenshot: /home/z/my-project/upload/batch-detail-6-tabs.png
+
+Stage Summary:
+- Sidebar disederhanakan jadi 6 menu (dari 9). Panen/Perhitungan/Kalender tidak lagi global.
+- Batch detail dialog sekarang punya 6 tab — semua pencatatan per termin dalam satu view: Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender.
+- Setiap tab terikat ke selectedBatch — data yang tampil hanya untuk termin yang sedang dibuka, lebih akurat & detail.
+- Production Vercel live dengan commit 2d1c26b.
