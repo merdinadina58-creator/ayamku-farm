@@ -1,0 +1,2002 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import {
+     6→     6→  Bird,
+     7→     7→  Wheat,
+     8→     8→  Scale,
+     9→     9→  Calculator,
+    10→    10→  Plus,
+    11→    11→  Trash2,
+    12→    12→  TrendingUp,
+    13→    13→  Package,
+    14→    14→  DollarSign,
+    15→    15→  Calendar,
+    16→    16→  CalendarDays,
+    17→    17→  ChevronRight,
+    18→    18→  ChevronLeft,
+    19→    19→  BarChart3,
+    20→    20→  ArrowLeft,
+    21→    21→  CheckCircle2,
+    22→    22→  Activity,
+    23→    23→  Skull,
+    24→    24→  ShoppingBasket,
+    25→    25→  LayoutDashboard,
+    26→    26→  Menu,
+    27→    27→  X,
+    28→    28→  Settings,
+    29→    29→  Upload,
+    30→    30→  Image as ImageIcon,
+    31→    31→  Save,
+    32→    32→  Info,
+    33→    33→  Loader2,
+    34→    34→  Wrench,
+    35→    35→} from 'lucide-react'
+    36→    36→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    37→    37→import { Button } from '@/components/ui/button'
+    38→    38→import { Input } from '@/components/ui/input'
+    39→    39→import { Label } from '@/components/ui/label'
+    40→    40→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    41→    41→import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    42→    42→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    43→    43→import { Badge } from '@/components/ui/badge'
+    44→    44→import { Progress } from '@/components/ui/progress'
+    45→    45→import { Textarea } from '@/components/ui/textarea'
+    46→    46→import { useToast } from '@/hooks/use-toast'
+    47→    47→import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+    48→    48→import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts'
+    49→    49→
+    50→    50→// Types
+    51→    51→interface FeedRecord {
+    52→    52→  id: string
+    53→    53→  batchId: string
+    54→    54→  date: string
+    55→    55→  feedType: string
+    56→    56→  quantityKg: number
+    57→    57→  pricePerKg: number
+    58→    58→  notes: string | null
+    59→    59→  createdAt: string
+    60→    60→}
+    61→    61→
+    62→    62→interface WeightRecord {
+    63→    63→  id: string
+    64→    64→  batchId: string
+    65→    65→  date: string
+    66→    66→  averageWeightGram: number
+    67→    67→  ageDays: number
+    68→    68→  sampleCount: number
+    69→    69→  notes: string | null
+    70→    70→  createdAt: string
+    71→    71→}
+    72→    72→
+    73→    73→interface MortalityRecord {
+    74→    74→  id: string
+    75→    75→  batchId: string
+    76→    76→  date: string
+    77→    77→  quantity: number
+    78→    78→  reason: string
+    79→    79→  notes: string | null
+    80→    80→  createdAt: string
+    81→    81→}
+    82→    82→
+    83→    83→interface Batch {
+    84→    84→  id: string
+    85→    85→  name: string
+    86→    86→  terminNumber: number
+    87→    87→  arrivalDate: string
+    88→    88→  initialWeight: number
+    89→    89→  quantity: number
+    90→    90→  status: string
+    91→    91→  harvestDate: string | null
+    92→    92→  harvestWeight: number | null
+    93→    93→  harvestQuantity: number | null
+    94→    94→  sellingPricePerKg: number | null
+    95→    95→  notes: string | null
+    96→    96→  createdAt: string
+    97→    97→  updatedAt: string
+    98→    98→  feedRecords: FeedRecord[]
+    99→    99→  weightRecords: WeightRecord[]
+   100→   100→  mortalityRecords: MortalityRecord[]
+   101→   101→}
+   102→   102→
+   103→   103→interface DashboardData {
+   104→   104→  totalBatches: number
+   105→   105→  activeBatches: number
+   106→   106→  harvestedBatches: number
+   107→   107→  totalChickens: number
+   108→   108→  totalMortality: number
+   109→   109→  totalFeedKg: number
+   110→   110→  totalFeedCost: number
+   111→   111→  totalHarvestRevenue: number
+   112→   112→  batchSummaries: Array<{
+   113→   113→    id: string
+   114→   114→    name: string
+   115→   115→    terminNumber: number
+   116→   116→    quantity: number
+   117→   117→    status: string
+   118→   118→    initialWeight: number
+   119→   119→    latestWeightGram: number
+   120→   120→    ageDays: number
+   121→   121→    totalFeedKg: number
+   122→   122→    totalFeedCost: number
+   123→   123→    fcr: number
+   124→   124→    feedPerEkor: number
+   125→   125→    totalDead: number
+   126→   126→    aliveCount: number
+   127→   127→    mortalityRate: number
+   128→   128→    harvestQuantity: number
+   129→   129→    harvestWeight: number
+   130→   130→    sellingPricePerKg: number
+   131→   131→    totalHarvestKg: number
+   132→   132→    totalHarvestValue: number
+   133→   133→    profit: number
+   134→   134→  }>
+   135→   135→}
+   136→   136→
+   137→   137→interface CalendarEvent {
+   138→   138→  type: 'tiba' | 'panen'
+   139→   139→  batch: Batch
+   140→   140→}
+   141→   141→
+   142→   142→interface Equipment {
+   143→   143→  id: string
+   144→   144→  name: string
+   145→   145→  category: string
+   146→   146→  quantity: number
+   147→   147→  unitPrice: number
+   148→   148→  purchaseDate: string
+   149→   149→  notes: string | null
+   150→   150→  createdAt: string
+   151→   151→}
+   152→   152→
+   153→   153→const EQUIPMENT_CATEGORIES = [
+   154→   154→  'Kandang & Infrastruktur',
+   155→   155→  'Peralatan Pakan & Minum',
+   156→   156→  'Pemanas & Ventilasi',
+   157→   157→  'Kebersihan & Sanitasi',
+   158→   158→  'Alat Timbang & Ukur',
+   159→   159→  'Alat Kesehatan',
+   160→   160→  'Lainnya',
+   161→   161→] as const
+   162→   162→
+   163→   163→// Color palette
+   164→   164→const COLORS = ['#16a34a', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899']
+   165→   165→const FEED_TYPE_COLORS: Record<string, string> = {
+   166→   166→  'Starter': '#16a34a',
+   167→   167→  'Grower': '#f59e0b',
+   168→   168→  'Finisher': '#ef4444',
+   169→   169→  'Pre-Starter': '#06b6d4',
+   170→   170→  'Lainnya': '#8b5cf6',
+   171→   171→}
+   172→   172→const MORTALITY_REASON_LABELS: Record<string, string> = {
+   173→   173→  'sakit': 'Sakit',
+   174→   174→  'stress': 'Stress / Heat',
+   175→   175→  'kecelakaan': 'Kecelakaan',
+   176→   176→  'afkir': 'Afkir / Culling',
+   177→   177→  'lainnya': 'Lainnya',
+   178→   178→}
+   179→   179→const MORTALITY_REASON_COLORS: Record<string, string> = {
+   180→   180→  'sakit': '#ef4444',
+   181→   181→  'stress': '#f59e0b',
+   182→   182→  'kecelakaan': '#8b5cf6',
+   183→   183→  'afkir': '#06b6d4',
+   184→   184→  'lainnya': '#6b7280',
+   185→   185→}
+   186→   186→
+   187→   187→const SECTION_LABELS: Record<string, string> = {
+   188→   188→  dashboard: 'Dashboard',
+   189→   189→  termin: 'Termin',
+   190→   190→  pakan: 'Pakan',
+   191→   191→  berat: 'Berat',
+   192→   192→  mortalitas: 'Mortalitas',
+   193→   193→  peralatan: 'Peralatan',
+   194→   194→  hitung: 'Perhitungan',
+   195→   195→  kalender: 'Kalender',
+   196→   196→  settings: 'Pengaturan',
+   197→   197→}
+   198→   198→
+   199→   199→const NAV_ITEMS = [
+   200→   200→  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
+   201→   201→  { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
+   202→   202→  { id: 'pakan', label: 'Pakan', icon: Wheat, iconColor: 'text-amber-600' },
+   203→   203→  { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
+   204→   204→  { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
+   205→   205→  { id: 'peralatan', label: 'Peralatan', icon: Wrench, iconColor: 'text-indigo-600' },
+   206→   206→  { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
+   207→   207→  { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
+   208→   208→  { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
+   209→   209→] as const
+   210→   210→
+   211→   211→export default function HomePage() {
+   212→   212→  const [batches, setBatches] = useState<Batch[]>([])
+   213→   213→  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+   214→   214→  const [loading, setLoading] = useState(true)
+   215→   215→  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null)
+   216→   216→  const [view, setView] = useState<'dashboard' | 'batch-detail'>('dashboard')
+   217→   217→  const { toast } = useToast()
+   218→   218→
+   219→   219→  // Sidebar + section state
+   220→   220→  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'pakan' | 'berat' | 'mortalitas' | 'peralatan' | 'hitung' | 'kalender' | 'settings'>('dashboard')
+   221→   221→  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+   222→   222→
+   223→   223→  // Settings state
+   224→   224→  const [appSettings, setAppSettings] = useState({ appName: 'AyamKu Farm', logoData: '' })
+   225→   225→  const [settingsForm, setSettingsForm] = useState({ appName: 'AyamKu Farm', logoData: '' })
+   226→   226→  const [logoPreview, setLogoPreview] = useState('')
+   227→   227→  const [savingSettings, setSavingSettings] = useState(false)
+   228→   228→
+   229→   229→  // Calendar state
+   230→   230→  const [calendarMonth, setCalendarMonth] = useState(() => {
+   231→   231→    const now = new Date()
+   232→   232→    return new Date(now.getFullYear(), now.getMonth(), 1)
+   233→   233→  })
+   234→   234→  const [dayDetail, setDayDetail] = useState<{ date: Date; events: CalendarEvent[] } | null>(null)
+   235→   235→
+   236→   236→  // Dialog states
+   237→   237→  const [addBatchOpen, setAddBatchOpen] = useState(false)
+   238→   238→  const [addFeedOpen, setAddFeedOpen] = useState(false)
+   239→   239→  const [addWeightOpen, setAddWeightOpen] = useState(false)
+   240→   240→  const [addMortalityOpen, setAddMortalityOpen] = useState(false)
+   241→   241→  const [harvestOpen, setHarvestOpen] = useState(false)
+   242→   242→  const [addEquipmentOpen, setAddEquipmentOpen] = useState(false)
+   243→   243→
+   244→   244→  // When adding feed/weight/mortality from a MAIN section (not from batch detail),
+   245→   245→  // we need the user to pick which batch the record belongs to.
+   246→   246→  const [dialogBatchId, setDialogBatchId] = useState('')
+   247→   247→
+   248→   248→  // Equipment data + form
+   249→   249→  const [equipments, setEquipments] = useState<Equipment[]>([])
+   250→   250→  const [equipmentForm, setEquipmentForm] = useState({
+   251→   251→    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '',
+   252→   252→  })
+   253→   253→
+   254→   254→  // Submission guard: prevents double-submit (double-click / race condition)
+   255→   255→  const [submitting, setSubmitting] = useState(false)
+   256→   256→  const submittingRef = useRef(false)
+   257→   257→
+   258→   258→  // Form states
+   259→   259→  const [batchForm, setBatchForm] = useState({
+   260→   260→    name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '',
+   261→   261→  })
+   262→   262→  const [feedForm, setFeedForm] = useState({
+   263→   263→    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '',
+   264→   264→  })
+   265→   265→  const [weightForm, setWeightForm] = useState({
+   266→   266→    date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '',
+   267→   267→  })
+   268→   268→  const [mortalityForm, setMortalityForm] = useState({
+   269→   269→    date: '', quantity: '', reason: 'sakit', notes: '',
+   270→   270→  })
+   271→   271→  const [harvestForm, setHarvestForm] = useState({
+   272→   272→    harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
+   273→   273→  })
+   274→   274→
+   275→   275→  const fetchData = useCallback(async () => {
+   276→   276→    try {
+   277→   277→      const [batchRes, dashRes, settingsRes, equipRes] = await Promise.all([
+   278→   278→        fetch('/api/batches'),
+   279→   279→        fetch('/api/dashboard'),
+   280→   280→        fetch('/api/settings'),
+   281→   281→        fetch('/api/equipment'),
+   282→   282→      ])
+   283→   283→
+   284→   284→      // Parse each response, guarding against non-OK responses so the UI
+   285→   285→      // never crashes when the database is unreachable / not yet set up.
+   286→   286→      const batchData = batchRes.ok ? await batchRes.json() : []
+   287→   287→      const dashData = dashRes.ok ? await dashRes.json() : null
+   288→   288→      const settingsData = settingsRes.ok ? await settingsRes.json() : {}
+   289→   289→      const equipData = equipRes.ok ? await equipRes.json() : []
+   290→   290→
+   291→   291→      setBatches(Array.isArray(batchData) ? batchData : [])
+   292→   292→      setDashboard(dashData)
+   293→   293→      setAppSettings({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
+   294→   294→      setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
+   295→   295→      setLogoPreview(settingsData.logoData || '')
+   296→   296→      setEquipments(Array.isArray(equipData) ? equipData : [])
+   297→   297→    } catch {
+   298→   298→      toast({ title: 'Error', description: 'Gagal memuat data', variant: 'destructive' })
+   299→   299→    } finally {
+   300→   300→      setLoading(false)
+   301→   301→    }
+   302→   302→  }, [toast])
+   303→   303→
+   304→   304→  useEffect(() => {
+   305→   305→    fetchData()
+   306→   306→  }, [fetchData])
+   307→   307→
+   308→   308→  const handleAddBatch = async () => {
+   309→   309→    if (submittingRef.current) return
+   310→   310→    submittingRef.current = true
+   311→   311→    setSubmitting(true)
+   312→   312→    try {
+   313→   313→      const res = await fetch('/api/batches', {
+   314→   314→        method: 'POST',
+   315→   315→        headers: { 'Content-Type': 'application/json' },
+   316→   316→        body: JSON.stringify(batchForm),
+   317→   317→      })
+   318→   318→      if (!res.ok) throw new Error()
+   319→   319→      setAddBatchOpen(false)
+   320→   320→      setBatchForm({ name: '', terminNumber: '1', arrivalDate: '', initialWeight: '', quantity: '', notes: '' })
+   321→   321→      toast({ title: 'Berhasil! 🐔', description: 'Termin baru berhasil ditambahkan' })
+   322→   322→      fetchData()
+   323→   323→    } catch {
+   324→   324→      toast({ title: 'Error', description: 'Gagal menambahkan termin', variant: 'destructive' })
+   325→   325→    } finally {
+   326→   326→      submittingRef.current = false
+   327→   327→      setSubmitting(false)
+   328→   328→    }
+   329→   329→  }
+   330→   330→
+   331→   331→  const handleAddFeed = async () => {
+   332→   332→    const batchId = dialogBatchId || selectedBatch?.id
+   333→   333→    if (!batchId) return
+   334→   334→    if (submittingRef.current) return
+   335→   335→    submittingRef.current = true
+   336→   336→    setSubmitting(true)
+   337→   337→    try {
+   338→   338→      const res = await fetch(`/api/batches/${batchId}/feed`, {
+   339→   339→        method: 'POST',
+   340→   340→        headers: { 'Content-Type': 'application/json' },
+   341→   341→        body: JSON.stringify(feedForm),
+   342→   342→      })
+   343→   343→      if (!res.ok) throw new Error()
+   344→   344→      setAddFeedOpen(false)
+   345→   345→      setDialogBatchId('')
+   346→   346→      setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+   347→   347→      toast({ title: 'Berhasil! 🌾', description: 'Pakan berhasil ditambahkan' })
+   348→   348→      fetchData()
+   349→   349→    } catch {
+   350→   350→      toast({ title: 'Error', description: 'Gagal menambahkan pakan', variant: 'destructive' })
+   351→   351→    } finally {
+   352→   352→      submittingRef.current = false
+   353→   353→      setSubmitting(false)
+   354→   354→    }
+   355→   355→  }
+   356→   356→
+   357→   357→  const handleAddWeight = async () => {
+   358→   358→    const batchId = dialogBatchId || selectedBatch?.id
+   359→   359→    if (!batchId) return
+   360→   360→    if (submittingRef.current) return
+   361→   361→    submittingRef.current = true
+   362→   362→    setSubmitting(true)
+   363→   363→    try {
+   364→   364→      const res = await fetch(`/api/batches/${batchId}/weight`, {
+   365→   365→        method: 'POST',
+   366→   366→        headers: { 'Content-Type': 'application/json' },
+   367→   367→        body: JSON.stringify(weightForm),
+   368→   368→      })
+   369→   369→      if (!res.ok) throw new Error()
+   370→   370→      setAddWeightOpen(false)
+   371→   371→      setDialogBatchId('')
+   372→   372→      setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
+   373→   373→      toast({ title: 'Berhasil! ⚖️', description: 'Data berat berhasil ditambahkan' })
+   374→   374→      fetchData()
+   375→   375→    } catch {
+   376→   376→      toast({ title: 'Error', description: 'Gagal menambahkan data berat', variant: 'destructive' })
+   377→   377→    } finally {
+   378→   378→      submittingRef.current = false
+   379→   379→      setSubmitting(false)
+   380→   380→    }
+   381→   381→  }
+   382→   382→
+   383→   383→  const handleAddMortality = async () => {
+   384→   384→    const batchId = dialogBatchId || selectedBatch?.id
+   385→   385→    if (!batchId) return
+   386→   386→    if (submittingRef.current) return
+   387→   387→    submittingRef.current = true
+   388→   388→    setSubmitting(true)
+   389→   389→    try {
+   390→   390→      const res = await fetch(`/api/batches/${batchId}/mortality`, {
+   391→   391→        method: 'POST',
+   392→   392→        headers: { 'Content-Type': 'application/json' },
+   393→   393→        body: JSON.stringify(mortalityForm),
+   394→   394→      })
+   395→   395→      if (!res.ok) throw new Error()
+   396→   396→      setAddMortalityOpen(false)
+   397→   397→      setDialogBatchId('')
+   398→   398→      setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' })
+   399→   399→      toast({ title: 'Berhasil!', description: 'Data kematian berhasil ditambahkan' })
+   400→   400→      fetchData()
+   401→   401→    } catch {
+   402→   402→      toast({ title: 'Error', description: 'Gagal menambahkan data kematian', variant: 'destructive' })
+   403→   403→    } finally {
+   404→   404→      submittingRef.current = false
+   405→   405→      setSubmitting(false)
+   406→   406→    }
+   407→   407→  }
+   408→   408→
+   409→   409→  const handleHarvest = async () => {
+   410→   410→    if (!selectedBatch) return
+   411→   411→    if (submittingRef.current) return
+   412→   412→    submittingRef.current = true
+   413→   413→    setSubmitting(true)
+   414→   414→    try {
+   415→   415→      const res = await fetch(`/api/batches/${selectedBatch.id}`, {
+   416→   416→        method: 'PUT',
+   417→   417→        headers: { 'Content-Type': 'application/json' },
+   418→   418→        body: JSON.stringify({
+   419→   419→          status: 'harvested',
+   420→   420→          harvestDate: harvestForm.harvestDate,
+   421→   421→          harvestWeight: harvestForm.harvestWeight,
+   422→   422→          harvestQuantity: harvestForm.harvestQuantity,
+   423→   423→          sellingPricePerKg: harvestForm.sellingPricePerKg,
+   424→   424→        }),
+   425→   425→      })
+   426→   426→      if (!res.ok) throw new Error()
+   427→   427→      setHarvestOpen(false)
+   428→   428→      setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
+   429→   429→      toast({ title: 'Berhasil! 🎉', description: 'Ayam berhasil dipanen' })
+   430→   430→      fetchData()
+   431→   431→    } catch {
+   432→   432→      toast({ title: 'Error', description: 'Gagal memperbarui status panen', variant: 'destructive' })
+   433→   433→    } finally {
+   434→   434→      submittingRef.current = false
+   435→   435→      setSubmitting(false)
+   436→   436→    }
+   437→   437→  }
+   438→   438→
+   439→   439→  const handleDeleteFeed = async (id: string) => {
+   440→   440→    try {
+   441→   441→      await fetch(`/api/feed/${id}`, { method: 'DELETE' })
+   442→   442→      toast({ title: 'Dihapus', description: 'Data pakan berhasil dihapus' })
+   443→   443→      fetchData()
+   444→   444→    } catch {
+   445→   445→      toast({ title: 'Error', description: 'Gagal menghapus data pakan', variant: 'destructive' })
+   446→   446→    }
+   447→   447→  }
+   448→   448→
+   449→   449→  const handleDeleteWeight = async (id: string) => {
+   450→   450→    try {
+   451→   451→      await fetch(`/api/weight/${id}`, { method: 'DELETE' })
+   452→   452→      toast({ title: 'Dihapus', description: 'Data berat berhasil dihapus' })
+   453→   453→      fetchData()
+   454→   454→    } catch {
+   455→   455→      toast({ title: 'Error', description: 'Gagal menghapus data berat', variant: 'destructive' })
+   456→   456→    }
+   457→   457→  }
+   458→   458→
+   459→   459→  const handleDeleteMortality = async (id: string) => {
+   460→   460→    try {
+   461→   461→      await fetch(`/api/mortality/${id}`, { method: 'DELETE' })
+   462→   462→      toast({ title: 'Dihapus', description: 'Data kematian berhasil dihapus' })
+   463→   463→      fetchData()
+   464→   464→    } catch {
+   465→   465→      toast({ title: 'Error', description: 'Gagal menghapus data kematian', variant: 'destructive' })
+   466→   466→    }
+   467→   467→  }
+   468→   468→
+   469→   469→  const handleDeleteBatch = async (id: string) => {
+   470→   470→    if (!confirm('Yakin ingin menghapus termin ini? Semua data terkait juga akan dihapus.')) return
+   471→   471→    try {
+   472→   472→      await fetch(`/api/batches/${id}`, { method: 'DELETE' })
+   473→   473→      toast({ title: 'Dihapus', description: 'Termin berhasil dihapus' })
+   474→   474→      setView('dashboard')
+   475→   475→      setSelectedBatch(null)
+   476→   476→      setActiveSection('termin')
+   477→   477→      fetchData()
+   478→   478→    } catch {
+   479→   479→      toast({ title: 'Error', description: 'Gagal menghapus termin', variant: 'destructive' })
+   480→   480→    }
+   481→   481→  }
+   482→   482→
+   483→   483→  const openBatchDetail = (batch: Batch) => {
+   484→   484→    setSelectedBatch(batch)
+   485→   485→    setView('batch-detail')
+   486→   486→  }
+   487→   487→
+   488→   488→  const handleAddEquipment = async () => {
+   489→   489→    if (submittingRef.current) return
+   490→   490→    submittingRef.current = true
+   491→   491→    setSubmitting(true)
+   492→   492→    try {
+   493→   493→      const res = await fetch('/api/equipment', {
+   494→   494→        method: 'POST',
+   495→   495→        headers: { 'Content-Type': 'application/json' },
+   496→   496→        body: JSON.stringify(equipmentForm),
+   497→   497→      })
+   498→   498→      if (!res.ok) throw new Error()
+   499→   499→      setAddEquipmentOpen(false)
+   500→   500→      setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '' })
+   501→   501→      toast({ title: 'Berhasil! 🔧', description: 'Peralatan berhasil ditambahkan' })
+   502→   502→      fetchData()
+   503→   503→    } catch {
+   504→   504→      toast({ title: 'Error', description: 'Gagal menambahkan peralatan', variant: 'destructive' })
+   505→   505→    } finally {
+   506→   506→      submittingRef.current = false
+   507→   507→      setSubmitting(false)
+   508→   508→    }
+   509→   509→  }
+   510→   510→
+   511→   511→  const handleDeleteEquipment = async (id: string) => {
+   512→   512→    if (!confirm('Yakin ingin menghapus peralatan ini?')) return
+   513→   513→    try {
+   514→   514→      await fetch(`/api/equipment/${id}`, { method: 'DELETE' })
+   515→   515→      toast({ title: 'Dihapus', description: 'Peralatan berhasil dihapus' })
+   516→   516→      fetchData()
+   517→   517→    } catch {
+   518→   518→      toast({ title: 'Error', description: 'Gagal menghapus peralatan', variant: 'destructive' })
+   519→   519→    }
+   520→   520→  }
+   521→   521→
+   522→   522→  const handleSaveSettings = async () => {
+   523→   523→    setSavingSettings(true)
+   524→   524→    try {
+   525→   525→      const res = await fetch('/api/settings', {
+   526→   526→        method: 'POST',
+   527→   527→        headers: { 'Content-Type': 'application/json' },
+   528→   528→        body: JSON.stringify({ appName: settingsForm.appName, logoData: settingsForm.logoData }),
+   529→   529→      })
+   530→   530→      if (!res.ok) throw new Error()
+   531→   531→      const data = await res.json()
+   532→   532→      setAppSettings({ appName: data.appName, logoData: data.logoData })
+   533→   533→      toast({ title: 'Pengaturan Tersimpan! ✅', description: 'Nama aplikasi dan logo telah diperbarui' })
+   534→   534→    } catch {
+   535→   535→      toast({ title: 'Error', description: 'Gagal menyimpan pengaturan', variant: 'destructive' })
+   536→   536→    } finally {
+   537→   537→      setSavingSettings(false)
+   538→   538→    }
+   539→   539→  }
+   540→   540→
+   541→   541→  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+   542→   542→    const file = e.target.files?.[0]
+   543→   543→    if (!file) return
+   544→   544→    if (!file.type.startsWith('image/')) {
+   545→   545→      toast({ title: 'Error', description: 'File harus berupa gambar', variant: 'destructive' })
+   546→   546→      return
+   547→   547→    }
+   548→   548→    if (file.size > 2 * 1024 * 1024) {
+   549→   549→      toast({ title: 'Error', description: 'Ukuran gambar maksimal 2MB', variant: 'destructive' })
+   550→   550→      return
+   551→   551→    }
+   552→   552→    const reader = new FileReader()
+   553→   553→    reader.onload = () => {
+   554→   554→      const dataUrl = reader.result as string
+   555→   555→
+   556→   556→      // Check image dimensions to warn about icon quality
+   557→   557→      const img = new window.Image()
+   558→   558→      img.onload = () => {
+   559→   559→        const w = img.naturalWidth
+   560→   560→        const h = img.naturalHeight
+   561→   561→        if (w < 192 || h < 192) {
+   562→   562→          toast({
+   563→   563→            title: '⚠ Ukuran gambar kecil',
+   564→   564→            description: `Gambar ${w}×${h}px. Untuk ikon PWA & Android yang tajam, disarankan minimal 512×512px persegi. Logo akan tetap dipakai tapi mungkin pecah.`,
+   565→   565→            duration: 6000,
+   566→   566→          })
+   567→   567→        } else if (w !== h) {
+   568→   568→          toast({
+   569→   569→            title: 'ℹ Gambar tidak persegi',
+   570→   570→            description: `Gambar ${w}×${h}px akan otomatis di-pad jadi persegi saat dijadikan ikon. Untuk hasil terbaik, gunakan gambar persegi (mis. 512×512px).`,
+   571→   571→            duration: 6000,
+   572→   572→          })
+   573→   573→        }
+   574→   574→      }
+   575→   575→      img.src = dataUrl
+   576→   576→
+   577→   577→      setLogoPreview(dataUrl)
+   578→   578→      setSettingsForm((prev) => ({ ...prev, logoData: dataUrl }))
+   579→   579→    }
+   580→   580→    reader.readAsDataURL(file)
+   581→   581→  }
+   582→   582→
+   583→   583→  const handleRemoveLogo = () => {
+   584→   584→    setLogoPreview('')
+   585→   585→    setSettingsForm((prev) => ({ ...prev, logoData: '' }))
+   586→   586→  }
+   587→   587→
+   588→   588→  const formatDate = (dateStr: string) => {
+   589→   589→    return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+   590→   590→  }
+   591→   591→
+   592→   592→  const formatCurrency = (amount: number) => {
+   593→   593→    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount)
+   594→   594→  }
+   595→   595→
+   596→   596→  // Computed values for selected batch
+   597→   597→  const getBatchStats = (batch: Batch) => {
+   598→   598→    const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
+   599→   599→    const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+   600→   600→    const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+   601→   601→    const aliveCount = batch.quantity - totalDead
+   602→   602→    const latestWeight = batch.weightRecords.length > 0
+   603→   603→      ? batch.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, batch.weightRecords[0]).averageWeightGram
+   604→   604→      : batch.initialWeight * 1000
+   605→   605→    const weightGain = latestWeight - batch.initialWeight * 1000
+   606→   606→    const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
+   607→   607→    const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
+   608→   608→    const arrival = new Date(batch.arrivalDate)
+   609→   609→    const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
+   610→   610→    const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
+   611→   611→    const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
+   612→   612→
+   613→   613→    // Harvest calculations
+   614→   614→    const harvestQty = batch.harvestQuantity || 0
+   615→   615→    const harvestWt = batch.harvestWeight || 0
+   616→   616→    const sellPrice = batch.sellingPricePerKg || 0
+   617→   617→    const totalHarvestKg = harvestQty * harvestWt
+   618→   618→    const totalHarvestValue = totalHarvestKg * sellPrice
+   619→   619→    const profit = totalHarvestValue - totalCost
+   620→   620→
+   621→   621→    return {
+   622→   622→      totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays,
+   623→   623→      feedPerEkor, totalDead, aliveCount, mortalityRate,
+   624→   624→      harvestQty, harvestWt, sellPrice, totalHarvestKg, totalHarvestValue, profit,
+   625→   625→    }
+   626→   626→  }
+   627→   627→
+   628→   628→  // Calendar events derived from batches
+   629→   629→  const calendarEvents = useMemo(() => {
+   630→   630→    const events: Record<string, CalendarEvent[]> = {}
+   631→   631→    batches.forEach((batch) => {
+   632→   632→      const arriveKey = new Date(batch.arrivalDate).toDateString()
+   633→   633→      if (!events[arriveKey]) events[arriveKey] = []
+   634→   634→      events[arriveKey].push({ type: 'tiba', batch })
+   635→   635→      if (batch.harvestDate) {
+   636→   636→        const harvestKey = new Date(batch.harvestDate).toDateString()
+   637→   637→        if (!events[harvestKey]) events[harvestKey] = []
+   638→   638→        events[harvestKey].push({ type: 'panen', batch })
+   639→   639→      }
+   640→   640→    })
+   641→   641→    return events
+   642→   642→  }, [batches])
+   643→   643→
+   644→   644→  // Calendar grid cells (data, not JSX)
+   645→   645→  const calendarCells = useMemo(() => {
+   646→   646→    const year = calendarMonth.getFullYear()
+   647→   647→    const month = calendarMonth.getMonth()
+   648→   648→    const firstDay = new Date(year, month, 1).getDay()
+   649→   649→    const daysInMonth = new Date(year, month + 1, 0).getDate()
+   650→   650→    const cells: Array<{ day: number | null; date: Date | null; events: CalendarEvent[] }> = []
+   651→   651→    for (let i = 0; i < firstDay; i++) {
+   652→   652→      cells.push({ day: null, date: null, events: [] })
+   653→   653→    }
+   654→   654→    for (let day = 1; day <= daysInMonth; day++) {
+   655→   655→      const date = new Date(year, month, day)
+   656→   656→      const key = date.toDateString()
+   657→   657→      cells.push({ day, date, events: calendarEvents[key] || [] })
+   658→   658→    }
+   659→   659→    return cells
+   660→   660→  }, [calendarMonth, calendarEvents])
+   661→   661→
+   662→   662→  const renderSidebar = () => (
+   663→   663→    <div className="flex flex-col h-full">
+   664→   664→      {/* Brand header */}
+   665→   665→      <div className="p-4 border-b border-emerald-100">
+   666→   666→        <div className="flex items-center gap-3">
+   667→   667→          {appSettings.logoData ? (
+   668→   668→            <img src={appSettings.logoData} alt="Logo" className="w-10 h-10 rounded-xl object-cover shadow-lg shrink-0" />
+   669→   669→          ) : (
+   670→   670→            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+   671→   671→              <Bird className="w-6 h-6 text-white" />
+   672→   672→            </div>
+   673→   673→          )}
+   674→   674→          <div className="min-w-0">
+   675→   675→            <h1 className="text-base font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{appSettings.appName}</h1>
+   676→   676→            <p className="text-xs text-muted-foreground truncate">Manajemen Peternakan Ayam</p>
+   677→   677→          </div>
+   678→   678→        </div>
+   679→   679→      </div>
+   680→   680→
+   681→   681→      {/* Tambah Termin button */}
+   682→   682→      <div className="p-3">
+   683→   683→        <Button
+   684→   684→          onClick={() => setAddBatchOpen(true)}
+   685→   685→          className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
+   686→   686→        >
+   687→   687→          <Plus className="w-4 h-4" /> Tambah Termin
+   688→   688→        </Button>
+   689→   689→      </div>
+   690→   690→
+   691→   691→      {/* Nav list */}
+   692→   692→      <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+   693→   693→        {NAV_ITEMS.map((item) => {
+   694→   694→          const isActive = view === 'dashboard' && activeSection === item.id
+   695→   695→          const Icon = item.icon
+   696→   696→          return (
+   697→   697→            <button
+   698→   698→              key={item.id}
+   699→   699→              onClick={() => { setActiveSection(item.id); setView('dashboard'); setSelectedBatch(null); setSidebarMobileOpen(false) }}
+   700→   700→              className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+   701→   701→                isActive
+   702→   702→                  ? 'bg-emerald-50 text-emerald-700'
+   703→   703→                  : 'text-gray-600 hover:bg-gray-50'
+   704→   704→              }`}
+   705→   705→            >
+   706→   706→              {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-emerald-600" />}
+   707→   707→              <Icon className={`w-4 h-4 shrink-0 ${isActive ? item.iconColor : 'text-gray-400'}`} />
+   708→   708→              <span className="truncate">{item.label}</span>
+   709→   709→            </button>
+   710→   710→          )
+   711→   711→        })}
+   712→   712→      </nav>
+   713→   713→
+   714→   714→      {/* Footer info card */}
+   715→   715→      <div className="p-3 border-t border-emerald-100">
+   716→   716→        <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-amber-50/50 p-3 space-y-2">
+   717→   717→          <p className="text-xs font-semibold text-gray-600">Ringkasan Termin</p>
+   718→   718→          <div className="grid grid-cols-3 gap-2 text-center">
+   719→   719→            <div>
+   720→   720→              <p className="text-lg font-bold text-emerald-700">{dashboard?.totalBatches || 0}</p>
+   721→   721→              <p className="text-[10px] text-muted-foreground">Total</p>
+   722→   722→            </div>
+   723→   723→            <div>
+   724→   724→              <p className="text-lg font-bold text-amber-700">{dashboard?.activeBatches || 0}</p>
+   725→   725→              <p className="text-[10px] text-muted-foreground">Aktif</p>
+   726→   726→            </div>
+   727→   727→            <div>
+   728→   728→              <p className="text-lg font-bold text-gray-700">{dashboard?.harvestedBatches || 0}</p>
+   729→   729→              <p className="text-[10px] text-muted-foreground">Panen</p>
+   730→   730→            </div>
+   731→   731→          </div>
+   732→   732→        </div>
+   733→   733→      </div>
+   734→   734→
+   735→   735→      {/* Close button - mobile only */}
+   736→   736→      <div className="lg:hidden p-3 border-t border-emerald-100">
+   737→   737→        <Button variant="outline" className="w-full gap-2" onClick={() => setSidebarMobileOpen(false)}>
+   738→   738→          <X className="w-4 h-4" /> Tutup Menu
+   739→   739→        </Button>
+   740→   740→      </div>
+   741→   741→    </div>
+   742→   742→  )
+   743→   743→
+   744→   744→  if (loading) {
+   745→   745→    return (
+   746→   746→      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-amber-50/30 to-white">
+   747→   747→        <motion.div
+   748→   748→          animate={{ rotate: 360 }}
+   749→   749→          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+   750→   750→          className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full"
+   751→   751→        />
+   752→   752→      </div>
+   753→   753→    )
+   754→   754→  }
+   755→   755→
+   756→   756→  return (
+   757→   757→    <div className="min-h-screen flex bg-gradient-to-br from-emerald-50/80 via-amber-50/20 to-white">
+   758→   758→      {/* Sidebar - Desktop */}
+   759→   759→      <aside className="hidden lg:flex w-64 flex-col border-r border-emerald-100 bg-white/70 backdrop-blur-xl shrink-0 sticky top-0 h-screen">
+   760→   760→        {renderSidebar()}
+   761→   761→      </aside>
+   762→   762→
+   763→   763→      {/* Sidebar - Mobile */}
+   764→   764→      <Sheet open={sidebarMobileOpen} onOpenChange={setSidebarMobileOpen}>
+   765→   765→        <SheetContent side="left" className="w-72 p-0 border-emerald-100 bg-white">
+   766→   766→          <SheetTitle className="sr-only">Menu Navigasi</SheetTitle>
+   767→   767→          <SheetDescription className="sr-only">Pilih menu untuk berpindah halaman</SheetDescription>
+   768→   768→          {renderSidebar()}
+   769→   769→        </SheetContent>
+   770→   770→      </Sheet>
+   771→   771→
+   772→   772→      {/* Main Column */}
+   773→   773→      <div className="flex-1 flex flex-col min-w-0">
+   774→   774→        {/* Top Header */}
+   775→   775→        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-emerald-100 shadow-sm">
+   776→   776→          <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+   777→   777→            <div className="flex items-center gap-3 min-w-0">
+   778→   778→              <Button variant="ghost" size="icon" className="lg:hidden shrink-0" onClick={() => setSidebarMobileOpen(true)}>
+   779→   779→                <Menu className="w-5 h-5" />
+   780→   780→              </Button>
+   781→   781→              {/* Mobile brand */}
+   782→   782→              <div className="flex items-center gap-2 lg:hidden min-w-0">
+   783→   783→                {appSettings.logoData ? (
+   784→   784→                  <img src={appSettings.logoData} alt="Logo" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+   785→   785→                ) : (
+   786→   786→                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+   787→   787→                    <Bird className="w-5 h-5 text-white" />
+   788→   788→                  </div>
+   789→   789→                )}
+   790→   790→                <h1 className="text-base font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{appSettings.appName}</h1>
+   791→   791→              </div>
+   792→   792→              {/* Desktop contextual title */}
+   793→   793→              <div className="hidden lg:block min-w-0">
+   794→   794→                <h1 className="text-lg font-bold text-gray-800 truncate">{view === 'batch-detail' ? 'Detail Termin' : SECTION_LABELS[activeSection]}</h1>
+   795→   795→                <p className="text-xs text-muted-foreground truncate">{view === 'batch-detail' && selectedBatch ? selectedBatch.name : 'Sistem Manajemen Peternakan Ayam'}</p>
+   796→   796→              </div>
+   797→   797→            </div>
+   798→   798→            {/* Desktop Tambah Termin button */}
+   799→   799→            <Button
+   800→   800→              onClick={() => setAddBatchOpen(true)}
+   801→   801→              className="hidden lg:flex bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-200/50 gap-2"
+   802→   802→            >
+   803→   803→              <Plus className="w-4 h-4" />
+   804→   804→              <span>Tambah Termin</span>
+   805→   805→            </Button>
+   806→   806→          </div>
+   807→   807→        </header>
+   808→   808→
+   809→   809→        {/* Main Content */}
+   810→   810→        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6 pb-6">
+   811→   811→          <AnimatePresence mode="wait">
+   812→   812→            {view === 'dashboard' ? (
+   813→   813→              <motion.div
+   814→   814→                key="dashboard"
+   815→   815→                initial={{ opacity: 0, y: 20 }}
+   816→   816→                animate={{ opacity: 1, y: 0 }}
+   817→   817→                exit={{ opacity: 0, y: -20 }}
+   818→   818→                transition={{ duration: 0.3 }}
+   819→   819→              >
+   820→   820→                {/* Hero Banner + Stats Cards - only on dashboard section */}
+   821→   821→                {activeSection === 'dashboard' && (
+   822→   822→                  <>
+   823→   823→                    {/* Hero Banner */}
+   824→   824→                    <div className="relative rounded-2xl overflow-hidden mb-6 shadow-xl">
+   825→   825→                      <img src="/chicken-farm-hero.png" alt="Peternakan Ayam" className="w-full h-40 sm:h-56 object-cover" />
+   826→   826→                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
+   827→   827→                        <div className="px-6 sm:px-10">
+   828→   828→                          <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di {appSettings.appName}</h2>
+   829→   829→                          <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, pakan, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
+   830→   830→                        </div>
+   831→   831→                      </div>
+   832→   832→                    </div>
+   833→   833→
+   834→   834→                    {/* Stats Cards */}
+   835→   835→                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+   836→   836→                      {[
+   837→   837→                        { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
+   838→   838→                        { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
+   839→   839→                        { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
+   840→   840→                        { icon: Wheat, label: 'Total Pakan', value: `${dashboard?.totalFeedKg || 0} kg`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
+   841→   841→                        { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(dashboard?.totalFeedCost || 0), color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
+   842→   842→                      ].map((stat, i) => (
+   843→   843→                        <motion.div
+   844→   844→                          key={stat.label}
+   845→   845→                          initial={{ opacity: 0, y: 20 }}
+   846→   846→                          animate={{ opacity: 1, y: 0 }}
+   847→   847→                          transition={{ delay: i * 0.1 }}
+   848→   848→                          className={i === 4 ? 'col-span-2 sm:col-span-1' : ''}
+   849→   849→                        >
+   850→   850→                          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+   851→   851→                            <CardContent className="p-4 sm:p-5">
+   852→   852→                              <div className="flex items-start justify-between">
+   853→   853→                                <div className="min-w-0">
+   854→   854→                                  <p className="text-xs sm:text-sm text-muted-foreground font-medium">{stat.label}</p>
+   855→   855→                                  <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{stat.value}</p>
+   856→   856→                                </div>
+   857→   857→                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg ${stat.shadow} shrink-0`}>
+   858→   858→                                  <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+   859→   859→                                </div>
+   860→   860→                              </div>
+   861→   861→                            </CardContent>
+   862→   862→                          </Card>
+   863→   863→                        </motion.div>
+   864→   864→                      ))}
+   865→   865→                    </div>
+   866→   866→                  </>
+   867→   867→                )}
+   868→   868→
+   869→   869→                {/* Termin Section */}
+   870→   870→                {activeSection === 'termin' && (
+   871→   871→                  <>
+   872→   872→                    {batches.length === 0 ? (
+   873→   873→                      <Card className="border-dashed border-2 border-emerald-200">
+   874→   874→                        <CardContent className="flex flex-col items-center justify-center py-16">
+   875→   875→                          <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+   876→   876→                            <Bird className="w-10 h-10 text-emerald-400" />
+   877→   877→                          </div>
+   878→   878→                          <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
+   879→   879→                          <p className="text-muted-foreground text-sm mt-1">Mulai tambahkan bibit ayam pertama Anda</p>
+   880→   880→                          <Button className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-700 gap-2" onClick={() => setAddBatchOpen(true)}>
+   881→   881→                            <Plus className="w-4 h-4" /> Tambah Termin Pertama
+   882→   882→                          </Button>
+   883→   883→                        </CardContent>
+   884→   884→                      </Card>
+   885→   885→                    ) : (
+   886→   886→                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   887→   887→                        {batches.map((batch, i) => {
+   888→   888→                          const stats = getBatchStats(batch)
+   889→   889→                          return (
+   890→   890→                            <motion.div
+   891→   891→                              key={batch.id}
+   892→   892→                              initial={{ opacity: 0, scale: 0.95 }}
+   893→   893→                              animate={{ opacity: 1, scale: 1 }}
+   894→   894→                              transition={{ delay: i * 0.05 }}
+   895→   895→                            >
+   896→   896→                              <Card
+   897→   897→                                className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group overflow-hidden"
+   898→   898→                                onClick={() => openBatchDetail(batch)}
+   899→   899→                              >
+   900→   900→                                <div className={`h-1.5 ${batch.status === 'active' ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} />
+   901→   901→                                <CardHeader className="pb-3">
+   902→   902→                                  <div className="flex items-start justify-between">
+   903→   903→                                    <div className="min-w-0">
+   904→   904→                                      <CardTitle className="text-base font-bold flex items-center gap-2">
+   905→   905→                                        <span className="truncate">{batch.name}</span>
+   906→   906→                                        <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+   907→   907→                                          {batch.status === 'active' ? 'Aktif' : 'Panen'}
+   908→   908→                                        </Badge>
+   909→   909→                                      </CardTitle>
+   910→   910→                                      <CardDescription className="mt-1">
+   911→   911→                                        Termin #{batch.terminNumber} • {formatDate(batch.arrivalDate)}
+   912→   912→                                      </CardDescription>
+   913→   913→                                    </div>
+   914→   914→                                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-emerald-600 transition-colors shrink-0" />
+   915→   915→                                  </div>
+   916→   916→                                </CardHeader>
+   917→   917→                                <CardContent className="pt-0">
+   918→   918→                                  <div className="grid grid-cols-2 gap-2">
+   919→   919→                                    <div className="bg-emerald-50/50 rounded-lg p-2">
+   920→   920→                                      <p className="text-xs text-muted-foreground">Hidup</p>
+   921→   921→                                      <p className="text-sm font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+   922→   922→                                    </div>
+   923→   923→                                    <div className="bg-amber-50/50 rounded-lg p-2">
+   924→   924→                                      <p className="text-xs text-muted-foreground">Umur</p>
+   925→   925→                                      <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
+   926→   926→                                    </div>
+   927→   927→                                    <div className="bg-teal-50/50 rounded-lg p-2">
+   928→   928→                                      <p className="text-xs text-muted-foreground">Pakan</p>
+   929→   929→                                      <p className="text-sm font-bold text-teal-700">{stats.totalFeed.toFixed(1)} kg</p>
+   930→   930→                                    </div>
+   931→   931→                                    <div className="bg-red-50/50 rounded-lg p-2">
+   932→   932→                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+   933→   933→                                      <p className="text-sm font-bold text-red-700">{stats.totalDead} ekor ({stats.mortalityRate.toFixed(1)}%)</p>
+   934→   934→                                    </div>
+   935→   935→                                  </div>
+   936→   936→                                  {/* Weight progress bar */}
+   937→   937→                                  <div className="mt-2">
+   938→   938→                                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+   939→   939→                                      <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
+   940→   940→                                      <span>Target: ~1.8 kg</span>
+   941→   941→                                    </div>
+   942→   942→                                    <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
+   943→   943→                                  </div>
+   944→   944→                                </CardContent>
+   945→   945→                              </Card>
+   946→   946→                            </motion.div>
+   947→   947→                          )
+   948→   948→                        })}
+   949→   949→                      </div>
+   950→   950→                    )}
+   951→   951→                  </>
+   952→   952→                )}
+   953→   953→
+   954→   954→                {/* Pakan Section */}
+   955→   955→                {activeSection === 'pakan' && (
+   956→   956→                  <Card className="border-0 shadow-lg">
+   957→   957→                    <CardHeader>
+   958→   958→                      <div className="flex items-start justify-between gap-3 flex-wrap">
+   959→   959→                        <div className="min-w-0">
+   960→   960→                          <CardTitle className="flex items-center gap-2">
+   961→   961→                            <Wheat className="w-5 h-5 text-amber-600" />
+   962→   962→                            Rekap Pakan Seluruh Termin
+   963→   963→                          </CardTitle>
+   964→   964→                          <CardDescription>Ringkasan pakan per termin dan per jenis</CardDescription>
+   965→   965→                        </div>
+   966→   966→                        {batches.length > 0 && (
+   967→   967→                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' }); setAddFeedOpen(true) }}>
+   968→   968→                            <Plus className="w-4 h-4" /> Tambah Pakan
+   969→   969→                          </Button>
+   970→   970→                        )}
+   971→   971→                      </div>
+   972→   972→                    </CardHeader>
+   973→   973→                    <CardContent>
+   974→   974→                      {batches.length === 0 ? (
+   975→   975→                        <div className="text-center py-12 text-muted-foreground">
+   976→   976→                          <Wheat className="w-12 h-12 mx-auto mb-3 opacity-30" />
+   977→   977→                          <p>Belum ada data pakan</p>
+   978→   978→                        </div>
+   979→   979→                      ) : (
+   980→   980→                        <div className="space-y-6">
+   981→   981→                          {batches.map((batch) => {
+   982→   982→                            const feedByType = batch.feedRecords.reduce((acc, f) => {
+   983→   983→                              if (!acc[f.feedType]) acc[f.feedType] = { total: 0, cost: 0, count: 0 }
+   984→   984→                              acc[f.feedType].total += f.quantityKg
+   985→   985→                              acc[f.feedType].cost += f.quantityKg * f.pricePerKg
+   986→   986→                              acc[f.feedType].count += 1
+   987→   987→                              return acc
+   988→   988→                            }, {} as Record<string, { total: number; cost: number; count: number }>)
+   989→   989→
+   990→   990→                            const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
+   991→   991→
+   992→   992→                            return (
+   993→   993→                              <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-amber-50/20">
+   994→   994→                                <div className="flex items-center justify-between mb-3">
+   995→   995→                                  <div className="flex items-center gap-2 min-w-0">
+   996→   996→                                    <h3 className="font-bold truncate">{batch.name}</h3>
+   997→   997→                                    <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
+   998→   998→                                  </div>
+   999→   999→                                  <div className="text-right shrink-0 ml-2">
+  1000→  1000→                                    <p className="text-lg font-bold text-amber-700">{totalFeed.toFixed(1)} kg</p>
+  1001→  1001→                                    <p className="text-xs text-muted-foreground">Total Pakan</p>
+  1002→  1002→                                  </div>
+  1003→  1003→                                </div>
+  1004→  1004→                                <div className="space-y-2">
+  1005→  1005→                                  {Object.entries(feedByType).map(([type, data]) => (
+  1006→  1006→                                    <div key={type} className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/60">
+  1007→  1007→                                      <div className="flex items-center gap-2 min-w-0">
+  1008→  1008→                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
+  1009→  1009→                                        <span className="text-sm font-medium">{type}</span>
+  1010→  1010→                                        <span className="text-xs text-muted-foreground">({data.count}x)</span>
+  1011→  1011→                                      </div>
+  1012→  1012→                                      <div className="text-right shrink-0">
+  1013→  1013→                                        <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
+  1014→  1014→                                        <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
+  1015→  1015→                                      </div>
+  1016→  1016→                                    </div>
+  1017→  1017→                                  ))}
+  1018→  1018→                                  {batch.feedRecords.length === 0 && (
+  1019→  1019→                                    <p className="text-sm text-muted-foreground text-center py-2">Belum ada data pakan</p>
+  1020→  1020→                                  )}
+  1021→  1021→                                </div>
+  1022→  1022→                              </div>
+  1023→  1023→                            )
+  1024→  1024→                          })}
+  1025→  1025→                        </div>
+  1026→  1026→                      )}
+  1027→  1027→                    </CardContent>
+  1028→  1028→                  </Card>
+  1029→  1029→                )}
+  1030→  1030→
+  1031→  1031→                {/* Berat Section */}
+  1032→  1032→                {activeSection === 'berat' && (
+  1033→  1033→                  <Card className="border-0 shadow-lg">
+  1034→  1034→                    <CardHeader>
+  1035→  1035→                      <div className="flex items-start justify-between gap-3 flex-wrap">
+  1036→  1036→                        <div className="min-w-0">
+  1037→  1037→                          <CardTitle className="flex items-center gap-2">
+  1038→  1038→                            <Scale className="w-5 h-5 text-teal-600" />
+  1039→  1039→                            Tracking Berat Ayam
+  1040→  1040→                          </CardTitle>
+  1041→  1041→                          <CardDescription>Grafik pertumbuhan berat ayam per termin</CardDescription>
+  1042→  1042→                        </div>
+  1043→  1043→                        {batches.length > 0 && (
+  1044→  1044→                          <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+  1045→  1045→                            <Plus className="w-4 h-4" /> Tambah Berat
+  1046→  1046→                          </Button>
+  1047→  1047→                        )}
+  1048→  1048→                      </div>
+  1049→  1049→                    </CardHeader>
+  1050→  1050→                    <CardContent>
+  1051→  1051→                      {batches.length === 0 ? (
+  1052→  1052→                        <div className="text-center py-12 text-muted-foreground">
+  1053→  1053→                          <Scale className="w-12 h-12 mx-auto mb-3 opacity-30" />
+  1054→  1054→                          <p>Belum ada data berat</p>
+  1055→  1055→                        </div>
+  1056→  1056→                      ) : (
+  1057→  1057→                        <div className="space-y-8">
+  1058→  1058→                          {batches.map((batch) => {
+  1059→  1059→                            const sortedWeights = [...batch.weightRecords].sort((a, b) => a.ageDays - b.ageDays)
+  1060→  1060→                            const chartData = sortedWeights.map((w) => ({
+  1061→  1061→                              umur: `Hari ${w.ageDays}`,
+  1062→  1062→                              berat: w.averageWeightGram,
+  1063→  1063→                            }))
+  1064→  1064→
+  1065→  1065→                            return (
+  1066→  1066→                              <div key={batch.id} className="border rounded-xl p-4">
+  1067→  1067→                                <div className="flex items-center justify-between mb-4 gap-2">
+  1068→  1068→                                  <h3 className="font-bold truncate">{batch.name} <Badge variant="outline" className="text-xs ml-1">Termin #{batch.terminNumber}</Badge></h3>
+  1069→  1069→                                  <div className="text-right shrink-0">
+  1070→  1070→                                    <p className="text-sm text-muted-foreground">Berat Awal: {(batch.initialWeight * 1000).toFixed(0)} gram</p>
+  1071→  1071→                                    <p className="text-sm font-bold text-teal-700">
+  1072→  1072→                                      Berat Saat Ini: {sortedWeights.length > 0 ? `${sortedWeights[sortedWeights.length - 1].averageWeightGram.toFixed(0)} gram` : '-'}
+  1073→  1073→                                    </p>
+  1074→  1074→                                  </div>
+  1075→  1075→                                </div>
+  1076→  1076→                                {chartData.length > 1 ? (
+  1077→  1077→                                  <div className="h-64">
+  1078→  1078→                                    <ResponsiveContainer width="100%" height="100%">
+  1079→  1079→                                      <LineChart data={chartData}>
+  1080→  1080→                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+  1081→  1081→                                        <XAxis dataKey="umur" tick={{ fontSize: 12 }} />
+  1082→  1082→                                        <YAxis tick={{ fontSize: 12 }} unit="g" />
+  1083→  1083→                                        <Tooltip formatter={(value: number) => [`${value} gram`, 'Berat Rata-rata']} />
+  1084→  1084→                                        <Line type="monotone" dataKey="berat" stroke="#16a34a" strokeWidth={3} dot={{ r: 5, fill: '#16a34a' }} activeDot={{ r: 7 }} />
+  1085→  1085→                                      </LineChart>
+  1086→  1086→                                    </ResponsiveContainer>
+  1087→  1087→                                  </div>
+  1088→  1088→                                ) : (
+  1089→  1089→                                  <div className="text-center py-8 text-muted-foreground text-sm">
+  1090→  1090→                                    <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+  1091→  1091→                                    <p>Minimal 2 data berat diperlukan untuk menampilkan grafik</p>
+  1092→  1092→                                  </div>
+  1093→  1093→                                )}
+  1094→  1094→                              </div>
+  1095→  1095→                            )
+  1096→  1096→                          })}
+  1097→  1097→                        </div>
+  1098→  1098→                      )}
+  1099→  1099→                    </CardContent>
+  1100→  1100→                  </Card>
+  1101→  1101→                )}
+  1102→  1102→
+  1103→  1103→                {/* Mortalitas Section */}
+  1104→  1104→                {activeSection === 'mortalitas' && (
+  1105→  1105→                  <Card className="border-0 shadow-lg">
+  1106→  1106→                    <CardHeader>
+  1107→  1107→                      <div className="flex items-start justify-between gap-3 flex-wrap">
+  1108→  1108→                        <div className="min-w-0">
+  1109→  1109→                          <CardTitle className="flex items-center gap-2">
+  1110→  1110→                            <Skull className="w-5 h-5 text-red-600" />
+  1111→  1111→                            Rekap Mortalitas Seluruh Termin
+  1112→  1112→                          </CardTitle>
+  1113→  1113→                          <CardDescription>Data ayam mati, afkir, dan tidak layak jual</CardDescription>
+  1114→  1114→                        </div>
+  1115→  1115→                        {batches.length > 0 && (
+  1116→  1116→                          <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => { setDialogBatchId(batches[0]?.id || ''); setMortalityForm({ date: '', quantity: '', reason: 'sakit', notes: '' }); setAddMortalityOpen(true) }}>
+  1117→  1117→                            <Plus className="w-4 h-4" /> Tambah Mortalitas
+  1118→  1118→                          </Button>
+  1119→  1119→                        )}
+  1120→  1120→                      </div>
+  1121→  1121→                    </CardHeader>
+  1122→  1122→                    <CardContent>
+  1123→  1123→                      {batches.length === 0 ? (
+  1124→  1124→                        <div className="text-center py-12 text-muted-foreground">
+  1125→  1125→                          <Skull className="w-12 h-12 mx-auto mb-3 opacity-30" />
+  1126→  1126→                          <p>Belum ada data mortalitas</p>
+  1127→  1127→                        </div>
+  1128→  1128→                      ) : (
+  1129→  1129→                        <div className="space-y-6">
+  1130→  1130→                          {batches.map((batch) => {
+  1131→  1131→                            const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+  1132→  1132→                            const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
+  1133→  1133→                            const deadByReason = batch.mortalityRecords.reduce((acc, m) => {
+  1134→  1134→                              if (!acc[m.reason]) acc[m.reason] = 0
+  1135→  1135→                              acc[m.reason] += m.quantity
+  1136→  1136→                              return acc
+  1137→  1137→                            }, {} as Record<string, number>)
+  1138→  1138→
+  1139→  1139→                            const pieData = Object.entries(deadByReason).map(([reason, qty]) => ({
+  1140→  1140→                              name: MORTALITY_REASON_LABELS[reason] || reason,
+  1141→  1141→                              value: qty,
+  1142→  1142→                            }))
+  1143→  1143→
+  1144→  1144→                            return (
+  1145→  1145→                              <div key={batch.id} className="border rounded-xl p-4 bg-gradient-to-r from-white to-red-50/20">
+  1146→  1146→                                <div className="flex items-center justify-between mb-3 gap-2">
+  1147→  1147→                                  <div className="flex items-center gap-2 min-w-0">
+  1148→  1148→                                    <h3 className="font-bold truncate">{batch.name}</h3>
+  1149→  1149→                                    <Badge variant="outline" className="text-xs">Termin #{batch.terminNumber}</Badge>
+  1150→  1150→                                  </div>
+  1151→  1151→                                  <div className="text-right shrink-0">
+  1152→  1152→                                    <p className="text-lg font-bold text-red-700">{totalDead} ekor</p>
+  1153→  1153→                                    <p className="text-xs text-muted-foreground">Mortalitas: {mortalityRate.toFixed(1)}%</p>
+  1154→  1154→                                  </div>
+  1155→  1155→                                </div>
+  1156→  1156→
+  1157→  1157→                                <div className="grid grid-cols-3 gap-3 mb-3">
+  1158→  1158→                                  <div className="bg-emerald-50 rounded-lg p-2 text-center">
+  1159→  1159→                                    <p className="text-xs text-muted-foreground">Awal</p>
+  1160→  1160→                                    <p className="text-sm font-bold text-emerald-700">{batch.quantity.toLocaleString('id-ID')}</p>
+  1161→  1161→                                  </div>
+  1162→  1162→                                  <div className="bg-red-50 rounded-lg p-2 text-center">
+  1163→  1163→                                    <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+  1164→  1164→                                    <p className="text-sm font-bold text-red-700">{totalDead}</p>
+  1165→  1165→                                  </div>
+  1166→  1166→                                  <div className="bg-amber-50 rounded-lg p-2 text-center">
+  1167→  1167→                                    <p className="text-xs text-muted-foreground">Hidup</p>
+  1168→  1168→                                    <p className="text-sm font-bold text-amber-700">{(batch.quantity - totalDead).toLocaleString('id-ID')}</p>
+  1169→  1169→                                  </div>
+  1170→  1170→                                </div>
+  1171→  1171→
+  1172→  1172→                                {pieData.length > 0 && (
+  1173→  1173→                                  <div className="flex flex-col sm:flex-row items-center gap-4">
+  1174→  1174→                                    <div className="w-40 h-40 shrink-0">
+  1175→  1175→                                      <ResponsiveContainer width="100%" height="100%">
+  1176→  1176→                                        <PieChart>
+  1177→  1177→                                          <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+  1178→  1178→                                            {pieData.map((entry, index) => (
+  1179→  1179→                                              <Cell key={`cell-${index}`} fill={MORTALITY_REASON_COLORS[Object.keys(MORTALITY_REASON_LABELS).find(k => MORTALITY_REASON_LABELS[k] === entry.name) || 'lainnya'] || COLORS[index]} />
+  1180→  1180→                                            ))}
+  1181→  1181→                                          </Pie>
+  1182→  1182→                                          <Tooltip formatter={(value: number) => [`${value} ekor`, 'Jumlah']} />
+  1183→  1183→                                        </PieChart>
+  1184→  1184→                                      </ResponsiveContainer>
+  1185→  1185→                                    </div>
+  1186→  1186→                                    <div className="flex-1 space-y-1.5 w-full">
+  1187→  1187→                                      {Object.entries(deadByReason).map(([reason, qty]) => (
+  1188→  1188→                                        <div key={reason} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/60">
+  1189→  1189→                                          <div className="flex items-center gap-2 min-w-0">
+  1190→  1190→                                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: MORTALITY_REASON_COLORS[reason] || '#6b7280' }} />
+  1191→  1191→                                            <span className="text-sm font-medium truncate">{MORTALITY_REASON_LABELS[reason] || reason}</span>
+  1192→  1192→                                          </div>
+  1193→  1193→                                          <span className="text-sm font-bold shrink-0">{qty} ekor</span>
+  1194→  1194→                                        </div>
+  1195→  1195→                                      ))}
+  1196→  1196→                                    </div>
+  1197→  1197→                                  </div>
+  1198→  1198→                                )}
+  1199→  1199→
+  1200→  1200→                                {/* Mortality timeline */}
+  1201→  1201→                                {batch.mortalityRecords.length > 0 && (
+  1202→  1202→                                  <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+  1203→  1203→                                    <p className="text-xs font-medium text-muted-foreground mb-1">Riwayat Kematian:</p>
+  1204→  1204→                                    {batch.mortalityRecords.map((m) => (
+  1205→  1205→                                      <div key={m.id} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/40">
+  1206→  1206→                                        <div className="flex items-center gap-2 min-w-0">
+  1207→  1207→                                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: MORTALITY_REASON_COLORS[m.reason] || '#6b7280' }} />
+  1208→  1208→                                          <span className="text-xs">{formatDate(m.date)}</span>
+  1209→  1209→                                          <span className="text-xs text-muted-foreground truncate">• {MORTALITY_REASON_LABELS[m.reason] || m.reason}</span>
+  1210→  1210→                                        </div>
+  1211→  1211→                                        <span className="text-xs font-bold shrink-0">{m.quantity} ekor</span>
+  1212→  1212→                                      </div>
+  1213→  1213→                                    ))}
+  1214→  1214→                                  </div>
+  1215→  1215→                                )}
+  1216→  1216→
+  1217→  1217→                                {batch.mortalityRecords.length === 0 && (
+  1218→  1218→                                  <p className="text-sm text-muted-foreground text-center py-2">Tidak ada catatan mortalitas</p>
+  1219→  1219→                                )}
+  1220→  1220→                              </div>
+  1221→  1221→                            )
+  1222→  1222→                          })}
+  1223→  1223→                        </div>
+  1224→  1224→                      )}
+  1225→  1225→                    </CardContent>
+  1226→  1226→                  </Card>
+  1227→  1227→                )}
+  1228→  1228→
+  1229→  1229→                {/* Peralatan Section */}
+  1230→  1230→                {activeSection === 'peralatan' && (
+  1231→  1231→                  <Card className="border-0 shadow-lg">
+  1232→  1232→                    <CardHeader>
+  1233→  1233→                      <div className="flex items-start justify-between gap-3 flex-wrap">
+  1234→  1234→                        <div className="min-w-0">
+  1235→  1235→                          <CardTitle className="flex items-center gap-2">
+  1236→  1236→                            <Wrench className="w-5 h-5 text-indigo-600" />
+  1237→  1237→                            Peralatan Peternakan
+  1238→  1238→                          </CardTitle>
+  1239→  1239→                          <CardDescription>Catatan pembelian peralatan, kandang, dan inventaris</CardDescription>
+  1240→  1240→                        </div>
+  1241→  1241→                        <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unitPrice: '', purchaseDate: '', notes: '' }); setAddEquipmentOpen(true) }}>
+  1242→  1242→                          <Plus className="w-4 h-4" /> Tambah Peralatan
+  1243→  1243→                        </Button>
+  1244→  1244→                      </div>
+  1245→  1245→                    </CardHeader>
+  1246→  1246→                    <CardContent>
+  1247→  1247→                      {(() => {
+  1248→  1248→                        const totalItems = equipments.reduce((s, e) => s + e.quantity, 0)
+  1249→  1249→                        const totalCost = equipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+  1250→  1250→                        const byCategory = equipments.reduce((acc, e) => {
+  1251→  1251→                          if (!acc[e.category]) acc[e.category] = { count: 0, cost: 0, items: 0 }
+  1252→  1252→                          acc[e.category].count += 1
+  1253→  1253→                          acc[e.category].items += e.quantity
+  1254→  1254→                          acc[e.category].cost += e.quantity * e.unitPrice
+  1255→  1255→                          return acc
+  1256→  1256→                        }, {} as Record<string, { count: number; cost: number; items: number }>)
+  1257→  1257→                        return (
+  1258→  1258→                          <>
+  1259→  1259→                            {/* Summary cards */}
+  1260→  1260→                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+  1261→  1261→                              <div className="bg-indigo-50 rounded-xl p-3 text-center">
+  1262→  1262→                                <p className="text-xs text-muted-foreground">Jenis Peralatan</p>
+  1263→  1263→                                <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
+  1264→  1264→                              </div>
+  1265→  1265→                              <div className="bg-emerald-50 rounded-xl p-3 text-center">
+  1266→  1266→                                <p className="text-xs text-muted-foreground">Total Unit</p>
+  1267→  1267→                                <p className="text-lg font-bold text-emerald-700">{totalItems.toLocaleString('id-ID')}</p>
+  1268→  1268→                              </div>
+  1269→  1269→                              <div className="bg-amber-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
+  1270→  1270→                                <p className="text-xs text-muted-foreground">Total Nilai</p>
+  1271→  1271→                                <p className="text-lg font-bold text-amber-700 break-words">{formatCurrency(totalCost)}</p>
+  1272→  1272→                              </div>
+  1273→  1273→                            </div>
+  1274→  1274→
+  1275→  1275→                            {equipments.length === 0 ? (
+  1276→  1276→                              <div className="text-center py-12 text-muted-foreground">
+  1277→  1277→                                <Wrench className="w-12 h-12 mx-auto mb-3 opacity-30" />
+  1278→  1278→                                <p>Belum ada data peralatan</p>
+  1279→  1279→                                <p className="text-xs mt-1">Klik "Tambah Peralatan" untuk mencatat pembelian alat</p>
+  1280→  1280→                              </div>
+  1281→  1281→                            ) : (
+  1282→  1282→                              <div className="space-y-5">
+  1283→  1283→                                {/* Group by category */}
+  1284→  1284→                                {Object.entries(byCategory).map(([category, data]) => (
+  1285→  1285→                                  <div key={category} className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
+  1286→  1286→                                    <div className="flex items-center justify-between mb-3 gap-2">
+  1287→  1287→                                      <div className="flex items-center gap-2 min-w-0">
+  1288→  1288→                                        <Wrench className="w-4 h-4 text-indigo-600 shrink-0" />
+  1289→  1289→                                        <h3 className="font-bold truncate">{category}</h3>
+  1290→  1290→                                        <Badge variant="outline" className="text-xs shrink-0">{data.count} jenis</Badge>
+  1291→  1291→                                      </div>
+  1292→  1292→                                      <div className="text-right shrink-0 ml-2">
+  1293→  1293→                                        <p className="text-sm font-bold text-indigo-700">{data.items.toLocaleString('id-ID')} unit</p>
+  1294→  1294→                                        <p className="text-xs text-muted-foreground">{formatCurrency(data.cost)}</p>
+  1295→  1295→                                      </div>
+  1296→  1296→                                    </div>
+  1297→  1297→                                    <div className="space-y-2">
+  1298→  1298→                                      {equipments.filter((e) => e.category === category).map((e) => (
+  1299→  1299→                                        <div key={e.id} className="group flex items-center justify-between py-2 px-3 rounded-lg bg-white/60 gap-2">
+  1300→  1300→                                          <div className="min-w-0 flex-1">
+  1301→  1301→                                            <p className="text-sm font-medium truncate">{e.name}</p>
+  1302→  1302→                                            <p className="text-xs text-muted-foreground">
+  1303→  1303→                                              {e.quantity} unit × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}
+  1304→  1304→                                              {e.notes ? ` • ${e.notes}` : ''}
+  1305→  1305→                                            </p>
+  1306→  1306→                                          </div>
+  1307→  1307→                                          <div className="flex items-center gap-2 shrink-0">
+  1308→  1308→                                            <span className="text-sm font-bold">{formatCurrency(e.quantity * e.unitPrice)}</span>
+  1309→  1309→                                            <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 text-red-500 hover:text-red-700" onClick={() => handleDeleteEquipment(e.id)}>
+  1310→  1310→                                              <Trash2 className="w-3.5 h-3.5" />
+  1311→  1311→                                            </Button>
+  1312→  1312→                                          </div>
+  1313→  1313→                                        </div>
+  1314→  1314→                                      ))}
+  1315→  1315→                                    </div>
+  1316→  1316→                                  </div>
+  1317→  1317→                                ))}
+  1318→  1318→                              </div>
+  1319→  1319→                            )}
+  1320→  1320→                          </>
+  1321→  1321→                        )
+  1322→  1322→                      })()}
+  1323→  1323→                    </CardContent>
+  1324→  1324→                  </Card>
+  1325→  1325→                )}
+  1326→  1326→
+  1327→  1327→                {/* Hitung Section */}
+  1328→  1328→                {activeSection === 'hitung' && (
+  1329→  1329→                  <Card className="border-0 shadow-lg">
+  1330→  1330→                    <CardHeader>
+  1331→  1331→                      <CardTitle className="flex items-center gap-2">
+  1332→  1332→                        <Calculator className="w-5 h-5 text-rose-600" />
+  1333→  1333→                        Perhitungan & Total Panen Per Termin
+  1334→  1334→                      </CardTitle>
+  1335→  1335→                      <CardDescription>Kalkulasi total pakan, biaya, FCR, mortalitas, dan total panen per termin</CardDescription>
+  1336→  1336→                    </CardHeader>
+  1337→  1337→                    <CardContent>
+  1338→  1338→                      {batches.length === 0 && equipments.length === 0 ? (
+  1339→  1339→                        <div className="text-center py-12 text-muted-foreground">
+  1340→  1340→                          <Calculator className="w-12 h-12 mx-auto mb-3 opacity-30" />
+  1341→  1341→                          <p>Belum ada data untuk dihitung</p>
+  1342→  1342→                        </div>
+  1343→  1343→                      ) : (
+  1344→  1344→                        <div className="space-y-6">
+  1345→  1345→                          {/* Equipment cost summary */}
+  1346→  1346→                          {equipments.length > 0 && (() => {
+  1347→  1347→                            const totalEquipCost = equipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+  1348→  1348→                            const totalEquipItems = equipments.reduce((s, e) => s + e.quantity, 0)
+  1349→  1349→                            return (
+  1350→  1350→                              <div className="border rounded-xl p-4 bg-gradient-to-r from-white to-indigo-50/20">
+  1351→  1351→                                <h3 className="font-bold mb-3 flex items-center gap-2">
+  1352→  1352→                                  <Wrench className="w-4 h-4 text-indigo-600" />
+  1353→  1353→                                  Ringkasan Peralatan
+  1354→  1354→                                </h3>
+  1355→  1355→                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+  1356→  1356→                                  <div className="bg-indigo-50 rounded-xl p-3 text-center">
+  1357→  1357→                                    <p className="text-xs text-muted-foreground">Jenis</p>
+  1358→  1358→                                    <p className="text-lg font-bold text-indigo-700">{equipments.length}</p>
+  1359→  1359→                                  </div>
+  1360→  1360→                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+  1361→  1361→                                    <p className="text-xs text-muted-foreground">Total Unit</p>
+  1362→  1362→                                    <p className="text-lg font-bold text-emerald-700">{totalEquipItems.toLocaleString('id-ID')}</p>
+  1363→  1363→                                  </div>
+  1364→  1364→                                  <div className="bg-amber-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
+  1365→  1365→                                    <p className="text-xs text-muted-foreground">Total Nilai</p>
+  1366→  1366→                                    <p className="text-base sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(totalEquipCost)}</p>
+  1367→  1367→                                  </div>
+  1368→  1368→                                </div>
+  1369→  1369→                              </div>
+  1370→  1370→                            )
+  1371→  1371→                          })()}
+  1372→  1372→                          {/* Summary Chart */}
+  1373→  1373→                          {dashboard && dashboard.batchSummaries.length > 0 && (
+  1374→  1374→                            <div className="border rounded-xl p-4 bg-gradient-to-br from-white to-rose-50/20">
+  1375→  1375→                              <h3 className="font-bold mb-4 flex items-center gap-2">
+  1376→  1376→                                <BarChart3 className="w-4 h-4 text-rose-600" />
+  1377→  1377→                                Perbandingan Per Termin
+  1378→  1378→                              </h3>
+  1379→  1379→                              <div className="h-72">
+  1380→  1380→                                <ResponsiveContainer width="100%" height="100%">
+  1381→  1381→                                  <BarChart data={dashboard.batchSummaries.map((b) => ({
+  1382→  1382→                                    name: b.name,
+  1383→  1383→                                    'Total Pakan (kg)': b.totalFeedKg,
+  1384→  1384→                                    'Biaya (Rp ribu)': Math.round(b.totalFeedCost / 1000),
+  1385→  1385→                                    'Mati/Afkir': b.totalDead,
+  1386→  1386→                                  }))}>
+  1387→  1387→                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+  1388→  1388→                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+  1389→  1389→                                    <YAxis tick={{ fontSize: 11 }} />
+  1390→  1390→                                    <Tooltip />
+  1391→  1391→                                    <Legend />
+  1392→  1392→                                    <Bar dataKey="Total Pakan (kg)" fill="#16a34a" radius={[4, 4, 0, 0]} />
+  1393→  1393→                                    <Bar dataKey="Biaya (Rp ribu)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+  1394→  1394→                                    <Bar dataKey="Mati/Afkir" fill="#ef4444" radius={[4, 4, 0, 0]} />
+  1395→  1395→                                  </BarChart>
+  1396→  1396→                                </ResponsiveContainer>
+  1397→  1397→                              </div>
+  1398→  1398→                            </div>
+  1399→  1399→                          )}
+  1400→  1400→
+  1401→  1401→                          {/* Per-termin detail cards */}
+  1402→  1402→                          {batches.map((batch) => {
+  1403→  1403→                            const stats = getBatchStats(batch)
+  1404→  1404→                            const feedByType = batch.feedRecords.reduce((acc, f) => {
+  1405→  1405→                              if (!acc[f.feedType]) acc[f.feedType] = { total: 0, cost: 0 }
+  1406→  1406→                              acc[f.feedType].total += f.quantityKg
+  1407→  1407→                              acc[f.feedType].cost += f.quantityKg * f.pricePerKg
+  1408→  1408→                              return acc
+  1409→  1409→                            }, {} as Record<string, { total: number; cost: number }>)
+  1410→  1410→
+  1411→  1411→                            const pieData = Object.entries(feedByType).map(([type, data]) => ({
+  1412→  1412→                              name: type,
+  1413→  1413→                              value: data.total,
+  1414→  1414→                              cost: data.cost,
+  1415→  1415→                            }))
+  1416→  1416→
+  1417→  1417→                            return (
+  1418→  1418→                              <div key={batch.id} className="border rounded-xl overflow-hidden">
+  1419→  1419→                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center justify-between gap-2">
+  1420→  1420→                                  <div className="min-w-0">
+  1421→  1421→                                    <h3 className="font-bold text-lg truncate">{batch.name}</h3>
+  1422→  1422→                                    <p className="text-sm text-muted-foreground">Termin #{batch.terminNumber} • {batch.quantity.toLocaleString('id-ID')} ekor awal • {stats.ageDays} hari</p>
+  1423→  1423→                                  </div>
+  1424→  1424→                                  <Badge variant={batch.status === 'active' ? 'default' : 'secondary'} className={batch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} shrink-0>
+  1425→  1425→                                    {batch.status === 'active' ? 'Aktif' : 'Panen'}
+  1426→  1426→                                  </Badge>
+  1427→  1427→                                </div>
+  1428→  1428→                                <div className="p-4">
+  1429→  1429→                                  {/* Feed & Cost stats */}
+  1430→  1430→                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+  1431→  1431→                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+  1432→  1432→                                      <p className="text-xs text-muted-foreground">Total Pakan</p>
+  1433→  1433→                                      <p className="text-lg font-bold text-emerald-700">{stats.totalFeed.toFixed(1)} kg</p>
+  1434→  1434→                                    </div>
+  1435→  1435→                                    <div className="bg-amber-50 rounded-xl p-3 text-center">
+  1436→  1436→                                      <p className="text-xs text-muted-foreground">Total Biaya</p>
+  1437→  1437→                                      <p className="text-base sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(stats.totalCost)}</p>
+  1438→  1438→                                    </div>
+  1439→  1439→                                    <div className="bg-teal-50 rounded-xl p-3 text-center">
+  1440→  1440→                                      <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
+  1441→  1441→                                      <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
+  1442→  1442→                                    </div>
+  1443→  1443→                                    <div className="bg-violet-50 rounded-xl p-3 text-center">
+  1444→  1444→                                      <p className="text-xs text-muted-foreground">FCR</p>
+  1445→  1445→                                      <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
+  1446→  1446→                                    </div>
+  1447→  1447→                                  </div>
+  1448→  1448→
+  1449→  1449→                                  {/* Mortality & Harvest stats */}
+  1450→  1450→                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+  1451→  1451→                                    <div className="bg-red-50 rounded-xl p-3 text-center">
+  1452→  1452→                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
+  1453→  1453→                                      <p className="text-lg font-bold text-red-700">{stats.totalDead} ekor</p>
+  1454→  1454→                                      <p className="text-xs text-red-500">{stats.mortalityRate.toFixed(1)}%</p>
+  1455→  1455→                                    </div>
+  1456→  1456→                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
+  1457→  1457→                                      <p className="text-xs text-muted-foreground">Hidup</p>
+  1458→  1458→                                      <p className="text-lg font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+  1459→  1459→                                    </div>
+  1460→  1460→                                    <div className="bg-orange-50 rounded-xl p-3 text-center">
+  1461→  1461→                                      <p className="text-xs text-muted-foreground">Total Panen</p>
+  1462→  1462→                                      <p className="text-lg font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
+  1463→  1463→                                      {stats.harvestQty > 0 && <p className="text-xs text-muted-foreground">{stats.harvestQty} ekor × {stats.harvestWt} kg</p>}
+  1464→  1464→                                    </div>
+  1465→  1465→                                    <div className={`rounded-xl p-3 text-center ${stats.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+  1466→  1466→                                      <p className="text-xs text-muted-foreground">{batch.status === 'harvested' ? 'Profit' : 'Estimasi Profit'}</p>
+  1467→  1467→                                      <p className={`text-base sm:text-lg font-bold break-words ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats.profit)}</p>
+  1468→  1468→                                      {stats.totalHarvestValue > 0 && <p className="text-xs text-muted-foreground break-words">Pendapatan: {formatCurrency(stats.totalHarvestValue)}</p>}
+  1469→  1469→                                    </div>
+  1470→  1470→                                  </div>
+  1471→  1471→
+  1472→  1472→                                  {/* Pie chart for feed distribution */}
+  1473→  1473→                                  {pieData.length > 0 && (
+  1474→  1474→                                    <div className="flex flex-col sm:flex-row items-center gap-4">
+  1475→  1475→                                      <div className="w-48 h-48 shrink-0">
+  1476→  1476→                                        <ResponsiveContainer width="100%" height="100%">
+  1477→  1477→                                          <PieChart>
+  1478→  1478→                                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+  1479→  1479→                                              {pieData.map((entry, index) => (
+  1480→  1480→                                                <Cell key={`cell-${index}`} fill={FEED_TYPE_COLORS[entry.name] || COLORS[index % COLORS.length]} />
+  1481→  1481→                                              ))}
+  1482→  1482→                                            </Pie>
+  1483→  1483→                                            <Tooltip formatter={(value: number) => [`${value.toFixed(1)} kg`, 'Jumlah']} />
+  1484→  1484→                                          </PieChart>
+  1485→  1485→                                        </ResponsiveContainer>
+  1486→  1486→                                      </div>
+  1487→  1487→                                      <div className="flex-1 space-y-2 w-full">
+  1488→  1488→                                        {Object.entries(feedByType).map(([type, data]) => (
+  1489→  1489→                                          <div key={type} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-gray-50">
+  1490→  1490→                                            <div className="flex items-center gap-2 min-w-0">
+  1491→  1491→                                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[type] || '#8b5cf6' }} />
+  1492→  1492→                                              <span className="text-sm font-medium">{type}</span>
+  1493→  1493→                                            </div>
+  1494→  1494→                                            <div className="text-right shrink-0">
+  1495→  1495→                                              <span className="text-sm font-bold">{data.total.toFixed(1)} kg</span>
+  1496→  1496→                                              <span className="text-xs text-muted-foreground ml-2">{formatCurrency(data.cost)}</span>
+  1497→  1497→                                            </div>
+  1498→  1498→                                          </div>
+  1499→  1499→                                        ))}
+  1500→  1500→                                      </div>
+  1501→  1501→                                    </div>
+  1502→  1502→                                  )}
+  1503→  1503→
+  1504→  1504→                                  {batch.feedRecords.length === 0 && (
+  1505→  1505→                                    <p className="text-sm text-muted-foreground text-center py-4">Belum ada data pakan untuk termin ini</p>
+  1506→  1506→                                  )}
+  1507→  1507→                                </div>
+  1508→  1508→                              </div>
+  1509→  1509→                            )
+  1510→  1510→                          })}
+  1511→  1511→                        </div>
+  1512→  1512→                      )}
+  1513→  1513→                    </CardContent>
+  1514→  1514→                  </Card>
+  1515→  1515→                )}
+  1516→  1516→
+  1517→  1517→                {/* Kalender Section */}
+  1518→  1518→                {activeSection === 'kalender' && (
+  1519→  1519→                  <Card className="border-0 shadow-lg">
+  1520→  1520→                    <CardHeader>
+  1521→  1521→                      <CardTitle className="flex items-center gap-2">
+  1522→  1522→                        <CalendarDays className="w-5 h-5 text-emerald-600" />
+  1523→  1523→                        Kalender Peternakan
+  1524→  1524→                      </CardTitle>
+  1525→  1525→                      <CardDescription>Jadwal kedatangan bibit (Tiba) dan panen ayam per termin</CardDescription>
+  1526→  1526→                    </CardHeader>
+  1527→  1527→                    <CardContent>
+  1528→  1528→                      {batches.length === 0 ? (
+  1529→  1529→                        <div className="text-center py-12 text-muted-foreground">
+  1530→  1530→                          <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-30" />
+  1531→  1531→                          <p>Belum ada termin untuk ditampilkan di kalender</p>
+  1532→  1532→                        </div>
+  1533→  1533→                      ) : (
+  1534→  1534→                        <>
+  1535→  1535→                          {/* Month navigation */}
+  1536→  1536→                          <div className="flex items-center justify-between mb-4">
+  1537→  1537→                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
+  1538→  1538→                              <ChevronLeft className="w-4 h-4" />
+  1539→  1539→                            </Button>
+  1540→  1540→                            <h3 className="text-base font-bold capitalize">
+  1541→  1541→                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+  1542→  1542→                            </h3>
+  1543→  1543→                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
+  1544→  1544→                              <ChevronRight className="w-4 h-4" />
+  1545→  1545→                            </Button>
+  1546→  1546→                          </div>
+  1547→  1547→
+  1548→  1548→                          {/* Day name headers */}
+  1549→  1549→                          <div className="grid grid-cols-7 gap-1 mb-2">
+  1550→  1550→                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
+  1551→  1551→                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
+  1552→  1552→                            ))}
+  1553→  1553→                          </div>
+  1554→  1554→
+  1555→  1555→                          {/* Calendar grid */}
+  1556→  1556→                          <div className="grid grid-cols-7 gap-1">
+  1557→  1557→                            {calendarCells.map((cell, i) => {
+  1558→  1558→                              if (!cell.date) {
+  1559→  1559→                                return <div key={`blank-${i}`} className="min-h-[60px] sm:min-h-[80px]" />
+  1560→  1560→                              }
+  1561→  1561→                              const events = cell.events
+  1562→  1562→                              const hasTiba = events.some((e) => e.type === 'tiba')
+  1563→  1563→                              const hasPanen = events.some((e) => e.type === 'panen')
+  1564→  1564→                              const isToday = new Date().toDateString() === cell.date.toDateString()
+  1565→  1565→                              return (
+  1566→  1566→                                <button
+  1567→  1567→                                  key={cell.day}
+  1568→  1568→                                  onClick={() => events.length > 0 && setDayDetail({ date: cell.date!, events })}
+  1569→  1569→                                  className={`min-h-[60px] sm:min-h-[80px] p-1.5 rounded-lg border text-left transition-all ${
+  1570→  1570→                                    events.length > 0
+  1571→  1571→                                      ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer'
+  1572→  1572→                                      : 'border-gray-100'
+  1573→  1573→                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
+  1574→  1574→                                >
+  1575→  1575→                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
+  1576→  1576→                                  {hasTiba && (
+  1577→  1577→                                    <div className="mt-1 flex items-center gap-1">
+  1578→  1578→                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+  1579→  1579→                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">Tiba</span>
+  1580→  1580→                                    </div>
+  1581→  1581→                                  )}
+  1582→  1582→                                  {hasPanen && (
+  1583→  1583→                                    <div className="mt-0.5 flex items-center gap-1">
+  1584→  1584→                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+  1585→  1585→                                      <span className="block text-[10px] font-medium text-amber-700 truncate">Panen</span>
+  1586→  1586→                                    </div>
+  1587→  1587→                                  )}
+  1588→  1588→                                </button>
+  1589→  1589→                              )
+  1590→  1590→                            })}
+  1591→  1591→                          </div>
+  1592→  1592→
+  1593→  1593→                          {/* Legend */}
+  1594→  1594→                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+  1595→  1595→                            <div className="flex items-center gap-1.5">
+  1596→  1596→                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+  1597→  1597→                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
+  1598→  1598→                            </div>
+  1599→  1599→                            <div className="flex items-center gap-1.5">
+  1600→  1600→                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+  1601→  1601→                              <span className="text-muted-foreground">Panen</span>
+  1602→  1602→                            </div>
+  1603→  1603→                            <div className="flex items-center gap-1.5">
+  1604→  1604→                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
+  1605→  1605→                              <span className="text-muted-foreground">Hari ini</span>
+  1606→  1606→                            </div>
+  1607→  1607→                          </div>
+  1608→  1608→                        </>
+  1609→  1609→                      )}
+  1610→  1610→                    </CardContent>
+  1611→  1611→                  </Card>
+  1612→  1612→                )}
+  1613→  1613→
+  1614→  1614→                {/* Settings Section */}
+  1615→  1615→                {activeSection === 'settings' && (
+  1616→  1616→                  <Card className="border-0 shadow-lg">
+  1617→  1617→                    <CardHeader>
+  1618→  1618→                      <CardTitle className="flex items-center gap-2">
+  1619→  1619→                        <Settings className="w-5 h-5 text-gray-600" />
+  1620→  1620→                        Pengaturan Aplikasi
+  1621→  1621→                      </CardTitle>
+  1622→  1622→                      <CardDescription>Kustomisasi nama aplikasi dan logo. Perubahan logo akan menjadi ikon saat diinstal di Android.</CardDescription>
+  1623→  1623→                    </CardHeader>
+  1624→  1624→                    <CardContent className="space-y-6">
+  1625→  1625→                      {/* App Name */}
+  1626→  1626→                      <div className="space-y-2">
+  1627→  1627→                        <Label className="text-base font-medium">Nama Aplikasi</Label>
+  1628→  1628→                        <Input value={settingsForm.appName} onChange={(e) => setSettingsForm({ ...settingsForm, appName: e.target.value })} placeholder="AyamKu Farm" maxLength={50} className="max-w-md" />
+  1629→  1629→                        <p className="text-xs text-muted-foreground">Nama ini tampil di sidebar, header, footer, dan judul aplikasi</p>
+  1630→  1630→                      </div>
+  1631→  1631→
+  1632→  1632→                      {/* Logo Upload */}
+  1633→  1633→                      <div className="space-y-3">
+  1634→  1634→                        <Label className="text-base font-medium">Logo Aplikasi</Label>
+  1635→  1635→                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+  1636→  1636→                          {/* Preview */}
+  1637→  1637→                          <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-emerald-200 flex items-center justify-center overflow-hidden bg-emerald-50/30 shrink-0">
+  1638→  1638→                            {logoPreview ? (
+  1639→  1639→                              <img src={logoPreview} alt="Preview" className="w-full h-full object-cover" />
+  1640→  1640→                            ) : (
+  1641→  1641→                              <ImageIcon className="w-8 h-8 text-emerald-300" />
+  1642→  1642→                            )}
+  1643→  1643→                          </div>
+  1644→  1644→                          <div className="flex-1 space-y-2 min-w-0">
+  1645→  1645→                            <div className="flex flex-wrap gap-2">
+  1646→  1646→                              <label>
+  1647→  1647→                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+  1648→  1648→                                <Button variant="outline" className="gap-2 cursor-pointer" asChild>
+  1649→  1649→                                  <span><Upload className="w-4 h-4" /> Pilih Gambar</span>
+  1650→  1650→                                </Button>
+  1651→  1651→                              </label>
+  1652→  1652→                              {logoPreview && (
+  1653→  1653→                                <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10" onClick={handleRemoveLogo}>
+  1654→  1654→                                  <Trash2 className="w-4 h-4" /> Hapus
+  1655→  1655→                                </Button>
+  1656→  1656→                              )}
+  1657→  1657→                            </div>
+  1658→  1658→                            <p className="text-xs text-muted-foreground">
+  1659→  1659→                              Format: PNG, JPG, SVG, WebP. Maksimal 2MB.<br />
+  1660→  1660→                              <span className="text-emerald-600 font-medium">Disarankan: gambar persegi 512×512px PNG dengan latar transparan</span> untuk ikon tajam di Android & iOS.
+  1661→  1661→                            </p>
+  1662→  1662→                          </div>
+  1663→  1663→                        </div>
+  1664→  1664→                      </div>
+  1665→  1665→
+  1666→  1666→                      {/* Live Preview */}
+  1667→  1667→                      <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-amber-50/30 p-4">
+  1668→  1668→                        <p className="text-xs font-semibold text-muted-foreground mb-3">PREVIEW TAMPILAN</p>
+  1669→  1669→                        <div className="flex items-center gap-3">
+  1670→  1670→                          {logoPreview ? (
+  1671→  1671→                            <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-xl object-cover shadow-lg shrink-0" />
+  1672→  1672→                          ) : (
+  1673→  1673→                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shrink-0">
+  1674→  1674→                              <Bird className="w-6 h-6 text-white" />
+  1675→  1675→                            </div>
+  1676→  1676→                          )}
+  1677→  1677→                          <div className="min-w-0">
+  1678→  1678→                            <p className="font-bold bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent truncate">{settingsForm.appName || 'AyamKu Farm'}</p>
+  1679→  1679→                            <p className="text-xs text-muted-foreground">Manajemen Peternakan Ayam</p>
+  1680→  1680→                          </div>
+  1681→  1681→                        </div>
+  1682→  1682→                      </div>
+  1683→  1683→
+  1684→  1684→                      {/* Android Install Info */}
+  1685→  1685→                      <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
+  1686→  1686→                        <div className="flex items-start gap-3">
+  1687→  1687→                          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+  1688→  1688→                          <div className="text-sm text-blue-800">
+  1689→  1689→                            <p className="font-medium mb-1">Cara Instal di Android</p>
+  1690→  1690→                            <p className="text-xs text-blue-700">Buka aplikasi di browser Chrome Android → menu (⋮) → &quot;Tambahkan ke layar utama&quot;. Logo dan nama di atas akan menjadi ikon aplikasi.</p>
+  1691→  1691→                          </div>
+  1692→  1692→                        </div>
+  1693→  1693→                      </div>
+  1694→  1694→
+  1695→  1695→                      {/* Save Button */}
+  1696→  1696→                      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2 border-t">
+  1697→  1697→                        <Button variant="outline" onClick={() => { setSettingsForm({ appName: appSettings.appName, logoData: appSettings.logoData }); setLogoPreview(appSettings.logoData) }}>
+  1698→  1698→                          Batal
+  1699→  1699→                        </Button>
+  1700→  1700→                        <Button onClick={handleSaveSettings} disabled={savingSettings} className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800">
+  1701→  1701→                          {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {savingSettings ? 'Menyimpan...' : 'Simpan Pengaturan'}
+  1702→  1702→                        </Button>
+  1703→  1703→                      </div>
+  1704→  1704→                    </CardContent>
+  1705→  1705→                  </Card>
+  1706→  1706→                )}
+  1707→  1707→              </motion.div>
+  1708→  1708→            ) : selectedBatch && (
+  1709→  1709→              <motion.div
+  1710→  1710→                key="batch-detail"
+  1711→  1711→                initial={{ opacity: 0, x: 20 }}
+  1712→  1712→                animate={{ opacity: 1, x: 0 }}
+  1713→  1713→                exit={{ opacity: 0, x: -20 }}
+  1714→  1714→                transition={{ duration: 0.3 }}
+  1715→  1715→              >
+  1716→  1716→                {/* Batch Detail View */}
+  1717→  1717→                <div className="space-y-6">
+  1718→  1718→                  {/* Back button & header */}
+  1719→  1719→                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 relative z-10">
+  1720→  1720→                    <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null); setActiveSection('termin') }} className="w-fit gap-2">
+  1721→  1721→                      <ArrowLeft className="w-4 h-4" /> Kembali
+  1722→  1722→                    </Button>
+  1723→  1723→                    <div className="flex-1 min-w-0">
+  1724→  1724→                      <div className="flex items-center gap-3">
+  1725→  1725→                        <h2 className="text-xl sm:text-2xl font-bold truncate">{selectedBatch.name}</h2>
+  1726→  1726→                        <Badge variant={selectedBatch.status === 'active' ? 'default' : 'secondary'} className={selectedBatch.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+  1727→  1727→                          {selectedBatch.status === 'active' ? 'Aktif' : 'Panen'}
+  1728→  1728→                        </Badge>
+  1729→  1729→                      </div>
+  1730→  1730→                      <p className="text-sm text-muted-foreground mt-1">
+  1731→  1731→                        Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
+  1732→  1732→                      </p>
+  1733→  1733→                    </div>
+  1734→  1734→                    <div className="flex gap-2 w-full sm:w-auto">
+  1735→  1735→                      {selectedBatch.status === 'active' && (
+  1736→  1736→                        <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => setHarvestOpen(true)}>
+  1737→  1737→                          <CheckCircle2 className="w-4 h-4" /> Panen
+  1738→  1738→                        </Button>
+  1739→  1739→                      )}
+  1740→  1740→                      <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10 flex-1 sm:flex-none" onClick={() => handleDeleteBatch(selectedBatch.id)}>
+  1741→  1741→                        <Trash2 className="w-4 h-4" /> Hapus
+  1742→  1742→                      </Button>
+  1743→  1743→                    </div>
+  1744→  1744→                  </div>
+  1745→  1745→
+  1746→  1746→                  {/* Batch Stats */}
+  1747→  1747→                  {(() => {
+  1748→  1748→                    const stats = getBatchStats(selectedBatch)
+  1749→  1749→                    return (
+  1750→  1750→                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+  1751→  1751→                        {[
+  1752→  1752→                          { icon: Bird, label: 'Awal', value: `${selectedBatch.quantity.toLocaleString('id-ID')}`, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  1753→  1753→                          { icon: Bird, label: 'Hidup', value: `${stats.aliveCount.toLocaleString('id-ID')}`, bg: 'bg-green-50', text: 'text-green-700' },
+  1754→  1754→                          { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
+  1755→  1755→                          { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
+  1756→  1756→                          { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
+  1757→  1757→                          { icon: Wheat, label: 'Total Pakan', value: `${stats.totalFeed.toFixed(1)} kg`, bg: 'bg-cyan-50', text: 'text-cyan-700' },
+  1758→  1758→                          { icon: DollarSign, label: 'Biaya Pakan', value: formatCurrency(stats.totalCost), bg: 'bg-rose-50', text: 'text-rose-700' },
+  1759→  1759→                          { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
+  1760→  1760→                        ].map((stat) => (
+  1761→  1761→                          <Card key={stat.label} className="border-0 shadow-md">
+  1762→  1762→                            <CardContent className="p-3 sm:p-4">
+  1763→  1763→                              <div className="flex items-center gap-2 mb-1">
+  1764→  1764→                                <stat.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+  1765→  1765→                                <span className="text-xs text-muted-foreground truncate">{stat.label}</span>
+  1766→  1766→                              </div>
+  1767→  1767→                              <p className={`text-sm sm:text-base font-bold ${stat.text} break-words`}>{stat.value}</p>
+  1768→  1768→                            </CardContent>
+  1769→  1769→                          </Card>
+  1770→  1770→                        ))}
+  1771→  1771→                      </div>
+  1772→  1772→                    )
+  1773→  1773→                  })()}
+  1774→  1774→
+  1775→  1775→                  {/* Weight Chart */}
+  1776→  1776→                  {selectedBatch.weightRecords.length > 1 && (
+  1777→  1777→                    <Card className="border-0 shadow-lg">
+  1778→  1778→                      <CardHeader className="pb-2">
+  1779→  1779→                        <CardTitle className="text-base flex items-center gap-2">
+  1780→  1780→                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+  1781→  1781→                          Grafik Pertumbuhan
+  1782→  1782→                        </CardTitle>
+  1783→  1783→                      </CardHeader>
+  1784→  1784→                      <CardContent>
+  1785→  1785→                        <div className="h-64">
+  1786→  1786→                          <ResponsiveContainer width="100%" height="100%">
+  1787→  1787→                            <LineChart data={[...selectedBatch.weightRecords]
+  1788→  1788→                              .sort((a, b) => a.ageDays - b.ageDays)
+  1789→  1789→                              .map((w) => ({
+  1790→  1790→                                umur: `Hari ${w.ageDays}`,
+  1791→  1791→                                berat: w.averageWeightGram,
+  1792→  1792→                              }))}>
+  1793→  1793→                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+  1794→  1794→                              <XAxis dataKey="umur" tick={{ fontSize: 12 }} />
+  1795→  1795→                              <YAxis tick={{ fontSize: 12 }} unit="g" />
+  1796→  1796→                              <Tooltip formatter={(value: number) => [`${value} gram`, 'Berat Rata-rata']} />
+  1797→  1797→                              <Line type="monotone" dataKey="berat" stroke="#16a34a" strokeWidth={3} dot={{ r: 5, fill: '#16a34a' }} />
+  1798→  1798→                            </LineChart>
+  1799→  1799→                          </ResponsiveContainer>
+  1800→  1800→                        </div>
+  1801→  1801→                      </CardContent>
+  1802→  1802→                    </Card>
+  1803→  1803→                  )}
+  1804→  1804→
+  1805→  1805→                  {/* Detail Tabs: Feed, Weight, Mortality */}
+  1806→  1806→                  <Tabs defaultValue="pakan" className="space-y-4">
+  1807→  1807→                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-2 sm:flex">
+  1808→  1808→                      <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
+  1809→  1809→                        <Wheat className="w-4 h-4" /> Pakan
+  1810→  1810→                      </TabsTrigger>
+  1811→  1811→                      <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
+  1812→  1812→                        <Scale className="w-4 h-4" /> Berat
+  1813→  1813→                      </TabsTrigger>
+  1814→  1814→                      <TabsTrigger value="mortalitas" className="gap-2 data-[state=active]:bg-red-50 data-[state=active]:text-red-700 w-full sm:w-auto col-span-2 sm:col-span-1">
+  1815→  1815→                        <Skull className="w-4 h-4" /> Mortalitas
+  1816→  1816→                      </TabsTrigger>
+  1817→  1817→                    </TabsList>
+  1818→  1818→
+  1819→  1819→                    {/* Feed Records */}
+  1820→  1820→                    <TabsContent value="pakan">
+  1821→  1821→                      <Card className="border-0 shadow-lg">
+  1822→  1822→                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+  1823→  1823→                          <div>
+  1824→  1824→                            <CardTitle className="text-base flex items-center gap-2">
+  1825→  1825→                              <Wheat className="w-4 h-4 text-amber-600" />
+  1826→  1826→                              Riwayat Pakan
+  1827→  1827→                            </CardTitle>
+  1828→  1828→                            <CardDescription>Catatan pemberian pakan</CardDescription>
+  1829→  1829→                          </div>
+  1830→  1830→                          {selectedBatch.status === 'active' && (
+  1831→  1831→                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => setAddFeedOpen(true)}>
+  1832→  1832→                              <Plus className="w-4 h-4" /> Tambah
+  1833→  1833→                            </Button>
+  1834→  1834→                          )}
+  1835→  1835→                        </CardHeader>
+  1836→  1836→                        <CardContent>
+  1837→  1837→                          {selectedBatch.feedRecords.length === 0 ? (
+  1838→  1838→                            <div className="text-center py-8 text-muted-foreground">
+  1839→  1839→                              <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
+  1840→  1840→                              <p className="text-sm">Belum ada catatan pakan</p>
+  1841→  1841→                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddFeedOpen(true)}>
+  1842→  1842→                                <Plus className="w-3 h-3" /> Tambah Pakan Pertama
+  1843→  1843→                              </Button>
+  1844→  1844→                            </div>
+  1845→  1845→                          ) : (
+  1846→  1846→                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+  1847→  1847→                              {selectedBatch.feedRecords.map((feed) => (
+  1848→  1848→                                <div key={feed.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
+  1849→  1849→                                  <div className="flex items-center gap-3 min-w-0">
+  1850→  1850→                                    <div className="w-2 h-8 rounded-full shrink-0" style={{ backgroundColor: FEED_TYPE_COLORS[feed.feedType] || '#8b5cf6' }} />
+  1851→  1851→                                    <div className="min-w-0">
+  1852→  1852→                                      <p className="font-medium text-sm truncate">{feed.feedType}</p>
+  1853→  1853→                                      <p className="text-xs text-muted-foreground">{formatDate(feed.date)}</p>
+  1854→  1854→                                    </div>
+  1855→  1855→                                  </div>
+  1856→  1856→                                  <div className="flex items-center gap-3 shrink-0">
+  1857→  1857→                                    <div className="text-right">
+  1858→  1858→                                      <p className="font-bold text-sm">{feed.quantityKg} kg</p>
+  1859→  1859→                                      <p className="text-xs text-muted-foreground">{formatCurrency(feed.quantityKg * feed.pricePerKg)}</p>
+  1860→  1860→                                    </div>
+  1861→  1861→                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFeed(feed.id) }}>
+  1862→  1862→                                      <Trash2 className="w-3.5 h-3.5" />
+  1863→  1863→                                    </Button>
+  1864→  1864→                                  </div>
+  1865→  1865→                                </div>
+  1866→  1866→                              ))}
+  1867→  1867→                            </div>
+  1868→  1868→                          )}
+  1869→  1869→                        </CardContent>
+  1870→  1870→                      </Card>
+  1871→  1871→                    </TabsContent>
+  1872→  1872→
+  1873→  1873→                    {/* Weight Records */}
+  1874→  1874→                    <TabsContent value="berat">
+  1875→  1875→                      <Card className="border-0 shadow-lg">
+  1876→  1876→                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+  1877→  1877→                          <div>
+  1878→  1878→                            <CardTitle className="text-base flex items-center gap-2">
+  1879→  1879→                              <Scale className="w-4 h-4 text-teal-600" />
+  1880→  1880→                              Riwayat Berat
+  1881→  1881→                            </CardTitle>
+  1882→  1882→                            <CardDescription>Catatan timbang berat ayam</CardDescription>
+  1883→  1883→                          </div>
+  1884→  1884→                          {selectedBatch.status === 'active' && (
+  1885→  1885→                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => setAddWeightOpen(true)}>
+  1886→  1886→                              <Plus className="w-4 h-4" /> Tambah
+  1887→  1887→                            </Button>
+  1888→  1888→                          )}
+  1889→  1889→                        </CardHeader>
+  1890→  1890→                        <CardContent>
+  1891→  1891→                          {selectedBatch.weightRecords.length === 0 ? (
+  1892→  1892→                            <div className="text-center py-8 text-muted-foreground">
+  1893→  1893→                              <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
+  1894→  1894→                              <p className="text-sm">Belum ada catatan berat</p>
+  1895→  1895→                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddWeightOpen(true)}>
+  1896→  1896→                                <Plus className="w-3 h-3" /> Tambah Data Pertama
+  1897→  1897→                              </Button>
+  1898→  1898→                            </div>
+  1899→  1899→                          ) : (
+  1900→  1900→                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+  1901→  1901→                              {selectedBatch.weightRecords.map((weight) => (
+  1902→  1902→                                <div key={weight.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-teal-50/50 to-transparent hover:from-teal-50 transition-colors group">
+  1903→  1903→                                  <div className="flex items-center gap-3 min-w-0">
+  1904→  1904→                                    <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
+  1905→  1905→                                      <span className="text-xs font-bold text-teal-700">H{weight.ageDays}</span>
+  1906→  1906→                                    </div>
+  1907→  1907→                                    <div className="min-w-0">
+  1908→  1908→                                      <p className="font-medium text-sm truncate">{weight.averageWeightGram.toFixed(0)} gram ({(weight.averageWeightGram / 1000).toFixed(3)} kg)</p>
+  1909→  1909→                                      <p className="text-xs text-muted-foreground">{formatDate(weight.date)} • {weight.sampleCount} sampel</p>
+  1910→  1910→                                    </div>
+  1911→  1911→                                  </div>
+  1912→  1912→                                  <div className="flex items-center gap-3 shrink-0">
+  1913→  1913→                                    <div className="text-right">
+  1914→  1914→                                      <p className="text-xs text-muted-foreground">Gain</p>
+  1915→  1915→                                      <p className="text-sm font-bold text-emerald-600">
+  1916→  1916→                                        +{(weight.averageWeightGram - selectedBatch.initialWeight * 1000).toFixed(0)}g
+  1917→  1917→                                      </p>
+  1918→  1918→                                    </div>
+  1919→  1919→                                    <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteWeight(weight.id) }}>
+  1920→  1920→                                      <Trash2 className="w-3.5 h-3.5" />
+  1921→  1921→                                    </Button>
+  1922→  1922→                                  </div>
+  1923→  1923→                                </div>
+  1924→  1924→                              ))}
+  1925→  1925→                            </div>
+  1926→  1926→                          )}
+  1927→  1927→                        </CardContent>
+  1928→  1928→                      </Card>
+  1929→  1929→                    </TabsContent>
+  1930→  1930→
+  1931→  1931→                    {/* Mortality Records */}
+  1932→  1932→                    <TabsContent value="mortalitas">
+  1933→  1933→                      <Card className="border-0 shadow-lg">
+  1934→  1934→                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+  1935→  1935→                          <div>
+  1936→  1936→                            <CardTitle className="text-base flex items-center gap-2">
+  1937→  1937→                              <Skull className="w-4 h-4 text-red-600" />
+  1938→  1938→                              Riwayat Mortalitas
+  1939→  1939→                            </CardTitle>
+  1940→  1940→                            <CardDescription>Catatan ayam mati, afkir, dan tidak layak jual</CardDescription>
+  1941→  1941→                          </div>
+  1942→  1942→                          {selectedBatch.status === 'active' && (
+  1943→  1943→                            <Button size="sm" className="gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shrink-0" onClick={() => setAddMortalityOpen(true)}>
+  1944→  1944→                              <Plus className="w-4 h-4" /> Tambah
+  1945→  1945→                            </Button>
+  1946→  1946→                          )}
+  1947→  1947→                        </CardHeader>
+  1948→  1948→                        <CardContent>
+  1949→  1949→                          {(() => {
+  1950→  1950→                            const totalDead = selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+  1951→  1951→                            const mortalityRate = selectedBatch.quantity > 0 ? (totalDead / selectedBatch.quantity) * 100 : 0
+  1952→  1952→
+  1953→  1953→                            return (
+  1954→  1954→                              <>
+  1955→  1955→                                {/* Summary row */}
+  1956→  1956→                                <div className="grid grid-cols-3 gap-3 mb-4">
+  1957→  1957→                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+  1958→  1958→                                    <p className="text-xs text-muted-foreground">Awal Masuk</p>
+  1959→  1959→                                    <p className="text-lg font-bold text-emerald-700">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
+  1960→  1960→                                  </div>
+  1961→  1961→                                  <div className="bg-red-50 rounded-xl p-3 text-center">
+  1962→  1962→                                    <p className="text-xs text-muted-foreground">Total Mati/Afkir</p>
+  1963→  1963→                                    <p className="text-lg font-bold text-red-700">{totalDead} ekor ({mortalityRate.toFixed(1)}%)</p>
+  1964→  1964→                                  </div>
+  1965→  1965→                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+  1966→  1966→                                    <p className="text-xs text-muted-foreground">Masih Hidup</p>
+  1967→  1967→                                    <p className="text-lg font-bold text-amber-700">{(selectedBatch.quantity - totalDead).toLocaleString('id-ID')} ekor</p>
+  1968→  1968→                                  </div>
+  1969→  1969→                                </div>
+  1970→  1970→
+  1971→  1971→                                {selectedBatch.mortalityRecords.length === 0 ? (
+  1972→  1972→                                  <div className="text-center py-8 text-muted-foreground">
+  1973→  1973→                                    <Skull className="w-10 h-10 mx-auto mb-2 opacity-30" />
+  1974→  1974→                                    <p className="text-sm">Belum ada catatan mortalitas</p>
+  1975→  1975→                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setAddMortalityOpen(true)}>
+  1976→  1976→                                      <Plus className="w-3 h-3" /> Tambah Data Pertama
+  1977→  1977→                                    </Button>
+  1978→  1978→                                  </div>
+  1979→  1979→                                ) : (
+  1980→  1980→                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+  1981→  1981→                                    {selectedBatch.mortalityRecords.map((m) => (
+  1982→  1982→                                      <div key={m.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50/50 to-transparent hover:from-red-50 transition-colors group">
+  1983→  1983→                                        <div className="flex items-center gap-3 min-w-0">
+  1984→  1984→                                          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+  1985→  1985→                                            <Skull className="w-5 h-5 text-red-600" />
+  1986→  1986→                                          </div>
+  1987→  1987→                                          <div className="min-w-0">
+  1988→  1988→                                            <p className="font-medium text-sm truncate">{MORTALITY_REASON_LABELS[m.reason] || m.reason}</p>
+  1989→  1989→                                            <p className="text-xs text-muted-foreground truncate">{formatDate(m.date)}{m.notes ? ` • ${m.notes}` : ''}</p>
+  1990→  1990→                                          </div>
+  1991→  1991→                                        </div>
+  1992→  1992→                                        <div className="flex items-center gap-3 shrink-0">
+  1993→  1993→                                          <p className="font-bold text-sm text-red-700">{m.quantity} ekor</p>
+  1994→  1994→                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMortality(m.id) }}>
+  1995→  1995→                                            <Trash2 className="w-3.5 h-3.5" />
+  1996→  1996→                                          </Button>
+  1997→  1997→                                        </div>
+  1998→  1998→                                      </div>
+  1999→  1999→                                    ))}
+  2000→  2000→                                  </div>
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

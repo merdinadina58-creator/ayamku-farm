@@ -1,0 +1,398 @@
+     1→---
+     2→Task ID: 1
+     3→Agent: Main Agent
+     4→Task: Build comprehensive AyamKu Farm chicken farming management application
+     5→
+     6→Work Log:
+     7→- Explored existing project structure (Next.js 16, TypeScript, Tailwind CSS, shadcn/ui)
+     8→- Designed and created Prisma schema with 3 models: Batch, FeedRecord, WeightRecord
+     9→- Pushed schema to SQLite database
+    10→- Created 7 API route files for CRUD operations on batches, feed records, weight records, and dashboard
+    11→- Built comprehensive single-page frontend with:
+    12→  - Hero banner with AI-generated chicken farm illustration
+    13→  - Dashboard with 4 stat cards (Total Termin, Ayam Aktif, Total Pakan, Biaya Pakan)
+    14→  - 4 main tabs: Termin, Pakan, Berat, Hitung
+    15→  - Batch detail view with sub-tabs for Pakan and Berat records
+    16→  - Dialog forms for adding batches, feed records, weight records, and harvest
+    17→  - Charts: Line charts for growth, Bar charts for feed comparison, Pie charts for feed distribution
+    18→  - FCR (Feed Conversion Ratio) calculation per termin
+    19→  - Responsive design with framer-motion animations
+    20→- Generated AI hero image for the app
+    21→- Fixed FCR calculation formula (was wrong, now produces realistic 1.4-1.8 values)
+    22→- Fixed floating-point precision in batch creation API
+    23→- Fixed back button z-index overlap issue
+    24→- Created seed data with realistic demo data (2 batches, feed records, weight records)
+    25→- Cleaned up unused imports
+    26→- All lint checks pass
+    27→- Verified app works with Agent Browser
+    28→
+    29→Stage Summary:
+    30→- Complete chicken farming management application built
+    31→- Features: batch/termin management, feed tracking, weight tracking, feed calculations per termin
+    32→- Demo data includes 2 batches (1 harvested, 1 active) with realistic feed and weight records
+    33→- FCR values are realistic (1.82 for harvested, 1.45 for active batch)
+    34→- App running on port 3000, all features verified working
+    35→
+    36→---
+    37→Task ID: 2
+    38→Agent: Main Agent
+    39→Task: Add mortality tracking and total panen (harvest) features
+    40→
+    41→Work Log:
+    42→- Updated Prisma schema with MortalityRecord model and harvest fields (harvestQuantity, sellingPricePerKg)
+    43→- Pushed new schema to SQLite database
+    44→- Created mortality API routes: POST/GET /api/batches/[id]/mortality, DELETE /api/mortality/[id]
+    45→- Updated batch API routes to handle harvestQuantity and sellingPricePerKg
+    46→- Updated dashboard API with mortality calculations and harvest revenue/profit
+    47→- Rebuilt entire frontend with:
+    48→  - 5 stat cards (added Total Mortalitas)
+    49→  - New Mortalitas tab with per-termin breakdown, pie charts, timeline
+    50→  - Updated Hitung tab with mortality stats, total panen, and profit calculations
+    51→  - Mortalitas sub-tab in batch detail view with summary cards and records list
+    52→  - Total Panen card for harvested batches (Jumlah Panen, Total Berat, Pendapatan, Profit)
+    53→  - Harvest dialog with harvestQuantity and sellingPricePerKg fields
+    54→  - Add Mortality dialog with reason selector and live remaining count preview
+    55→  - Batch cards now show mortality data (Mati/Afkir count and percentage)
+    56→  - 8 stat cards in batch detail (added Awal, Hidup, Mati/Afkir)
+    57→- Updated seed data with mortality records for both batches
+    58→- Fixed age calculation for harvested batches (uses harvestDate instead of current date)
+    59→- All lint checks pass
+    60→- Verified all features working with Agent Browser
+    61→
+    62→Stage Summary:
+    63→- Mortality tracking fully implemented with reason categorization (Sakit, Stress, Kecelakaan, Afkir, Lainnya)
+    64→- Total Panen feature shows harvest data: jumlah panen, total berat, pendapatan, and profit
+    65→- Harvested batch (Januari) shows profit of Rp73,875,000
+    66→- Active batch (Februari) shows 18 dead (0.6% mortality), 2,982 alive
+    67→- All new features verified working via browser testing
+    68→
+    69→---
+    70→Task ID: sidebar-settings-rewrite
+    71→Agent: full-stack-developer
+    72→Task: Rewrite src/app/page.tsx to add persistent sidebar layout (desktop) + hamburger drawer (mobile), new Pengaturan (Settings) section with app name + logo upload, and comprehensive mobile responsiveness fixes.
+    73→
+    74→Work Log:
+    75→- Read existing 1611-line page.tsx (old top-tabs version) to inventory all functionality: Termin/Pakan/Berat/Mortalitas/Hitung tabs, batch detail with sub-tabs (Pakan/Berat/Mortalitas), Total Panen card, all 5 dialogs (Add Batch, Add Feed, Add Weight, Add Mortality, Harvest), charts (Line/Bar/Pie), FCR + mortality + harvest profit calculations.
+    76→- Confirmed API routes already exist: GET/POST /api/settings, GET /api/logo, GET /api/manifest, GET /api/dashboard, GET/POST/DELETE /api/batches, etc.
+    77→- Confirmed Sheet component (shadcn/ui) exists at src/components/ui/sheet.tsx with Sheet, SheetContent, SheetTitle, SheetDescription exports.
+    78→- Rewrote page.tsx (now ~1500 lines) with:
+    79→  A. Added imports: LayoutDashboard, Menu, X, Settings, Upload, Image as ImageIcon, Save, Info, CalendarDays, ChevronLeft + Sheet components. Added useMemo to React import.
+    80→  B. Added state: activeSection, sidebarMobileOpen, appSettings, settingsForm, logoPreview, savingSettings, calendarMonth, dayDetail.
+    81→  C. Added module constants SECTION_LABELS and NAV_ITEMS (8 items including settings) after MORTALITY_REASON_COLORS.
+    82→  D. Extended fetchData to also fetch /api/settings and sync appSettings + settingsForm + logoPreview.
+    83→  E. Added handleSaveSettings, handleLogoUpload (with type + 2MB size validation + base64 data URL conversion), handleRemoveLogo handlers.
+    84→  F. Added renderSidebar() helper: brand header (logo image OR emerald Bird gradient), full-width Tambah Termin button, nav list with active emerald highlight + left accent bar, footer info card (Total/Aktif/Panen counts), mobile-only "Tutup Menu" close button using X icon.
+    85→  G. Restructured root layout: horizontal flex with sticky desktop aside (w-64, lg:flex), mobile Sheet (side="left", w-72), main column (flex-1) containing sticky header (hamburger + mobile brand + desktop contextual title + desktop Tambah Termin button), main content with AnimatePresence, footer with dynamic app name.
+    86→  H. Converted main dashboard Tabs into conditional sections keyed on activeSection (dashboard/termin/pakan/berat/mortalitas/hitung/kalender/settings). Wrapped Hero+Stats in activeSection==='dashboard'. Removed main Tabs/TabsList entirely. Kept batch detail Tabs intact.
+    87→  I. Added new Settings (Pengaturan) section: app name Input (maxLength 50), logo upload with preview box + Pilih Gambar + Hapus buttons, live preview card, blue Android install info box, Batal + Simpan Pengaturan buttons.
+    88→  J. Added new Kalender section: monthly calendar grid (7 cols) with prev/next month nav, day headers (Min-Sab), per-day cells showing Tiba (emerald) and Panen (amber) labels, today ring highlight, legend. Built with useMemo-derived calendarEvents (Record<dateString, CalendarEvent[]>) and calendarCells. Clicking a day with events opens a Day Detail Dialog.
+    89→  K. Added Day Detail Dialog showing all Tiba/Panen events for the selected date with batch name, termin #, quantity, and colored badge.
+    90→  L. Updated batch detail back button to also setActiveSection('termin'). Updated handleDeleteBatch to also setActiveSection('termin').
+    91→  M. Mobile responsiveness fixes applied:
+    92→     - 3 delete buttons (feed/weight/mortality records): opacity-0 group-hover:opacity-100 → opacity-50 sm:opacity-0 sm:group-hover:opacity-100
+    93→     - Batch detail TabsList: added grid grid-cols-2 sm:flex; TabsTriggers got w-full sm:w-auto; 3rd trigger (Mortalitas) gets col-span-2 sm:col-span-1 to fill mobile grid nicely
+    94→     - Dashboard stats grid: grid-cols-2 lg:grid-cols-5 → grid-cols-2 sm:grid-cols-3 lg:grid-cols-5; 5th stat card gets col-span-2 sm:col-span-1
+    95→     - Hitung section currency text: text-lg → text-base sm:text-lg with break-words for both totalCost and profit
+    96→     - Batch detail action buttons (Panen/Hapus): flex gap-2 → flex gap-2 w-full sm:w-auto; each Button gets flex-1 sm:flex-none
+    97→     - Batch detail stats: added break-words + truncate on long text
+    98→     - Added shrink-0 to icons/dots/badges in flex rows to prevent squishing
+    99→     - Harvest dialog pendapatan: text-lg → text-base sm:text-lg break-words
+   100→     - Total Panen card: pendapatan + profit get text-base sm:text-lg break-words
+   101→  N. Used appSettings.appName everywhere "AyamKu Farm" appeared: sidebar brand, mobile header brand, hero banner welcome text, footer.
+   102→  O. Used appSettings.logoData for logo image in sidebar brand and mobile header brand (falls back to emerald Bird gradient when empty).
+   103→  P. Moved Add Batch Dialog (and all other dialogs) to root level of return (outside main column) so they're accessible from both sidebar buttons and header button; both trigger via setAddBatchOpen(true).
+   104→- Preserved all existing functionality: batch CRUD, feed/weight/mortality records, harvest, calendar helpers, getBatchStats, formatCurrency, formatDate, all chart configurations, all form dialogs.
+   105→- Ran `bun run lint` → 0 errors, 0 warnings.
+   106→- Checked dev.log → no compile/runtime errors; page compiles in 299ms; GET / returns 200; /api/settings, /api/dashboard, /api/batches all return 200.
+   107→- Verified page loads via curl: HTTP 200 in 0.2s.
+   108→
+   109→Stage Summary:
+   110→- Sidebar layout fully implemented: persistent 256px sidebar on desktop (lg+), hamburger-triggered 288px Sheet drawer on mobile with sr-only SheetTitle/SheetDescription for accessibility.
+   111→- Pengaturan (Settings) section complete: app name input + logo upload (max 2MB, base64 data URL) + live preview + Android install instructions + save/cancel. Persists via POST /api/settings and updates sidebar/header/footer/manifest dynamically.
+   112→- New Kalender section with monthly calendar showing Tiba (arrival) and Panen (harvest) events; click a day to open Day Detail Dialog listing all events for that date.
+   113→- All mobile responsiveness fixes applied: delete buttons visible on touch, batch detail sub-tabs as 2-col grid on mobile, stats grid responsive, currency text scales + wraps, action buttons full-width on mobile.
+   114→- All existing functionality preserved (batch CRUD, feed/weight/mortality records, harvest, charts, FCR/mortality/profit calculations, all 5 form dialogs).
+   115→- Lint passes with 0 errors; dev server compiles cleanly with no errors.
+   116→
+   117→---
+   118→Task ID: settings-app-name-logo
+   119→Agent: main (Z.ai Code)
+   120→Task: User wants a settings menu to set app name and upload a logo image, which becomes the app icon when installed on Android.
+   121→
+   122→Work Log:
+   123→- Read worklog.md — found environment was reset (sidebar + mobile fixes lost)
+   124→- Added AppSetting model (key/value) to prisma/schema.prisma + db:push
+   125→- Created API route /api/settings (GET returns {appName, logoData}; POST upserts both)
+   126→- Created API route /api/logo (serves uploaded logo as image/png or default SVG)
+   127→- Created API route /api/manifest (dynamic PWA manifest with custom app name + logo icons)
+   128→- Updated layout.tsx: manifest="/api/manifest", icons={icon,apple}="/api/logo", themeColor="#10b981"
+   129→- Delegated page.tsx rewrite to full-stack-developer subagent (Task ID: sidebar-settings-rewrite)
+   130→  → subagent rebuilt page.tsx with sidebar layout, mobile fixes, settings section, kalender section
+   131→- Fixed Prisma client caching issue: db.appSetting was undefined because dev server cached old
+   132→  PrismaClient singleton. Fixed by regenerating client + restarting dev server (clearing .next cache)
+   133→- Fixed POST /api/settings 500 error (was TypeError: Cannot read properties of undefined)
+   134→- Verified via Agent Browser:
+   135→  * Desktop (1440px): sidebar shows 8 nav items including "Pengaturan"; settings section renders
+   136→    with app name input, logo upload, preview, save button
+   137→  * Changed app name to "Ayam Jaya Farm" + uploaded test logo → saved successfully
+   138→  * Sidebar brand shows uploaded logo image (not Bird icon) + "Ayam Jaya Farm"
+   139→  * Mobile header (390px) shows logo + app name
+   140→  * Hero banner shows "Selamat Datang di Ayam Jaya Farm"
+   141→  * Footer shows "Ayam Jaya Farm"
+   142→  * /api/logo returns HTTP 200 image/png (uploaded logo)
+   143→  * /api/manifest returns {"name":"Ayam Jaya Farm","short_name":"Ayam Jaya Fa",...}
+   144→  * HTML head has: <link rel="manifest" href="/api/manifest">, <link rel="icon" href="/api/logo">,
+   145→    <link rel="apple-touch-icon" href="/api/logo">
+   146→  * All sections (Termin, batch detail, Kalender) work with no overflow on mobile + desktop
+   147→  * No console errors or page errors
+   148→- Reset test data to defaults (AyamKu Farm, no logo) for clean user experience
+   149→- Lint passes clean (exit 0)
+   150→- Committed to git
+   151→
+   152→Stage Summary:
+   153→- Settings menu (Pengaturan) fully implemented in sidebar with:
+   154→  1. App name input — changes sidebar, header, hero, footer branding
+   155→  2. Logo image upload — replaces Bird icon everywhere, becomes favicon + PWA icon
+   156→  3. Live preview of how branding will look
+   157→  4. Android install instructions (Chrome → menu → Add to Home Screen)
+   158→  5. Save/Batal buttons with validation (image type, 2MB max)
+   159→- PWA support: dynamic manifest + favicon + apple-touch-icon all use /api/logo
+   160→- When user installs on Android (Add to Home Screen), the uploaded logo becomes the app icon
+   161→  and the custom app name becomes the app label
+   162→- Data persisted in SQLite (AppSetting table: appName, logoData keys)
+   163→- Sidebar layout + mobile responsiveness also restored (was lost in environment reset)
+   164→- All features browser-verified end-to-end
+   165→
+   166→---
+   167→Task ID: vercel-postgres-migration
+   168→Agent: main-agent
+   169→Task: Migrate database from SQLite to PostgreSQL for Vercel deployment (user wants Vercel Postgres)
+   170→
+   171→Work Log:
+   172→- Checked sandbox environment: no PostgreSQL, no Docker, cannot sudo to install → local preview will break after migration (expected, warned user)
+   173→- Exported current SQLite data to prisma/backup.json (2 batches, 12 feedRecords, 13 weightRecords, 8 mortalityRecords, 2 appSettings)
+   174→- Converted prisma/schema.prisma: provider sqlite → postgresql
+   175→- Updated src/lib/db.ts to use @prisma/adapter-pg (PrismaPg) for serverless compatibility
+   176→- Installed @prisma/adapter-pg@6.19.2 (matched @prisma/client version) + pg@8.21.0 + @types/pg
+   177→- Updated package.json: added postinstall (prisma generate), changed build to "prisma generate && next build", added db:seed script
+   178→- Rewrote prisma/seed.ts to restore from backup.json (fallback to demo data if no backup)
+   179→- Untracked .env and db/custom.db from git, added db/*.db to .gitignore, added !.env.example exception
+   180→- Created .env.example documenting required DATABASE_URL
+   181→- Lint passed clean (exit 0)
+   182→- Committed and pushed to GitHub (commit 1b0604d)
+   183→
+   184→Stage Summary:
+   185→- Code is now Vercel-ready: PostgreSQL via Prisma driver adapter (serverless-safe)
+   186→- Data preserved in prisma/backup.json — user can restore with `bun run db:push && bun run db:seed` on Vercel
+   187→- Local sandbox preview BROKEN (no Postgres available) — expected tradeoff, user informed
+   188→- Next step for user: import repo on Vercel dashboard, create Vercel Postgres database, set DATABASE_URL env var, deploy
+   189→- Repo: https://github.com/merdinadina58-creator/ayamku-farm
+   190→
+   191→---
+   192→Task ID: vercel-deploy-fix
+   193→Agent: main-agent
+   194→Task: Fix Vercel deployment error (client-side exception on ayamku-farm.vercel.app)
+   195→
+   196→Work Log:
+   197→- Diagnosed root cause via curl: /api/dashboard and /api/batches returned 500 (DB tables don't exist), /api/settings returned 200 (has try/catch with defaults)
+   198→- Found frontend crash: setBatches(batchData) set {error:"..."} object as state, then batches.map() threw
+   199→- Fixed src/app/page.tsx fetchData(): check res.ok before parsing, Array.isArray guard, default dashboard to null
+   200→- Added prisma db push --accept-data-loss to build script so tables auto-create on every Vercel deploy
+   201→- Added directUrl = env("DIRECT_URL") to schema.prisma with fallback to DATABASE_URL in build script
+   202→- Created /api/setup GET endpoint for one-click data seeding from prisma/backup.json
+   203→- Updated .env.example to document both DATABASE_URL and DIRECT_URL
+   204→- Lint passed clean
+   205→- Committed (8d968a1) and pushed to GitHub — Vercel auto-deploy triggered
+   206→
+   207→Stage Summary:
+   208→- Frontend now resilient to API failures (no more client-side crash)
+   209→- Tables auto-create on deploy via build script (no manual db:push needed)
+   210→- User can seed data by visiting https://ayamku-farm.vercel.app/api/setup
+   211→- User MUST ensure DATABASE_URL env var is set on Vercel (from Vercel Postgres)
+   212→
+   213→---
+   214→Task ID: vercel-deploy-fix-2
+   215→Agent: main-agent
+   216→Task: Fix Vercel deployment — client-side exception + database connection issues
+   217→
+   218→Work Log:
+   219→- Diagnosed: /api/dashboard and /api/batches returned 500 (DB not set up)
+   220→- Diagnosed: Frontend crashed because setBatches({error:...}) then .map() threw
+   221→- Fixed frontend (src/app/page.tsx): check res.ok, Array.isArray guard, null-safe
+   222→- Build script: removed prisma db push (was failing builds), just 'next build'
+   223→- Created /api/setup endpoint with raw SQL CREATE TABLE IF NOT EXISTS + seed from backup.json
+   224→- Added URL sanitization (strip quotes/whitespace) in src/lib/db.ts and /api/setup
+   225→- Added deep URL diagnostics: parse with URL constructor, show length/host/flags
+   226→- Verified via Agent Browser: app renders with NO client-side errors, sidebar + dashboard visible
+   227→- Diagnosed final issue: user's DATABASE_URL = 'postgres://user:password@host:port/db?sslmode=require'
+   228→  (the PLACEHOLDER from .env.example — user hasn't created a real Vercel Postgres database yet)
+   229→  Host portion literally = 'host:port/db?sslmode=require', length=51, no neon.tech, no localhost
+   230→
+   231→Stage Summary:
+   232→- Client-side crash: FIXED (app renders empty state gracefully)
+   233→- /api/setup endpoint: WORKING (correctly reports the DATABASE_URL issue)
+   234→- Remaining user action: Create real Vercel Postgres database, connect to project, redeploy, visit /api/setup
+   235→- All commits pushed: 8d968a1, 18caf55, 87f64bf, b6c5d2f, ca08d93, 7125380, da20473, 09425db
+   236→
+   237→---
+   238→Task ID: pwa-icon-fix
+   239→Agent: main-agent
+   240→Task: Fix logo not appearing as web/PWA/Android icon (only showing in app sidebar)
+   241→
+   242→Work Log:
+   243→- Diagnosed: user uploaded 151x148 JPEG logo, but manifest declared type:image/png
+   244→  → type mismatch caused browsers to reject the icon
+   245→- Diagnosed: Apple touch icon strictly requires PNG format, JPEG was ignored
+   246→- Diagnosed: No size hints in HTML <link> tags
+   247→- Fix 1: /api/logo now converts ANY uploaded format to 512x512 PNG via sharp
+   248→  with transparent padding (fit:contain) so non-square images become square
+   249→- Fix 2: /api/manifest now always declares type:'image/png' (matches /api/logo output)
+   250→  with proper sizes (192x192, 512x512) and purposes (any + maskable)
+   251→- Fix 3: src/app/layout.tsx metadata.icons now has multiple size entries
+   252→  (192x192, 512x512, 180x180 for apple), shortcut icon, appleWebApp config
+   253→- Fix 4: src/app/page.tsx handleLogoUpload now checks image dimensions and warns
+   254→  user if < 192px (too small) or non-square (will be padded)
+   255→- Fix 5: Updated settings UI help text: "Disarankan: gambar persegi 512×512px PNG
+   256→  dengan latar transparan untuk ikon tajam di Android & iOS"
+   257→- Verified on Vercel: /api/logo serves PNG 512x512 RGBA (427KB), manifest correct,
+   258→  HTML head has all proper icon links
+   259→
+   260→Stage Summary:
+   261→- Logo now works as: browser tab favicon, Apple touch icon (iOS), PWA home screen
+   262→  icon (Android), maskable icon (adaptive)
+   263→- User should re-upload a 512x512px PNG for best quality (current JPEG still works
+   264→  but is upscaled from 151x148 which may look blurry)
+   265→- All commits pushed: 5d4e2de, 40f78f8
+   266→
+   267→---
+   268→Task ID: sandbox-sync-neon
+   269→Agent: main-agent
+   270→Task: Start sandbox dev server and sync with GitHub + Neon database
+   271→
+   272→Work Log:
+   273→- Synced local repo with GitHub (pushed 1 extra commit — worklog update)
+   274→- Created .env.local with Neon DATABASE_URL (same as Vercel uses)
+   275→- Updated .env with Neon DATABASE_URL (overrides old SQLite path)
+   276→- Ran prisma generate for PostgreSQL client
+   277→- Tested DB connection from sandbox to Neon: ✅ 2 batches found
+   278→- Created /tmp/start-next.sh wrapper script that sets DATABASE_URL env var
+   279→  before starting next dev (shell env had old SQLite value that overrode .env)
+   280→- Started dev server via start-stop-daemon on port 3000
+   281→- Verified all endpoints work:
+   282→  - GET / → 200 (page renders with logo, sidebar, dashboard)
+   283→  - GET /api/settings → returns appName + logoData (user's uploaded JPEG logo)
+   284→  - GET /api/batches → 2 batches (both "Mei", created by user)
+   285→  - GET /api/dashboard → 1200 chickens alive, 2 active batches
+   286→  - GET /api/logo → PNG 512x512 RGBA (sharp conversion working)
+   287→  - GET /api/manifest → 4 icons declared, type image/png
+   288→- Agent Browser verification: page renders with logo image, all 8 nav buttons, no errors
+   289→
+   290→Stage Summary:
+   291→- Sandbox preview now FULLY matches Vercel deployment
+   292→- Both use same Neon PostgreSQL database (ep-falling-silence-aosp5dh1)
+   293→- User's uploaded logo displays in sidebar + served as PNG 512x512
+   294→- All data (2 batches, settings) synced between sandbox and production
+   295→- Dev server running on port 3000, auto-restart via start-stop-daemon
+   296→
+   297→---
+   298→Task ID: fix-duplication
+   299→Agent: main-agent
+   300→Task: Fix data duplication when adding batches/records (user added a "Mei" termin and it got duplicated after save)
+   301→
+   302→Work Log:
+   303→- Diagnosed root cause: "Simpan" buttons had NO loading/disabled state during submission AND dialog stayed open during the async POST. A double-click (or rapid second click before the first request completed) fired 2+ identical POST requests → duplicate rows in the database. Confirmed by inspecting DB: 2 identical "Mei" batches created ~2 seconds apart.
+   304→- Diagnosed secondary issue: backend POST routes had no dedup protection, so even sequential/identical double-submits created duplicates.
+   305→- Frontend fix (src/app/page.tsx):
+   306→  * Added `useRef` to React imports + `Loader2` to lucide-react imports
+   307→  * Added `submitting` state + `submittingRef` (useRef) for race-condition-safe guard
+   308→  * Updated all 5 async handlers (handleAddBatch, handleAddFeed, handleAddWeight, handleAddMortality, handleHarvest) with:
+   309→    - Early return guard: `if (submittingRef.current) return` (checks ref synchronously, immune to React state batching delays)
+   310→    - Set `submittingRef.current = true` + `setSubmitting(true)` at start
+   311→    - Reset both in `finally` block
+   312→  * Updated all 5 save buttons: added `disabled={submitting || ...}` + spinner UI `{submitting ? <><Loader2 className="animate-spin" /> Menyimpan...</> : 'Simpan...'}`
+   313→  * Updated settings save button to show Loader2 spinner (already had savingSettings guard)
+   314→- Backend fix (new file src/lib/dedup.ts):
+   315→  * Created `withDedup(key, fn)` utility using a module-level `Map<string, Promise>` that stores the in-flight Promise SYNCHRONOUSLY before any await — making it race-condition-proof at the Node.js event-loop level. Concurrent identical requests await the SAME promise → same result, no duplicate.
+   316→  * Created `dedupKey(prefix, data)` helper with sorted-key JSON stringify for stable keys.
+   317→  * Auto-cleanup: entries expire after 60s via setTimeout; removed immediately on error.
+   318→- Backend fix (4 POST routes updated to use withDedup):
+   319→  * /api/batches/route.ts — wraps findExisting(60s window) + create in withDedup
+   320→  * /api/batches/[id]/feed/route.ts — same pattern with dedupKey `feed:${id}`
+   321→  * /api/batches/[id]/weight/route.ts — same pattern with dedupKey `weight:${id}`
+   322→  * /api/batches/[id]/mortality/route.ts — same pattern with dedupKey `mortality:${id}`
+   323→  * Each still keeps the DB-level 60s-window findFirst check as a second layer of defense.
+   324→- Data cleanup: deleted the duplicate "Mei" batch (cmqj24wf50001l804sn4noykc) via DELETE API; left the original (cmqj24uz10000l804m2x2ai0k).
+   325→- Verification (curl + Agent Browser):
+   326→  * Simultaneous double POST (race condition test): BOTH requests returned the SAME batch id → only 1 row created. ✅
+   327→  * Sequential identical POST within 60s: returned existing record (dedup). ✅
+   328→  * Legitimate POST with different data (different quantity): created new row (not blocked). ✅
+   329→  * Termin section in browser: only 1 "Mei" batch shown (duplicate gone). ✅
+   330→  * No console/runtime errors; all API endpoints return 200. ✅
+   331→  * `bun run lint` passes clean (0 errors). ✅
+   332→
+   333→Stage Summary:
+   334→- Duplication issue FULLY FIXED with defense-in-depth:
+   335→  1. Frontend: ref-based race-condition guard + disabled button + spinner (prevents 99% of double-clicks)
+   336→  2. Backend: atomic in-memory withDedup (prevents concurrent duplicate requests on same instance)
+   337→  3. Backend: DB-level 60s-window dedup check (catches sequential double-submits)
+   338→- All 5 form types protected: Termin, Pakan, Berat, Mortalitas, Panen (+ Pengaturan already had guard)
+   339→- Existing duplicate "Mei" batch cleaned up; user data now has only 1 Mei batch (600 ekor)
+   340→- Fix works for both local sandbox dev server AND Vercel production (frontend guard is primary; withDedup works on warm serverless instances)
+   341→
+   342→---
+   343→Task ID: add-missing-features
+   344→Agent: main-agent
+   345→Task: User couldn't find how to add feed/mortality/equipment. Fix: (1) add "Tambah" buttons to main Pakan/Berat/Mortalitas sections (previously hidden inside batch detail), (2) add new "Peralatan" (equipment) feature.
+   346→
+   347→Work Log:
+   348→- Diagnosed UX issue: "Tambah Pakan/Berat/Mortalitas" buttons only existed INSIDE batch detail view (Termin → click batch → sub-tab). Main Pakan/Berat/Mortalitas sections only showed recap with NO add button.
+   349→- Diagnosed missing feature: "Peralatan" (equipment) feature did not exist at all.
+   350→
+   351→Part A — Make feed/weight/mortality addable from main sections:
+   352→- Added `Wrench` to lucide-react imports
+   353→- Added `dialogBatchId` state + `equipments` state + `equipmentForm` state + `addEquipmentOpen` state to page.tsx
+   354→- Updated all 3 handlers (handleAddFeed/handleAddWeight/handleAddMortality) to use `dialogBatchId || selectedBatch?.id` as batch context
+   355→- Added "Tambah Pakan/Berat/Mortalitas" buttons to the CardHeader of each main section (visible when batches.length > 0)
+   356→- Added batch selector `<Select>` (dropdown of all termin) to Add Feed/Weight/Mortality dialogs — shown only when no selectedBatch (i.e. opened from main section, not from batch detail)
+   357→- Updated all 3 save buttons to disable when `!selectedBatch && !dialogBatchId`
+   358→- Updated mortality "Sisa Ayam Hidup" preview to work with dialogBatchId (looks up batch from batches array)
+   359→
+   360→Part B — New "Peralatan" (equipment) feature:
+   361→- B1: Added `Equipment` model to prisma/schema.prisma (id, name, category, quantity, unitPrice, purchaseDate, notes, timestamps)
+   362→- B1: Created Equipment table on remote Neon DB via scripts/create-equipment-table.ts (uses same pg adapter as app, since `prisma db push` can't reach pooler directly)
+   363→- B1: Added Equipment CREATE TABLE SQL to /api/setup route (for Vercel auto-deploy)
+   364→- B2: Created /api/equipment/route.ts (GET list + POST create with withDedup guard)
+   365→- B2: Created /api/equipment/[id]/route.ts (DELETE)
+   366→- B3: Added "Peralatan" to SECTION_LABELS + NAV_ITEMS (Wrench icon, indigo color)
+   367→- B3: Added Equipment interface + EQUIPMENT_CATEGORIES constant (7 categories: Kandang, Pakan&Minum, Pemanas, Kebersihan, Timbang, Kesehatan, Lainnya)
+   368→- B3: Updated activeSection type to include 'peralatan'
+   369→- B3: Updated fetchData to also fetch /api/equipment in parallel
+   370→- B4: Added handleAddEquipment + handleDeleteEquipment handlers
+   371→- B4: Built Peralatan section UI: 3 summary cards (Jenis/Total Unit/Total Nilai) + equipment list grouped by category + delete buttons (mobile-visible)
+   372→- B4: Built Add Equipment dialog: name input, category dropdown, quantity/unitPrice inputs, purchase date, live total preview, notes, save button with spinner
+   373→- B5: Added equipment cost summary block to Hitung section (shows when equipments.length > 0)
+   374→- B5: Updated Hitung empty-state check to `batches.length === 0 && equipments.length === 0`
+   375→
+   376→Verification (Agent Browser + curl):
+   377→- ✅ "Peralatan" nav item appears in sidebar (desktop + mobile)
+   378→- ✅ Peralatan section: "Tambah Peralatan" button visible, empty state shows hint
+   379→- ✅ Add Equipment dialog: all fields work, total preview correct, save creates record
+   380→- ✅ Equipment list shows grouped by category with correct totals
+   381→- ✅ "Tambah Pakan" button on main Pakan section opens dialog with batch selector
+   382→- ✅ Added feed (Starter 25kg @ Rp8000) from main section → saved to DB ✅
+   383→- ✅ "Tambah Mortalitas" button on main Mortalitas section opens dialog with batch selector
+   384→- ✅ Added mortality (3 ekor sakit) from main section → saved to DB ✅
+   385→- ✅ "Tambah Berat" button on main Berat section opens dialog with batch selector
+   386→- ✅ Perhitungan section shows "Ringkasan Peralatan" with total cost
+   387→- ✅ Mobile (390px) layout works, no errors
+   388→- ✅ Desktop (1440px) layout works, no console errors
+   389→- ✅ `bun run lint` passes clean (0 errors)
+   390→- Cleaned up all test data (feed, mortality, equipment); user's "Bulan Mei" batch (600 ekor) intact
+   391→
+   392→Stage Summary:
+   393→- User can now add feed, weight, mortality DIRECTLY from the main Pakan/Berat/Mortalitas sections (no need to dig into batch detail)
+   394→- New "Peralatan" feature: track equipment/inventory purchases (name, category, quantity, unit price, date, notes) with category grouping and total value
+   395→- Equipment cost summary appears in Perhitungan section
+   396→- All new features work on mobile + desktop, with double-submit protection (withDedup)
+   397→- Schema + /api/setup updated so Vercel deployment will auto-create Equipment table
+   398→
