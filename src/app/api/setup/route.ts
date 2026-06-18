@@ -63,6 +63,18 @@ CREATE TABLE IF NOT EXISTS "AppSetting" (
   "value" TEXT NOT NULL,
   "updatedAt" TIMESTAMP(3) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "Equipment" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "category" TEXT NOT NULL,
+  "quantity" INTEGER NOT NULL,
+  "unitPrice" DOUBLE PRECISION NOT NULL,
+  "purchaseDate" TIMESTAMP(3) NOT NULL,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL
+);
 `
 
 type Step = { step: string; status: 'ok' | 'skip' | 'error'; detail: string }
@@ -129,7 +141,7 @@ export async function GET() {
     for (const stmt of statements) {
       await db.$executeRawUnsafe(stmt)
     }
-    steps.push({ step: 'Create tables', status: 'ok', detail: `All 5 tables created (or already existed). Ran ${statements.length} statements.` })
+    steps.push({ step: 'Create tables', status: 'ok', detail: `All 6 tables created (or already existed). Ran ${statements.length} statements.` })
   } catch (e) {
     const msg = (e as Error).message
     steps.push({

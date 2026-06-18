@@ -75,3 +75,15 @@ model AppSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model Equipment {
+  id           String   @id @default(cuid())
+  name         String   // nama peralatan, mis. "Tempat Minum Otomatis"
+  category     String   // kategori: Kandang, Peralatan Pakan & Minum, dll
+  quantity     Int      // jumlah unit
+  unitPrice    Float    // harga per unit (Rp)
+  purchaseDate DateTime // tanggal pembelian
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

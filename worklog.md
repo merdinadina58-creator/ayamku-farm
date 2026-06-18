@@ -338,3 +338,60 @@ Stage Summary:
 - All 5 form types protected: Termin, Pakan, Berat, Mortalitas, Panen (+ Pengaturan already had guard)
 - Existing duplicate "Mei" batch cleaned up; user data now has only 1 Mei batch (600 ekor)
 - Fix works for both local sandbox dev server AND Vercel production (frontend guard is primary; withDedup works on warm serverless instances)
+
+---
+Task ID: add-missing-features
+Agent: main-agent
+Task: User couldn't find how to add feed/mortality/equipment. Fix: (1) add "Tambah" buttons to main Pakan/Berat/Mortalitas sections (previously hidden inside batch detail), (2) add new "Peralatan" (equipment) feature.
+
+Work Log:
+- Diagnosed UX issue: "Tambah Pakan/Berat/Mortalitas" buttons only existed INSIDE batch detail view (Termin → click batch → sub-tab). Main Pakan/Berat/Mortalitas sections only showed recap with NO add button.
+- Diagnosed missing feature: "Peralatan" (equipment) feature did not exist at all.
+
+Part A — Make feed/weight/mortality addable from main sections:
+- Added `Wrench` to lucide-react imports
+- Added `dialogBatchId` state + `equipments` state + `equipmentForm` state + `addEquipmentOpen` state to page.tsx
+- Updated all 3 handlers (handleAddFeed/handleAddWeight/handleAddMortality) to use `dialogBatchId || selectedBatch?.id` as batch context
+- Added "Tambah Pakan/Berat/Mortalitas" buttons to the CardHeader of each main section (visible when batches.length > 0)
+- Added batch selector `<Select>` (dropdown of all termin) to Add Feed/Weight/Mortality dialogs — shown only when no selectedBatch (i.e. opened from main section, not from batch detail)
+- Updated all 3 save buttons to disable when `!selectedBatch && !dialogBatchId`
+- Updated mortality "Sisa Ayam Hidup" preview to work with dialogBatchId (looks up batch from batches array)
+
+Part B — New "Peralatan" (equipment) feature:
+- B1: Added `Equipment` model to prisma/schema.prisma (id, name, category, quantity, unitPrice, purchaseDate, notes, timestamps)
+- B1: Created Equipment table on remote Neon DB via scripts/create-equipment-table.ts (uses same pg adapter as app, since `prisma db push` can't reach pooler directly)
+- B1: Added Equipment CREATE TABLE SQL to /api/setup route (for Vercel auto-deploy)
+- B2: Created /api/equipment/route.ts (GET list + POST create with withDedup guard)
+- B2: Created /api/equipment/[id]/route.ts (DELETE)
+- B3: Added "Peralatan" to SECTION_LABELS + NAV_ITEMS (Wrench icon, indigo color)
+- B3: Added Equipment interface + EQUIPMENT_CATEGORIES constant (7 categories: Kandang, Pakan&Minum, Pemanas, Kebersihan, Timbang, Kesehatan, Lainnya)
+- B3: Updated activeSection type to include 'peralatan'
+- B3: Updated fetchData to also fetch /api/equipment in parallel
+- B4: Added handleAddEquipment + handleDeleteEquipment handlers
+- B4: Built Peralatan section UI: 3 summary cards (Jenis/Total Unit/Total Nilai) + equipment list grouped by category + delete buttons (mobile-visible)
+- B4: Built Add Equipment dialog: name input, category dropdown, quantity/unitPrice inputs, purchase date, live total preview, notes, save button with spinner
+- B5: Added equipment cost summary block to Hitung section (shows when equipments.length > 0)
+- B5: Updated Hitung empty-state check to `batches.length === 0 && equipments.length === 0`
+
+Verification (Agent Browser + curl):
+- ✅ "Peralatan" nav item appears in sidebar (desktop + mobile)
+- ✅ Peralatan section: "Tambah Peralatan" button visible, empty state shows hint
+- ✅ Add Equipment dialog: all fields work, total preview correct, save creates record
+- ✅ Equipment list shows grouped by category with correct totals
+- ✅ "Tambah Pakan" button on main Pakan section opens dialog with batch selector
+- ✅ Added feed (Starter 25kg @ Rp8000) from main section → saved to DB ✅
+- ✅ "Tambah Mortalitas" button on main Mortalitas section opens dialog with batch selector
+- ✅ Added mortality (3 ekor sakit) from main section → saved to DB ✅
+- ✅ "Tambah Berat" button on main Berat section opens dialog with batch selector
+- ✅ Perhitungan section shows "Ringkasan Peralatan" with total cost
+- ✅ Mobile (390px) layout works, no errors
+- ✅ Desktop (1440px) layout works, no console errors
+- ✅ `bun run lint` passes clean (0 errors)
+- Cleaned up all test data (feed, mortality, equipment); user's "Bulan Mei" batch (600 ekor) intact
+
+Stage Summary:
+- User can now add feed, weight, mortality DIRECTLY from the main Pakan/Berat/Mortalitas sections (no need to dig into batch detail)
+- New "Peralatan" feature: track equipment/inventory purchases (name, category, quantity, unit price, date, notes) with category grouping and total value
+- Equipment cost summary appears in Perhitungan section
+- All new features work on mobile + desktop, with double-submit protection (withDedup)
+- Schema + /api/setup updated so Vercel deployment will auto-create Equipment table
