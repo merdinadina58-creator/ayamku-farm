@@ -876,6 +876,30 @@ export default function HomePage() {
               <span>Tambah Termin</span>
             </Button>
           </div>
+
+          {/* Horizontal Navbar - all sections accessible from top */}
+          <div className="border-t border-emerald-100 bg-white/50 overflow-x-auto custom-scrollbar">
+            <div className="flex gap-1 px-4 sm:px-6 py-2 min-w-max">
+              {NAV_ITEMS.map((item) => {
+                const isActive = view === 'dashboard' && activeSection === item.id
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveSection(item.id); setView('dashboard'); setSelectedBatch(null) }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                      isActive
+                        ? 'bg-emerald-100 text-emerald-700 shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? item.iconColor : 'text-gray-400'}`} />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </header>
 
         {/* Main Content */}
@@ -983,32 +1007,71 @@ export default function HomePage() {
                                     <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-emerald-600 transition-colors shrink-0" />
                                   </div>
                                 </CardHeader>
-                                <CardContent className="pt-0">
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div className="bg-emerald-50/50 rounded-lg p-2">
-                                      <p className="text-xs text-muted-foreground">Hidup</p>
-                                      <p className="text-sm font-bold text-emerald-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
+                                <CardContent className="pt-0 space-y-3">
+                                  {/* 6 stats grid - all pencatatan per termin */}
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-emerald-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Awal</p>
+                                      <p className="text-sm font-bold text-emerald-700">{batch.quantity.toLocaleString('id-ID')}</p>
                                     </div>
-                                    <div className="bg-amber-50/50 rounded-lg p-2">
-                                      <p className="text-xs text-muted-foreground">Umur</p>
+                                    <div className="bg-green-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Hidup</p>
+                                      <p className="text-sm font-bold text-green-700">{stats.aliveCount.toLocaleString('id-ID')}</p>
+                                    </div>
+                                    <div className="bg-amber-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Umur</p>
                                       <p className="text-sm font-bold text-amber-700">{stats.ageDays} hari</p>
                                     </div>
-                                    <div className="bg-indigo-50/50 rounded-lg p-2">
-                                      <p className="text-xs text-muted-foreground">Biaya</p>
-                                      <p className="text-sm font-bold text-indigo-700">{formatCurrency(batch.equipment?.reduce((s, e) => s + e.quantity * e.unitPrice, 0) || 0)}</p>
+                                    <div className="bg-teal-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Berat</p>
+                                      <p className="text-sm font-bold text-teal-700">{(stats.latestWeight / 1000).toFixed(2)} kg</p>
                                     </div>
-                                    <div className="bg-red-50/50 rounded-lg p-2">
-                                      <p className="text-xs text-muted-foreground">Mati/Afkir</p>
-                                      <p className="text-sm font-bold text-red-700">{stats.totalDead} ekor ({stats.mortalityRate.toFixed(1)}%)</p>
+                                    <div className="bg-indigo-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Biaya</p>
+                                      <p className="text-sm font-bold text-indigo-700 truncate">{formatCurrency(batch.equipment?.reduce((s, e) => s + e.quantity * e.unitPrice, 0) || 0)}</p>
+                                    </div>
+                                    <div className="bg-red-50/50 rounded-lg p-2 text-center">
+                                      <p className="text-[10px] text-muted-foreground">Mati</p>
+                                      <p className="text-sm font-bold text-red-700">{stats.totalDead} ({stats.mortalityRate.toFixed(1)}%)</p>
                                     </div>
                                   </div>
                                   {/* Weight progress bar */}
-                                  <div className="mt-2">
+                                  <div>
                                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                                       <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
                                       <span>Target: ~1.8 kg</span>
                                     </div>
                                     <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
+                                  </div>
+                                  {/* Panen info - only for harvested batches */}
+                                  {batch.status === 'harvested' && (
+                                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-2.5 border border-amber-200">
+                                      <div className="flex items-center justify-between text-xs mb-1">
+                                        <span className="font-semibold text-amber-700 flex items-center gap-1">
+                                          <ShoppingBasket className="w-3 h-3" /> Panen
+                                        </span>
+                                        <span className="text-amber-800">{batch.harvestQuantity?.toLocaleString('id-ID')} ekor • {(batch.harvestWeight || 0).toFixed(2)} kg/ekor</span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="font-semibold text-green-700">Pendapatan:</span>
+                                        <span className="font-bold text-green-700">{formatCurrency((batch.harvestQuantity || 0) * (batch.harvestWeight || 0) * (batch.sellingPricePerKg || 0))}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Quick action buttons - stopPropagation to prevent card click */}
+                                  <div className="flex gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openBatchDetail(batch)}>
+                                      <ChevronRight className="w-3 h-3" /> Detail
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setDialogBatchId(batch.id); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                                      <Plus className="w-3 h-3" /> Berat
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                      <Plus className="w-3 h-3" /> Biaya
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openHarvestDialog(batch)}>
+                                      {batch.status === 'active' ? <><CheckCircle2 className="w-3 h-3" /> Panen</> : <><Pencil className="w-3 h-3" /> Edit Panen</>}
+                                    </Button>
                                   </div>
                                 </CardContent>
                               </Card>
