@@ -18,9 +18,23 @@ export const metadata: Metadata = {
   description: "Aplikasi manajemen peternakan ayam modern. Kelola bibit, pakan, berat, dan perhitungan secara mudah dan efisien.",
   keywords: ["peternakan", "ayam", "manajemen", "pakan", "bibit", "ternak"],
   manifest: "/api/manifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "AyamKu Farm",
+  },
   icons: {
-    icon: "/api/logo",
-    apple: "/api/logo",
+    // Multiple sizes hint to browsers which icon to use for tabs, bookmarks, etc.
+    icon: [
+      { url: "/api/logo", sizes: "192x192", type: "image/png" },
+      { url: "/api/logo", sizes: "512x512", type: "image/png" },
+      { url: "/api/logo", sizes: "any" },
+    ],
+    apple: [
+      { url: "/api/logo", sizes: "180x180", type: "image/png" },
+      { url: "/api/logo", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: ["/api/logo"],
   },
 };
 

@@ -439,6 +439,28 @@ export default function HomePage() {
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result as string
+
+      // Check image dimensions to warn about icon quality
+      const img = new window.Image()
+      img.onload = () => {
+        const w = img.naturalWidth
+        const h = img.naturalHeight
+        if (w < 192 || h < 192) {
+          toast({
+            title: '⚠ Ukuran gambar kecil',
+            description: `Gambar ${w}×${h}px. Untuk ikon PWA & Android yang tajam, disarankan minimal 512×512px persegi. Logo akan tetap dipakai tapi mungkin pecah.`,
+            duration: 6000,
+          })
+        } else if (w !== h) {
+          toast({
+            title: 'ℹ Gambar tidak persegi',
+            description: `Gambar ${w}×${h}px akan otomatis di-pad jadi persegi saat dijadikan ikon. Untuk hasil terbaik, gunakan gambar persegi (mis. 512×512px).`,
+            duration: 6000,
+          })
+        }
+      }
+      img.src = dataUrl
+
       setLogoPreview(dataUrl)
       setSettingsForm((prev) => ({ ...prev, logoData: dataUrl }))
     }
@@ -1368,7 +1390,10 @@ export default function HomePage() {
                                 </Button>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">Format: PNG, JPG, SVG, WebP. Maksimal 2MB. Disarankan ukuran persegi (mis. 512×512px).</p>
+                            <p className="text-xs text-muted-foreground">
+                              Format: PNG, JPG, SVG, WebP. Maksimal 2MB.<br />
+                              <span className="text-emerald-600 font-medium">Disarankan: gambar persegi 512×512px PNG dengan latar transparan</span> untuk ikon tajam di Android & iOS.
+                            </p>
                           </div>
                         </div>
                       </div>

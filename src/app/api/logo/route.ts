@@ -24,29 +24,57 @@ const DEFAULT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height=
   </g>
 </svg>`
 
-// GET /api/logo — serve logo image (uploaded custom logo or default SVG)
+// GET /api/logo — serve logo image as PNG for best compatibility with favicon + PWA + Apple.
+// Accepts any uploaded format (PNG/JPEG/WebP/SVG) and converts to 512x512 PNG using sharp.
+// Falls back to serving the raw uploaded image if sharp is unavailable.
 export async function GET() {
+  // Try to use uploaded custom logo
   try {
     const row = await db.appSetting.findUnique({ where: { key: 'logoData' } })
     if (row && row.value && row.value.startsWith('data:image/')) {
-      // Parse data URL: data:image/png;base64,XXXX
-      const match = row.value.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/)
+      const match = row.value.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/)
       if (match) {
-        const mime = match[1]
+        const originalMime = match[1]
         const base64 = match[2]
-        const buffer = Buffer.from(base64, 'base64')
-        return new NextResponse(buffer, {
-          status: 200,
-          headers: {
-            'Content-Type': mime,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          },
-        })
+        const inputBuffer = Buffer.from(base64, 'base64')
+
+        // Try to convert to 512x512 PNG using sharp (best for PWA / Apple touch icon).
+        // If sharp fails (e.g. system lib missing), fall back to serving the raw image.
+        try {
+          const sharp = (await import('sharp')).default
+          const pngBuffer = await sharp(inputBuffer)
+            .resize(512, 512, {
+              fit: 'contain',
+              background: { r: 255, g: 255, b: 255, alpha: 0 },
+            })
+            .png()
+            .toBuffer()
+
+          return new NextResponse(pngBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+          })
+        } catch (sharpErr) {
+          // sharp unavailable — serve the raw image in its original format
+          console.error('Sharp conversion failed, serving raw image:', sharpErr)
+          return new NextResponse(inputBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': originalMime,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+          })
+        }
       }
     }
   } catch (e) {
-    // fall through to default
+    console.error('Logo DB error:', e)
   }
+
+  // Default: serve the SVG (browsers accept SVG for favicons)
   return new NextResponse(DEFAULT_SVG, {
     status: 200,
     headers: {
