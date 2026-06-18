@@ -31,6 +31,7 @@ import {
   Info,
   Loader2,
   Wrench,
+  Pencil,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -199,6 +200,7 @@ const SECTION_LABELS: Record<string, string> = {
   berat: 'Berat',
   mortalitas: 'Mortalitas',
   biaya: 'Biaya',
+  panen: 'Panen',
   hitung: 'Perhitungan',
   kalender: 'Kalender',
   settings: 'Pengaturan',
@@ -210,6 +212,7 @@ const NAV_ITEMS = [
   { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
   { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
   { id: 'biaya', label: 'Biaya', icon: Wrench, iconColor: 'text-indigo-600' },
+  { id: 'panen', label: 'Panen', icon: ShoppingBasket, iconColor: 'text-amber-600' },
   { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
   { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
@@ -224,7 +227,7 @@ export default function HomePage() {
   const { toast } = useToast()
 
   // Sidebar + section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'berat' | 'mortalitas' | 'biaya' | 'hitung' | 'kalender' | 'settings'>('dashboard')
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'berat' | 'mortalitas' | 'biaya' | 'panen' | 'hitung' | 'kalender' | 'settings'>('dashboard')
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
   // Settings state
@@ -423,11 +426,29 @@ export default function HomePage() {
     }
   }
 
+  const openHarvestDialog = (batch: Batch) => {
+    setSelectedBatch(batch)
+    if (batch.status === 'harvested') {
+      // Edit mode — pre-fill form dengan data panen yang sudah ada
+      setHarvestForm({
+        harvestDate: batch.harvestDate ? new Date(batch.harvestDate).toISOString().split('T')[0] : '',
+        harvestWeight: batch.harvestWeight?.toString() || '',
+        harvestQuantity: batch.harvestQuantity?.toString() || '',
+        sellingPricePerKg: batch.sellingPricePerKg?.toString() || '',
+      })
+    } else {
+      // New harvest mode — form kosong
+      setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
+    }
+    setHarvestOpen(true)
+  }
+
   const handleHarvest = async () => {
     if (!selectedBatch) return
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
+    const isEdit = selectedBatch.status === 'harvested'
     try {
       const res = await fetch(`/api/batches/${selectedBatch.id}`, {
         method: 'PUT',
@@ -443,7 +464,7 @@ export default function HomePage() {
       if (!res.ok) throw new Error()
       setHarvestOpen(false)
       setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
-      toast({ title: 'Berhasil! 🎉', description: 'Ayam berhasil dipanen' })
+      toast({ title: 'Berhasil! 🎉', description: isEdit ? 'Data panen berhasil diperbarui' : 'Ayam berhasil dipanen' })
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal memperbarui status panen', variant: 'destructive' })
@@ -1300,6 +1321,179 @@ export default function HomePage() {
                   </Card>
                 )}
 
+                {/* Panen Section */}
+                {activeSection === 'panen' && (() => {
+                  const harvestedBatches = batches.filter(b => b.status === 'harvested')
+                  const activeBatches = batches.filter(b => b.status === 'active')
+                  const totalHarvestQty = harvestedBatches.reduce((s, b) => s + (b.harvestQuantity || 0), 0)
+                  const totalHarvestKg = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0)), 0)
+                  const totalRevenue = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0) * (b.sellingPricePerKg || 0)), 0)
+                  return (
+                    <div className="space-y-4">
+                      {/* Summary cards */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <Card className="border-0 shadow-md">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                                <ShoppingBasket className="w-4 h-4 text-amber-600" />
+                              </div>
+                              <p className="text-xs text-muted-foreground">Termin Panen</p>
+                            </div>
+                            <p className="text-2xl font-bold text-amber-700">{harvestedBatches.length}</p>
+                            <p className="text-xs text-muted-foreground">dari {batches.length} termin</p>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-0 shadow-md">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                                <Bird className="w-4 h-4 text-orange-600" />
+                              </div>
+                              <p className="text-xs text-muted-foreground">Total Ekor Panen</p>
+                            </div>
+                            <p className="text-2xl font-bold text-orange-700">{totalHarvestQty.toLocaleString('id-ID')}</p>
+                            <p className="text-xs text-muted-foreground">ekor</p>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-0 shadow-md">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                                <Scale className="w-4 h-4 text-teal-600" />
+                              </div>
+                              <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+                            </div>
+                            <p className="text-2xl font-bold text-teal-700">{totalHarvestKg.toFixed(1)}</p>
+                            <p className="text-xs text-muted-foreground">kg</p>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-0 shadow-md">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                                <DollarSign className="w-4 h-4 text-green-600" />
+                              </div>
+                              <p className="text-xs text-muted-foreground">Total Pendapatan</p>
+                            </div>
+                            <p className="text-xl sm:text-2xl font-bold text-green-700 break-words">{formatCurrency(totalRevenue)}</p>
+                            <p className="text-xs text-muted-foreground">dari {harvestedBatches.length} panen</p>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Main card with batch list */}
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <ShoppingBasket className="w-5 h-5 text-amber-600" />
+                            Riwayat Panen per Termin
+                          </CardTitle>
+                          <CardDescription>
+                            {batches.length === 0
+                              ? 'Tambahkan termin terlebih dahulu untuk mencatat panen'
+                              : 'Catat dan kelola data panen untuk setiap termin ayam'}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {batches.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                              <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-3">
+                                <ShoppingBasket className="w-8 h-8 text-amber-400" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-700">Belum Ada Termin</h3>
+                              <p className="text-muted-foreground text-sm mt-1 max-w-sm">
+                                Untuk mencatat panen, tambahkan termin (batch ayam) terlebih dahulu di menu Termin.
+                              </p>
+                              <Button className="mt-4 gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700" onClick={() => setActiveSection('termin')}>
+                                <Package className="w-4 h-4" /> Ke Menu Termin
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                              {/* Harvested batches first */}
+                              {harvestedBatches.map((batch) => {
+                                const revenue = (batch.harvestQuantity || 0) * (batch.harvestWeight || 0) * (batch.sellingPricePerKg || 0)
+                                return (
+                                  <Card key={batch.id} className="border-amber-200 bg-amber-50/40 overflow-hidden">
+                                    <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                                    <CardContent className="p-4">
+                                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <h4 className="font-bold truncate">{batch.name}</h4>
+                                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Panen</Badge>
+                                          </div>
+                                          <p className="text-xs text-muted-foreground mb-2">
+                                            Tgl Panen: {batch.harvestDate ? formatDate(batch.harvestDate) : '—'} • Termin #{batch.terminNumber}
+                                          </p>
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            <div className="bg-white/60 rounded-lg p-2">
+                                              <p className="text-[10px] text-muted-foreground">Jumlah</p>
+                                              <p className="text-sm font-bold text-amber-700">{(batch.harvestQuantity || 0).toLocaleString('id-ID')} ekor</p>
+                                            </div>
+                                            <div className="bg-white/60 rounded-lg p-2">
+                                              <p className="text-[10px] text-muted-foreground">Berat/Ekor</p>
+                                              <p className="text-sm font-bold text-orange-700">{(batch.harvestWeight || 0).toFixed(2)} kg</p>
+                                            </div>
+                                            <div className="bg-white/60 rounded-lg p-2">
+                                              <p className="text-[10px] text-muted-foreground">Harga/kg</p>
+                                              <p className="text-sm font-bold text-emerald-700">{formatCurrency(batch.sellingPricePerKg || 0)}</p>
+                                            </div>
+                                            <div className="bg-white/60 rounded-lg p-2">
+                                              <p className="text-[10px] text-muted-foreground">Pendapatan</p>
+                                              <p className="text-sm font-bold text-green-700 break-words">{formatCurrency(revenue)}</p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <Button variant="outline" size="sm" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100 shrink-0" onClick={() => openHarvestDialog(batch)}>
+                                          <Pencil className="w-4 h-4" /> Edit Panen
+                                        </Button>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )
+                              })}
+
+                              {/* Active batches (not yet harvested) */}
+                              {activeBatches.map((batch) => {
+                                const stats = getBatchStats(batch)
+                                return (
+                                  <Card key={batch.id} className="border-emerald-200 overflow-hidden">
+                                    <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+                                    <CardContent className="p-4">
+                                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <h4 className="font-bold truncate">{batch.name}</h4>
+                                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Aktif</Badge>
+                                          </div>
+                                          <p className="text-xs text-muted-foreground">
+                                            Termin #{batch.terminNumber} • {stats.aliveCount.toLocaleString('id-ID')} ekor hidup • Umur {stats.ageDays} hari • Tiba {formatDate(batch.arrivalDate)}
+                                          </p>
+                                        </div>
+                                        <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openHarvestDialog(batch)}>
+                                          <CheckCircle2 className="w-4 h-4" /> Panen
+                                        </Button>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )
+                              })}
+
+                              {batches.length > 0 && harvestedBatches.length === 0 && activeBatches.length > 0 && (
+                                <p className="text-center text-xs text-muted-foreground pt-2">
+                                  Belum ada termin yang dipanen. Klik tombol <span className="font-semibold text-amber-700">Panen</span> pada termin di atas untuk mencatat panen.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )
+                })()}
+
                 {/* Hitung Section */}
                 {activeSection === 'hitung' && (
                   <Card className="border-0 shadow-lg">
@@ -1708,11 +1902,13 @@ export default function HomePage() {
                       </p>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
-                      {selectedBatch.status === 'active' && (
-                        <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => setHarvestOpen(true)}>
-                          <CheckCircle2 className="w-4 h-4" /> Panen
-                        </Button>
-                      )}
+                      <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => openHarvestDialog(selectedBatch)}>
+                        {selectedBatch.status === 'active' ? (
+                          <><CheckCircle2 className="w-4 h-4" /> Panen</>
+                        ) : (
+                          <><Pencil className="w-4 h-4" /> Edit Panen</>
+                        )}
+                      </Button>
                       <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10 flex-1 sm:flex-none" onClick={() => handleDeleteBatch(selectedBatch.id)}>
                         <Trash2 className="w-4 h-4" /> Hapus
                       </Button>
@@ -2245,10 +2441,14 @@ export default function HomePage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-amber-600" />
-              Panen Ayam
+              <ShoppingBasket className="w-5 h-5 text-amber-600" />
+              {selectedBatch?.status === 'harvested' ? 'Edit Data Panen' : 'Panen Ayam'}
             </DialogTitle>
-            <DialogDescription>Tandai termin {selectedBatch?.name} sebagai sudah panen</DialogDescription>
+            <DialogDescription>
+              {selectedBatch?.status === 'harvested'
+                ? `Perbarui data panen untuk termin ${selectedBatch?.name}`
+                : `Tandai termin ${selectedBatch?.name} sebagai sudah panen`}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
@@ -2287,7 +2487,7 @@ export default function HomePage() {
               </div>
             )}
             <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Konfirmasi Panen'}
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (selectedBatch?.status === 'harvested' ? 'Simpan Perubahan' : 'Konfirmasi Panen')}
             </Button>
           </div>
         </DialogContent>
