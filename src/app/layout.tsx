@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AyamKu Farm - Sistem Manajemen Peternakan Ayam",
-  description: "Aplikasi manajemen peternakan ayam modern. Kelola bibit, pakan, berat, dan perhitungan secara mudah dan efisien.",
-  keywords: ["peternakan", "ayam", "manajemen", "pakan", "bibit", "ternak"],
+  description: "Aplikasi manajemen peternakan ayam modern. Kelola bibit, biaya, berat, dan perhitungan secara mudah dan efisien.",
+  keywords: ["peternakan", "ayam", "manajemen", "biaya", "bibit", "ternak"],
   manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
