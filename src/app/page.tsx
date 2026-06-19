@@ -221,11 +221,13 @@ function computeBatchStats(batch: Batch) {
 }
 
 // Build a filesystem-safe export file name in the format:
-//   "{AppName}_{TerminName}"
-// Spaces & Unicode letters are preserved (e.g. "AyamKu Farm_Termin 2 Bulan Mei"),
+//   "{AppName}_{TerminName}_Termin-{N}"
+// Spaces & Unicode letters are preserved (e.g. "AyamKu Farm_Termin 2 Bulan Mei_Termin-2"),
 // only filesystem-illegal characters ([\\/:*?"<>|] and control chars) are stripped.
 // Empty inputs fall back to safe defaults so the file always has a usable name.
-function buildExportFileName(appName: string, terminName: string): string {
+// The termin number is always appended (falls back to 1 if invalid) so users can
+// tell apart reports from different termin even when names are similar.
+function buildExportFileName(appName: string, terminName: string, terminNumber?: number | string): string {
   const sanitize = (s: string) =>
     (s || '')
       .replace(/[\\/:*?"<>|\x00-\x1f]/g, '') // filesystem-illegal chars
@@ -233,7 +235,10 @@ function buildExportFileName(appName: string, terminName: string): string {
       .trim()
   const app = sanitize(appName) || 'AyamKu Farm'
   const termin = sanitize(terminName) || 'Termin'
-  return `${app}_${termin}`
+  // Normalize termin number: accept number or numeric string, fallback to 1.
+  const num = Number(terminNumber)
+  const safeNum = Number.isFinite(num) && num > 0 ? num : 1
+  return `${app}_${termin}_Termin-${safeNum}`
 }
 
 // ============================================================
@@ -1195,7 +1200,7 @@ export default function HomePage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${buildExportFileName(appSettings.appName, batch.name)}.csv`
+    a.download = `${buildExportFileName(appSettings.appName, batch.name, batch.terminNumber)}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -1422,7 +1427,7 @@ export default function HomePage() {
   // Save the PDF directly to the user's device (no preview).
   const downloadBatchPDF = (batch: Batch) => {
     const doc = generateBatchPDF(batch)
-    doc.save(`${buildExportFileName(appSettings.appName, batch.name)}.pdf`)
+    doc.save(`${buildExportFileName(appSettings.appName, batch.name, batch.terminNumber)}.pdf`)
     toast({ title: 'PDF terunduh 📄', description: `Laporan PDF untuk ${batch.name} berhasil diunduh` })
   }
 
