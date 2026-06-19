@@ -1149,3 +1149,55 @@ Stage Summary:
 - Semua form Timbang sekarang pre-fill tanggal hari ini (sebelumnya kosong) → hemat 1 langkah input.
 - Umur ayam tetap otomatis dihitung dari tanggal masuk (tidak berubah).
 - Lint PASS, dev server clean, verifikasi browser sukses dengan 3 skenario (Dashboard multi-aktif, per-card, batch detail).
+
+---
+Task ID: upload-nota-pembelian
+Agent: Main Agent
+Task: Tambah fitur upload foto nota pembelian untuk pakan & peralatan (Opsi A: base64 di database)
+
+Work Log:
+- User request: bisa upload foto nota pembelian barang (pakan, peralatan, sejenisnya). Dipilih Opsi A (base64 di database) karena konsisten dengan pola logo yang sudah ada (AppSetting.logoData) dan tidak butuh layanan storage eksternal.
+- Audit skema: FeedRecord & Equipment belum punya field foto. AppSetting sudah punya pola base64 (logoData).
+- Prisma schema (`prisma/schema.prisma`): tambah `notaData String?` + `notaName String?` ke model FeedRecord dan Equipment. Nullable agar catatan lama tetap valid. notaData = base64 JPEG data URL (sudah dikompres frontend), notaName = nama file asli untuk download.
+- `bunx prisma generate` → Prisma Client v6.19.2 berhasil generate (types untuk field baru tersedia). `bunx prisma db push` gagal lokal karena DIRECT_URL tidak diset di sandbox .env (pre-existing issue, bukan caused by perubahan ini). Production Neon PostgreSQL akan pick up saat deploy.
+- API routes (4 file):
+  - `src/app/api/batches/[id]/feed/route.ts` POST: terima & simpan `notaData`, `notaName`.
+  - `src/app/api/feed/[id]/route.ts` PUT: terima & update `notaData`, `notaName` (null = hapus foto).
+  - `src/app/api/equipment/route.ts` POST: terima & simpan `notaData`, `notaName`.
+  - `src/app/api/equipment/[id]/route.ts` PUT: terima & update `notaData`, `notaName`.
+- Frontend (`src/app/page.tsx`):
+  - Tambah import `Receipt`, `X as XIcon` dari lucide-react.
+  - Update interface FeedRecord & Equipment: tambah `notaData: string | null`, `notaName: string | null`.
+  - Tambah utility module-level `compressNotaImage(file, maxSize=900, quality=0.7)`: FileReader → Image → Canvas resize (preserve aspect ratio, max 900px) → white background fill (agar PNG transparan tidak jadi item) → toDataURL('image/jpeg', 0.7). Hasil ~100-400KB, cukup kecil untuk Text column PostgreSQL.
+  - Update `feedForm` & `equipmentForm` state: tambah `notaData: ''`, `notaName: ''` (initial + semua reset occurrences via replace_all).
+  - Update `openEditFeed` & `openEditEquipment`: pre-fill `notaData` & `notaName` dari record yang diedit.
+  - Update `handleAddFeed`: payload sekarang include `notaData`/`notaName` (kirim ke POST & PUT). `handleAddEquipment` sudah pakai `{ ...equipmentForm }` jadi otomatis include.
+  - Tambah state `notaViewer` ({src, title, fileName} | null) & `notaUploading` (bool).
+  - Tambah handler `handleFeedNotaUpload`, `handleEquipmentNotaUpload`: validasi image type → compressNotaImage → set form. `handleDownloadNota`: trigger anchor download dari viewer.
+  - Feed Dialog: tambah section "Foto Nota (opsional)" setelah Catatan — preview thumbnail (jika ada notaData) dengan tombol hapus (X merah) + nama file, atau dashed upload area dengan hint "JPG/PNG • otomatis dikompres". Theme amber (konsisten dengan dialog pakan).
+  - Equipment Dialog: sama, theme indigo (konsisten dengan dialog biaya).
+  - Feed list (Pakan tab): tambah tombol "Lihat foto nota" (Receipt icon, amber) hanya jika `f.notaData` ada. Klik → setNotaViewer({src, title: `Nota Pakan ${f.feedType}`, fileName}).
+  - Equipment list (Biaya tab): tambah tombol "Lihat foto nota" (Receipt icon, indigo) hanya jika `e.notaData` ada. Klik → setNotaViewer({src, title: `Nota ${e.name}`, fileName}).
+  - Nota Viewer Dialog: menampilkan gambar full-size (max-h-60vh, object-contain) + tombol "Download Foto" + "Tutup".
+  - CSV export: tambah kolom "Ada Nota" (Ya/Tidak) ke section Riwayat Pakan & Riwayat Biaya/Peralatan.
+  - PDF export: tambah "Section 7: Lampiran Foto Nota" — kumpul semua feed & equipment dengan notaData, render thumbnail 2-per-baris (250pt × 150pt) dengan label, handle page break, try/catch addImage (fallback text jika gagal).
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser dengan mock data (1 batch aktif "Termin Test Nota", 2 feed records [1 dengan nota, 1 tanpa], 2 equipment [1 dengan nota, 1 tanpa], notaData = tiny JPEG base64):
+  (a) Page renders HTTP 200, no console/page errors.
+  (b) Pakan tab: "Lihat foto nota" button muncul HANYA untuk feed record yang punya nota (Starter), TIDAK untuk yang tanpa nota (Grower). ✓
+  (c) Klik "Lihat foto nota" di Pakan → Nota Viewer dialog buka dengan title "Nota Pakan Starter" + image rendered (img src = base64 data URL, visible=true) + tombol "Download Foto" & "Tutup". ✓
+  (d) Add Pakan dialog: section upload "Klik untuk upload foto nota JPG/PNG • otomatis dikompres" tampil. ✓
+  (e) Edit Pakan dialog (record dengan nota): preview nota existing tampil (img alt="Nota pembelian pakan", src=base64, visible=true) — konfirmasi openEditFeed pre-fill notaData dengan benar. ✓
+  (f) Biaya tab: "Lihat foto nota" button muncul HANYA untuk equipment yang punya nota (Tempat Minum Otomatis). ✓
+  (g) Klik "Lihat foto nota" di Biaya → Nota Viewer dialog buka dengan title "Nota Tempat Minum Otomatis" + tombol Download/Tutup. ✓
+  (h) Add Biaya dialog: section upload "Klik untuk upload foto nota JPG/PNG • otomatis dikompres" tampil. ✓
+- dev.log clean: GET / 200, hanya pre-existing DATABASE_URL 500s di API routes.
+
+Stage Summary:
+- Database sekarang mendukung foto nota pembelian untuk pakan (FeedRecord) & peralatan (Equipment) via field `notaData` (base64 JPEG) + `notaName` (nama file).
+- Foto dikompresi otomatis di frontend (resize max 900px, JPEG q=0.7, white bg) sebelum disimpan → ukuran ~100-400KB, aman untuk PostgreSQL Text column.
+- UI: upload + preview + hapus di dialog Tambah/Edit Pakan & Biaya; tombol "Lihat foto nota" di list; dialog viewer dengan download.
+- Export: CSV dapat kolom "Ada Nota" (Ya/Tidak); PDF dapat "Lampiran: Foto Nota" dengan thumbnail 2-per-baris.
+- Files changed: `prisma/schema.prisma`, `src/app/api/batches/[id]/feed/route.ts`, `src/app/api/feed/[id]/route.ts`, `src/app/api/equipment/route.ts`, `src/app/api/equipment/[id]/route.ts`, `src/app/page.tsx`.
+- Production deploy note: jalankan `prisma db push` (atau `prisma migrate`) di Neon PostgreSQL untuk membuat kolom `notaData`/`notaName` di tabel FeedRecord & Equipment. Local sandbox skip (pre-existing SQLite/DIRECT_URL issue, tidak caused by task ini).
+- Lint PASS, dev server clean, verifikasi browser sukses untuk 8 skenario (4 Pakan + 4 Biaya).

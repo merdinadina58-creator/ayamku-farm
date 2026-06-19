@@ -44,6 +44,8 @@ import {
   Eye,
   Printer,
   RotateCcw,
+  Receipt,
+  X as XIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -71,6 +73,9 @@ interface FeedRecord {
   quantityKg: number
   pricePerKg: number
   notes: string | null
+  // Foto nota pembelian pakan (base64 JPEG data URL, sudah dikompres).
+  notaData: string | null
+  notaName: string | null
   createdAt: string
 }
 
@@ -164,6 +169,9 @@ interface Equipment {
   unitPrice: number
   purchaseDate: string
   notes: string | null
+  // Foto nota pembelian peralatan (base64 JPEG data URL, sudah dikompres).
+  notaData: string | null
+  notaName: string | null
   batchId: string | null
   batch?: { id: string; name: string; terminNumber: number }
   createdAt: string
@@ -256,6 +264,48 @@ function buildExportFileName(appName: string, terminName: string): string {
   return `${app}_${termin}`
 }
 
+// ============================================================
+// Kompresi foto nota sebelum disimpan ke database (Opsi A: base64).
+// Resize gambar ke maksimal `maxSize` px (preserve aspect ratio),
+// lalu encode sebagai JPEG quality 0.7. Hasilnya cukup kecil
+// (biasanya 100-400KB) untuk disimpan sebagai base64 di PostgreSQL
+// Text column, tapi tetap jelas terbaca saat dilihat/dicetak.
+// ============================================================
+async function compressNotaImage(file: File, maxSize = 900, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new window.Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width > maxSize || height > maxSize) {
+          if (width >= height) {
+            height = Math.round((height * maxSize) / width)
+            width = maxSize
+          } else {
+            width = Math.round((width * maxSize) / height)
+            height = maxSize
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Canvas context tidak tersedia')); return }
+        // Background putih agar nota transparan (PNG) tidak jadi item
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => reject(new Error('Gagal memuat gambar'))
+      img.src = reader.result as string
+    }
+    reader.onerror = () => reject(new Error('Gagal membaca file'))
+    reader.readAsDataURL(file)
+  })
+}
+
 const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   termin: 'Termin',
@@ -321,7 +371,7 @@ export default function HomePage() {
   // Tidak ada lagi state `equipments` terpisah; semua peralatan datang
   // nested di setiap batch (batches[].equipment), sama seperti pakan/berat/mortalitas.
   const [equipmentForm, setEquipmentForm] = useState({
-    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '',
+    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '',
   })
   // Master daftar satuan (Sak, Karung, Liter, kg, dll) + state untuk tambah satuan baru
   const [units, setUnits] = useState<Unit[]>([])
@@ -347,7 +397,7 @@ export default function HomePage() {
     harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
   const [feedForm, setFeedForm] = useState({
-    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '',
+    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '',
   })
 
   // Edit mode states — null = add mode, object = edit mode
@@ -657,6 +707,8 @@ export default function HomePage() {
       unitPrice: e.unitPrice.toString(),
       purchaseDate: e.purchaseDate ? new Date(e.purchaseDate).toISOString().split('T')[0] : '',
       notes: e.notes || '',
+      notaData: e.notaData || '',
+      notaName: e.notaName || '',
     })
     setShowAddUnit(false)
     setNewUnitName('')
@@ -786,7 +838,7 @@ export default function HomePage() {
         setDialogBatchId('')
         setShowAddUnit(false)
         setNewUnitName('')
-        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
         toast({ title: 'Berhasil! ✏️', description: 'Biaya berhasil diperbarui' })
         await fetchData()
         if (view === 'batch-detail' && selectedBatch?.id === batchId) {
@@ -810,7 +862,7 @@ export default function HomePage() {
         setDialogBatchId('')
         setShowAddUnit(false)
         setNewUnitName('')
-        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
         toast({ title: 'Berhasil! 💰', description: 'Biaya berhasil ditambahkan ke termin' })
         fetchData()
       }
@@ -890,7 +942,7 @@ export default function HomePage() {
   const openAddFeed = (batch: Batch) => {
     setEditingFeed(null)
     setSelectedBatch(batch)
-    setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+    setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
     setAddFeedOpen(true)
   }
 
@@ -903,6 +955,8 @@ export default function HomePage() {
       quantityKg: f.quantityKg.toString(),
       pricePerKg: f.pricePerKg.toString(),
       notes: f.notes || '',
+      notaData: f.notaData || '',
+      notaName: f.notaName || '',
     })
     setAddFeedOpen(true)
   }
@@ -920,6 +974,8 @@ export default function HomePage() {
         quantityKg: feedForm.quantityKg,
         pricePerKg: feedForm.pricePerKg,
         notes: feedForm.notes,
+        notaData: feedForm.notaData,
+        notaName: feedForm.notaName,
       }
       if (isEdit) {
         const editId = editingFeed!.id
@@ -932,12 +988,14 @@ export default function HomePage() {
             quantityKg: parseFloat(payload.quantityKg),
             pricePerKg: parseFloat(payload.pricePerKg),
             notes: payload.notes,
+            notaData: payload.notaData,
+            notaName: payload.notaName,
           }),
         })
         if (!res.ok) throw new Error()
         setAddFeedOpen(false)
         setEditingFeed(null)
-        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
         toast({ title: 'Berhasil! ✏️', description: 'Catatan pakan berhasil diperbarui' })
         await fetchData()
         if (view === 'batch-detail' && selectedBatch?.id) {
@@ -958,7 +1016,7 @@ export default function HomePage() {
         })
         if (!res.ok) throw new Error()
         setAddFeedOpen(false)
-        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
         toast({ title: 'Berhasil! 🌾', description: 'Catatan pakan berhasil ditambahkan ke termin' })
         await fetchData()
         if (view === 'batch-detail' && selectedBatch?.id) {
@@ -999,6 +1057,69 @@ export default function HomePage() {
     } catch {
       toast({ title: 'Error', description: 'Gagal menghapus pakan', variant: 'destructive' })
     }
+  }
+
+  // ============================================================
+  // Upload foto nota pembelian — untuk pakan & peralatan.
+  // Foto dikompresi (resize max 900px, JPEG q=0.7) sebelum disimpan
+  // sebagai base64 data URL di state form, lalu dikirim ke API dan
+  // disimpan langsung di database (Opsi A: base64 di PostgreSQL).
+  // ============================================================
+  const [notaViewer, setNotaViewer] = useState<{ src: string; title: string; fileName?: string } | null>(null)
+  const [notaUploading, setNotaUploading] = useState(false)
+
+  const handleFeedNotaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Error', description: 'File harus berupa gambar', variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setNotaUploading(true)
+    try {
+      const compressed = await compressNotaImage(file)
+      setFeedForm((prev) => ({ ...prev, notaData: compressed, notaName: file.name }))
+      toast({ title: 'Foto nota ditambahkan 📷', description: 'Foto akan tersimpan bersama catatan pakan ini' })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal memproses foto nota', variant: 'destructive' })
+    } finally {
+      setNotaUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleEquipmentNotaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Error', description: 'File harus berupa gambar', variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setNotaUploading(true)
+    try {
+      const compressed = await compressNotaImage(file)
+      setEquipmentForm((prev) => ({ ...prev, notaData: compressed, notaName: file.name }))
+      toast({ title: 'Foto nota ditambahkan 📷', description: 'Foto akan tersimpan bersama catatan biaya ini' })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal memproses foto nota', variant: 'destructive' })
+    } finally {
+      setNotaUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  // Download foto nota dari viewer (trigger anchor download).
+  const handleDownloadNota = () => {
+    if (!notaViewer) return
+    const a = document.createElement('a')
+    a.href = notaViewer.src
+    const baseName = (notaViewer.fileName || 'nota').replace(/\.[^.]+$/, '')
+    a.download = `${baseName}.jpg`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   // Tambah satuan baru (Sak, Karung, Liter, kg, dll) ke master daftar.
@@ -1199,16 +1320,16 @@ export default function HomePage() {
     // Section 5: Feed records
     rows.push([])
     rows.push(['Riwayat Pakan'])
-    rows.push(['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg (Rp)', 'Total (Rp)', 'Catatan'])
+    rows.push(['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg (Rp)', 'Total (Rp)', 'Ada Nota', 'Catatan'])
     ;[...batch.feedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((f) => {
-      rows.push([formatDate(f.date), f.feedType, f.quantityKg, f.pricePerKg, Math.round(f.quantityKg * f.pricePerKg), f.notes || '-'])
+      rows.push([formatDate(f.date), f.feedType, f.quantityKg, f.pricePerKg, Math.round(f.quantityKg * f.pricePerKg), f.notaData ? 'Ya' : 'Tidak', f.notes || '-'])
     })
     // Section 6: Equipment costs
     rows.push([])
     rows.push(['Riwayat Biaya / Peralatan'])
-    rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Catatan'])
+    rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Ada Nota', 'Catatan'])
     ;[...batch.equipment].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()).forEach((e) => {
-      rows.push([formatDate(e.purchaseDate), e.name, e.category, e.quantity, e.unit, e.unitPrice, Math.round(e.quantity * e.unitPrice), e.notes || '-'])
+      rows.push([formatDate(e.purchaseDate), e.name, e.category, e.quantity, e.unit, e.unitPrice, Math.round(e.quantity * e.unitPrice), e.notaData ? 'Ya' : 'Tidak', e.notes || '-'])
     })
 
     const csv = rows.map((r) => r.map(esc).join(',')).join('\n')
@@ -1393,6 +1514,44 @@ export default function HomePage() {
         bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
         margin: { left: margin, right: margin },
       })
+    }
+
+    // --- Section 7: Lampiran Foto Nota ---
+    // Tampilkan thumbnail foto nota untuk pakan & peralatan yang punya nota.
+    // Layout: 2 gambar per baris, masing-masing ~250pt lebar dengan label.
+    const feedNotas = batch.feedRecords.filter((f) => f.notaData)
+    const equipNotas = batch.equipment.filter((e) => e.notaData)
+    const allNotas: Array<{ data: string; label: string }> = [
+      ...feedNotas.map((f) => ({ data: f.notaData!, label: `Pakan ${f.feedType} — ${formatDate(f.date)}` })),
+      ...equipNotas.map((e) => ({ data: e.notaData!, label: `${e.name} — ${formatDate(e.purchaseDate)}` })),
+    ]
+    if (allNotas.length > 0) {
+      sectionTitle('Lampiran: Foto Nota')
+      const thumbW = (contentWidth - 12) / 2 // 2 gambar per baris, gap 12pt
+      const thumbH = 150
+      let col = 0
+      for (const nota of allNotas) {
+        if (col === 0 && y > pageHeight - thumbH - 40) { doc.addPage(); y = margin + 10 }
+        const x = margin + col * (thumbW + 12)
+        // Label
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(100, 100, 100)
+        doc.text(nota.label, x, y)
+        // Border + image
+        doc.setDrawColor(220, 220, 220)
+        doc.rect(x, y + 4, thumbW, thumbH)
+        try {
+          doc.addImage(nota.data, 'JPEG', x + 2, y + 6, thumbW - 4, thumbH - 8, undefined, 'FAST')
+        } catch {
+          doc.setFontSize(8)
+          doc.setTextColor(200, 80, 80)
+          doc.text('(gagal memuat foto)', x + thumbW / 2, y + thumbH / 2, { align: 'center' })
+        }
+        col++
+        if (col >= 2) { col = 0; y += thumbH + 24 }
+      }
+      if (col !== 0) y += thumbH + 24 // tutup baris terakhir yang belum penuh
     }
 
     // --- Footer: page numbers on every page ---
@@ -1869,7 +2028,7 @@ export default function HomePage() {
                         if (ab) {
                           setEditingEquipment(null)
                           setDialogBatchId(ab.id)
-                          setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+                          setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
                           setShowAddUnit(false)
                           setNewUnitName('')
                           setAddEquipmentOpen(true)
@@ -2281,7 +2440,7 @@ export default function HomePage() {
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setEditingWeight(null); setDialogBatchId(batch.id); setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                                       <Scale className="w-3 h-3" /> Timbang
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
                                     </Button>
                                     <DropdownMenu>
@@ -2916,6 +3075,11 @@ export default function HomePage() {
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                           <p className="font-bold text-sm">{formatCurrency(f.quantityKg * f.pricePerKg)}</p>
+                                          {f.notaData && (
+                                            <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={(ev) => { ev.stopPropagation(); setNotaViewer({ src: f.notaData!, title: `Nota Pakan ${f.feedType}`, fileName: f.notaName || undefined }) }} title="Lihat foto nota">
+                                              <Receipt className="w-3.5 h-3.5" />
+                                            </Button>
+                                          )}
                                           <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(ev) => { ev.stopPropagation(); openEditFeed(f, selectedBatch) }}>
                                             <Pencil className="w-3.5 h-3.5" />
                                           </Button>
@@ -3087,7 +3251,7 @@ export default function HomePage() {
                             </CardTitle>
                             <CardDescription>Catatan biaya & pembelian untuk termin ini</CardDescription>
                           </div>
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah
                           </Button>
                         </CardHeader>
@@ -3118,7 +3282,7 @@ export default function HomePage() {
                                   <div className="text-center py-8 text-muted-foreground">
                                     <Wrench className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                     <p className="text-sm">Belum ada catatan biaya untuk termin ini</p>
-                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Tambah Biaya Pertama
                                     </Button>
                                   </div>
@@ -3137,6 +3301,11 @@ export default function HomePage() {
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                           <p className="font-bold text-sm">{formatCurrency(e.quantity * e.unitPrice)}</p>
+                                          {e.notaData && (
+                                            <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={(ev) => { ev.stopPropagation(); setNotaViewer({ src: e.notaData!, title: `Nota ${e.name}`, fileName: e.notaName || undefined }) }} title="Lihat foto nota">
+                                              <Receipt className="w-3.5 h-3.5" />
+                                            </Button>
+                                          )}
                                           <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(ev) => { ev.stopPropagation(); openEditEquipment(e) }}>
                                             <Pencil className="w-3.5 h-3.5" />
                                           </Button>
@@ -3677,6 +3846,35 @@ export default function HomePage() {
               <Label>Catatan</Label>
               <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
             </div>
+            {/* Foto nota pembelian peralatan — upload, preview, & hapus */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
+              {equipmentForm.notaData ? (
+                <div className="relative rounded-lg overflow-hidden border border-indigo-200 group">
+                  <img src={equipmentForm.notaData} alt="Nota pembelian" className="w-full max-h-48 object-contain bg-slate-50" />
+                  <button
+                    type="button"
+                    onClick={() => setEquipmentForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                    aria-label="Hapus foto nota"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                  {equipmentForm.notaName && (
+                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{equipmentForm.notaName}</p>
+                  )}
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-indigo-300 rounded-lg p-4 cursor-pointer hover:bg-indigo-50/50 transition-colors">
+                  {notaUploading ? (
+                    <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
+                  ) : (
+                    <><Upload className="w-5 h-5 text-indigo-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
+                  )}
+                  <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
+                </label>
+              )}
+            </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
             </Button>
@@ -3735,6 +3933,35 @@ export default function HomePage() {
             <div className="space-y-2">
               <Label>Catatan (opsional)</Label>
               <Textarea placeholder="mis. Sak ke-3, pakan tambahan..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} rows={2} />
+            </div>
+            {/* Foto nota pembelian pakan — upload, preview, & hapus */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
+              {feedForm.notaData ? (
+                <div className="relative rounded-lg overflow-hidden border border-amber-200 group">
+                  <img src={feedForm.notaData} alt="Nota pembelian pakan" className="w-full max-h-48 object-contain bg-slate-50" />
+                  <button
+                    type="button"
+                    onClick={() => setFeedForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                    aria-label="Hapus foto nota"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                  {feedForm.notaName && (
+                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{feedForm.notaName}</p>
+                  )}
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-amber-300 rounded-lg p-4 cursor-pointer hover:bg-amber-50/50 transition-colors">
+                  {notaUploading ? (
+                    <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
+                  ) : (
+                    <><Upload className="w-5 h-5 text-amber-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
+                  )}
+                  <input type="file" accept="image/*" onChange={handleFeedNotaUpload} className="hidden" />
+                </label>
+              )}
             </div>
             <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.feedType || !feedForm.quantityKg || !feedForm.pricePerKg}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingFeed ? 'Simpan Perubahan' : 'Simpan Data Pakan')}
@@ -3830,6 +4057,49 @@ export default function HomePage() {
                 className="w-full h-full border-0"
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nota Viewer Dialog — menampilkan foto nota pembelian ukuran penuh
+          dengan tombol download. Dipakai bersama oleh list pakan & peralatan. */}
+      <Dialog open={!!notaViewer} onOpenChange={(open) => !open && setNotaViewer(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-amber-600" />
+              {notaViewer?.title || 'Foto Nota'}
+            </DialogTitle>
+            <DialogDescription>
+              {notaViewer?.fileName || 'Foto nota pembelian'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            {notaViewer && (
+              <div className="rounded-xl overflow-hidden border bg-slate-50 max-h-[60vh] flex items-center justify-center">
+                <img
+                  src={notaViewer.src}
+                  alt={notaViewer.title}
+                  className="w-full max-h-[60vh] object-contain"
+                />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={handleDownloadNota}
+              >
+                <Download className="w-4 h-4" /> Download Foto
+              </Button>
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={() => setNotaViewer(null)}
+              >
+                Tutup
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

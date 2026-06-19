@@ -41,6 +41,10 @@ model FeedRecord {
   quantityKg Float    // jumlah pakan dalam kg
   pricePerKg Float    // harga per kg
   notes      String?
+  // Foto nota pembelian pakan (base64 JPEG data URL, sudah dikompres di frontend).
+  // Nullable agar catatan lama tetap valid. notaName = nama file asli untuk download.
+  notaData   String?
+  notaName   String?
   createdAt  DateTime @default(now())
 
   batch      Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -86,6 +90,10 @@ model Equipment {
   unitPrice    Float    // harga per satuan (Rp)
   purchaseDate DateTime // tanggal pembelian
   notes        String?
+  // Foto nota pembelian peralatan (base64 JPEG data URL, sudah dikompres di frontend).
+  // Nullable agar catatan lama tetap valid. notaName = nama file asli untuk download.
+  notaData     String?
+  notaName     String?
   batchId      String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

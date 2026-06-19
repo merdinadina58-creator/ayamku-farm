@@ -10,7 +10,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { date, feedType, quantityKg, pricePerKg, notes } = body
+    const { date, feedType, quantityKg, pricePerKg, notes, notaData, notaName } = body
 
     if (!date || !feedType || !quantityKg || !pricePerKg) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -24,6 +24,9 @@ export async function PUT(
         ...(quantityKg !== undefined && { quantityKg: parseFloat(quantityKg) }),
         ...(pricePerKg !== undefined && { pricePerKg: parseFloat(pricePerKg) }),
         ...(notes !== undefined && { notes: notes || null }),
+        // Foto nota pembelian — notaData=null untuk hapus foto, string untuk set/update.
+        ...(notaData !== undefined && { notaData: notaData || null }),
+        ...(notaName !== undefined && { notaName: notaName || null }),
       },
     })
 

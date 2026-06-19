@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, category, quantity, unitPrice, purchaseDate, notes, batchId } = body
+    const { name, category, quantity, unitPrice, purchaseDate, notes, batchId, notaData, notaName } = body
     // Satuan opsional saat transisi; default "unit" jika tidak dikirim.
     const unit: string = (body?.unit ?? '').toString().trim() || 'unit'
 
@@ -80,6 +80,9 @@ export async function POST(request: Request) {
           unitPrice: parsedUnitPrice,
           purchaseDate: parsedPurchaseDate,
           notes: notes || null,
+          // Foto nota pembelian peralatan (base64 JPEG data URL) — opsional.
+          notaData: notaData || null,
+          notaName: notaName || null,
           batchId,
         },
       })

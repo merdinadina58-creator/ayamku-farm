@@ -26,7 +26,7 @@ export async function POST(
   try {
     const { id } = await params
     const body = await request.json()
-    const { date, feedType, quantityKg, pricePerKg, notes } = body
+    const { date, feedType, quantityKg, pricePerKg, notes, notaData, notaName } = body
 
     if (!date || !feedType || !quantityKg || !pricePerKg) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -64,6 +64,9 @@ export async function POST(
           quantityKg: parsedQuantityKg,
           pricePerKg: parsedPricePerKg,
           notes: notes || null,
+          // Foto nota pembelian (base64 JPEG data URL) — opsional.
+          notaData: notaData || null,
+          notaName: notaName || null,
         },
       })
     })

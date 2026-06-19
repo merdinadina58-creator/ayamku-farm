@@ -10,7 +10,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, category, quantity, unit, unitPrice, purchaseDate, notes } = body
+    const { name, category, quantity, unit, unitPrice, purchaseDate, notes, notaData, notaName } = body
 
     const updated = await db.equipment.update({
       where: { id },
@@ -22,6 +22,9 @@ export async function PUT(
         ...(unitPrice !== undefined && { unitPrice: parseFloat(unitPrice) }),
         ...(purchaseDate !== undefined && { purchaseDate: new Date(purchaseDate) }),
         ...(notes !== undefined && { notes: notes || null }),
+        // Foto nota pembelian — notaData=null untuk hapus foto, string untuk set/update.
+        ...(notaData !== undefined && { notaData: notaData || null }),
+        ...(notaName !== undefined && { notaName: notaName || null }),
       },
     })
 
