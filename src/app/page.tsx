@@ -32,6 +32,10 @@ import {
   Loader2,
   Wrench,
   Pencil,
+  AlertTriangle,
+  Wallet,
+  Wheat,
+  Clock,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -192,6 +196,37 @@ const MORTALITY_REASON_COLORS: Record<string, string> = {
   'kecelakaan': '#8b5cf6',
   'afkir': '#06b6d4',
   'lainnya': '#6b7280',
+}
+
+// Pure helper for batch statistics (module-level so it can be used in useMemos
+// without being recreated every render). Mirrors the logic previously inline
+// in the component's getBatchStats closure.
+function computeBatchStats(batch: Batch) {
+  const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
+  const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+  const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+  const aliveCount = batch.quantity - totalDead
+  const latestWeight = batch.weightRecords.length > 0
+    ? batch.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, batch.weightRecords[0]).averageWeightGram
+    : batch.initialWeight * 1000
+  const weightGain = latestWeight - batch.initialWeight * 1000
+  const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
+  const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
+  const arrival = new Date(batch.arrivalDate)
+  const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
+  const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
+  const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
+  const harvestQty = batch.harvestQuantity || 0
+  const harvestWt = batch.harvestWeight || 0
+  const sellPrice = batch.sellingPricePerKg || 0
+  const totalHarvestKg = harvestQty * harvestWt
+  const totalHarvestValue = totalHarvestKg * sellPrice
+  const profit = totalHarvestValue - totalCost
+  return {
+    totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays,
+    feedPerEkor, totalDead, aliveCount, mortalityRate,
+    harvestQty, harvestWt, sellPrice, totalHarvestKg, totalHarvestValue, profit,
+  }
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -839,37 +874,8 @@ export default function HomePage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount)
   }
 
-  // Computed values for selected batch
-  const getBatchStats = (batch: Batch) => {
-    const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
-    const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
-    const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
-    const aliveCount = batch.quantity - totalDead
-    const latestWeight = batch.weightRecords.length > 0
-      ? batch.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, batch.weightRecords[0]).averageWeightGram
-      : batch.initialWeight * 1000
-    const weightGain = latestWeight - batch.initialWeight * 1000
-    const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
-    const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
-    const arrival = new Date(batch.arrivalDate)
-    const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
-    const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
-    const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
-
-    // Harvest calculations
-    const harvestQty = batch.harvestQuantity || 0
-    const harvestWt = batch.harvestWeight || 0
-    const sellPrice = batch.sellingPricePerKg || 0
-    const totalHarvestKg = harvestQty * harvestWt
-    const totalHarvestValue = totalHarvestKg * sellPrice
-    const profit = totalHarvestValue - totalCost
-
-    return {
-      totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays,
-      feedPerEkor, totalDead, aliveCount, mortalityRate,
-      harvestQty, harvestWt, sellPrice, totalHarvestKg, totalHarvestValue, profit,
-    }
-  }
+  // Computed values for selected batch (delegates to module-level pure helper)
+  const getBatchStats = (batch: Batch) => computeBatchStats(batch)
 
   // Calendar events derived from batches
   const calendarEvents = useMemo(() => {
@@ -904,6 +910,151 @@ export default function HomePage() {
     }
     return cells
   }, [calendarMonth, calendarEvents])
+
+  // === Dashboard derivations (all pure, derived from `batches`) ===
+
+  // Growth chart data: merge all active batches' weight records by age (days),
+  // plus a standard broiler "Target" reference curve for comparison.
+  const dashboardGrowthData = useMemo(() => {
+    const activeBatches = batches.filter((b) => b.status === 'active' && b.weightRecords.length > 0)
+    if (activeBatches.length === 0) return []
+    const ageSet = new Set<number>()
+    activeBatches.forEach((b) => b.weightRecords.forEach((w) => ageSet.add(w.ageDays)))
+    const ages = Array.from(ageSet).sort((a, b) => a - b)
+    const targetCurve: Record<number, number> = { 1: 42, 7: 180, 14: 430, 21: 850, 28: 1400, 35: 2050, 42: 2700 }
+    const targetKeys = Object.keys(targetCurve).map(Number).sort((a, b) => a - b)
+    return ages.map((age) => {
+      const row: Record<string, number | string> = { umur: `H${age}` }
+      activeBatches.forEach((b) => {
+        const recs = b.weightRecords.filter((w) => w.ageDays === age)
+        if (recs.length > 0) {
+          const avg = recs.reduce((s, r) => s + r.averageWeightGram, 0) / recs.length
+          row[b.name] = Math.round(avg)
+        }
+      })
+      // interpolate target
+      let target = targetCurve[targetKeys[0]]
+      for (let i = 0; i < targetKeys.length; i++) {
+        if (age <= targetKeys[i]) {
+          if (i === 0) { target = targetCurve[targetKeys[0]]; break }
+          const x0 = targetKeys[i - 1], x1 = targetKeys[i]
+          const y0 = targetCurve[x0], y1 = targetCurve[x1]
+          target = Math.round(y0 + ((y1 - y0) * (age - x0)) / (x1 - x0))
+          break
+        }
+        if (i === targetKeys.length - 1) target = targetCurve[x1]
+      }
+      row['Target'] = target
+      return row
+    })
+  }, [batches])
+
+  // Line config (name + color) for each active batch on the growth chart
+  const dashboardActiveBatchLines = useMemo(
+    () => batches
+      .filter((b) => b.status === 'active' && b.weightRecords.length > 0)
+      .map((b, i) => ({ name: b.name, color: COLORS[i % COLORS.length] })),
+    [batches]
+  )
+
+  // Cost breakdown for pie chart: feed cost + equipment cost grouped by category
+  const dashboardCostBreakdown = useMemo(() => {
+    const feedCost = batches.reduce(
+      (s, b) => s + b.feedRecords.reduce((s2, f) => s2 + f.quantityKg * f.pricePerKg, 0),
+      0
+    )
+    const eqByCat: Record<string, number> = {}
+    batches.forEach((b) => b.equipment?.forEach((e) => {
+      const cat = e.category || 'Lainnya'
+      eqByCat[cat] = (eqByCat[cat] || 0) + e.quantity * e.unitPrice
+    }))
+    const result: Array<{ name: string; value: number; color: string }> = [
+      { name: 'Pakan', value: Math.round(feedCost), color: '#16a34a' },
+    ]
+    Object.entries(eqByCat).forEach(([name, value], i) => {
+      if (value > 0) result.push({ name, value: Math.round(value), color: COLORS[(i + 1) % COLORS.length] })
+    })
+    return result
+  }, [batches])
+
+  // Harvest performance (profit per harvested batch) for bar chart
+  const dashboardHarvestPerformance = useMemo(
+    () => batches
+      .filter((b) => b.status === 'harvested')
+      .map((b) => {
+        const stats = computeBatchStats(b)
+        return {
+          name: b.name.length > 12 ? b.name.slice(0, 12) + '…' : b.name,
+          profit: Math.round(stats.profit),
+        }
+      }),
+    [batches]
+  )
+
+  // Extra totals not in the dashboard API response
+  const dashExtras = useMemo(() => {
+    const feedCost = batches.reduce(
+      (s, b) => s + b.feedRecords.reduce((s2, f) => s2 + f.quantityKg * f.pricePerKg, 0),
+      0
+    )
+    const equipmentCost = batches.reduce(
+      (s, b) => s + (b.equipment?.reduce((s2, e) => s2 + e.quantity * e.unitPrice, 0) || 0),
+      0
+    )
+    const totalCost = feedCost + equipmentCost
+    const totalProfit = batches
+      .filter((b) => b.status === 'harvested')
+      .reduce((s, b) => s + computeBatchStats(b).profit, 0)
+    return { totalCost, totalProfit, feedCost, equipmentCost }
+  }, [batches])
+
+  // Smart alerts/insights across all batches
+  const dashboardAlerts = useMemo(() => {
+    const alerts: Array<{ level: 'warning' | 'info' | 'success'; title: string; desc: string; batchId?: string }> = []
+    batches.forEach((b) => {
+      const stats = computeBatchStats(b)
+      if (b.status === 'active') {
+        if (stats.mortalityRate > 5) {
+          alerts.push({ level: 'warning', title: `${b.name}: Mortalitas Tinggi`, desc: `Tingkat kematian ${stats.mortalityRate.toFixed(1)}% (${stats.totalDead} ekor). Perlu evaluasi manajemen kandang.`, batchId: b.id })
+        }
+        if (stats.ageDays >= 30 && stats.latestWeight >= 1500) {
+          alerts.push({ level: 'success', title: `${b.name}: Siap Panen`, desc: `Umur ${stats.ageDays} hari, berat rata-rata ${(stats.latestWeight / 1000).toFixed(2)} kg. Sudah mencapai target panen.`, batchId: b.id })
+        }
+        const latestWeightDate = b.weightRecords.length > 0
+          ? b.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, b.weightRecords[0]).date
+          : null
+        const daysSince = latestWeightDate ? (Date.now() - new Date(latestWeightDate).getTime()) / 86400000 : Infinity
+        if (!latestWeightDate || daysSince > 7) {
+          alerts.push({ level: 'info', title: `${b.name}: Belum Timbang`, desc: `Data penimbangan terakhir ${latestWeightDate ? ` ${Math.floor(daysSince)} hari lalu` : 'belum ada'}. Lakukan penimbangan rutin.`, batchId: b.id })
+        }
+        if (stats.fcr > 2.0 && stats.fcr > 0) {
+          alerts.push({ level: 'warning', title: `${b.name}: FCR Tinggi`, desc: `FCR ${stats.fcr.toFixed(2)} di atas ideal (1.6-1.8). Evaluasi kualitas pakan & manajemen.`, batchId: b.id })
+        }
+      } else if (b.status === 'harvested' && stats.profit < 0) {
+        alerts.push({ level: 'warning', title: `${b.name}: Panen Rugi`, desc: `Terjadi kerugian pada panen ini. Evaluasi biaya produksi & harga jual.`, batchId: b.id })
+      }
+    })
+    return alerts
+  }, [batches])
+
+  // Recent activity timeline (latest 10 events across all batches)
+  const dashboardRecentActivity = useMemo(() => {
+    type EvType = 'weight' | 'mortality' | 'feed' | 'equipment' | 'harvest' | 'arrival'
+    const events: Array<{ type: EvType; batchName: string; date: string; detail: string; batchId: string }> = []
+    batches.forEach((b) => {
+      events.push({ type: 'arrival', batchName: b.name, date: b.arrivalDate, detail: `${b.quantity.toLocaleString('id-ID')} ekor DOC masuk`, batchId: b.id })
+      b.weightRecords.forEach((w) => events.push({ type: 'weight', batchName: b.name, date: w.date, detail: `Timbang: ${w.averageWeightGram} g (umur ${w.ageDays} hari)`, batchId: b.id }))
+      b.mortalityRecords.forEach((m) => events.push({ type: 'mortality', batchName: b.name, date: m.date, detail: `${m.quantity} ekor mati — ${m.reason}`, batchId: b.id }))
+      b.feedRecords.forEach((f) => events.push({ type: 'feed', batchName: b.name, date: f.date, detail: `Pakan ${f.feedType}: ${f.quantityKg} kg`, batchId: b.id }))
+      b.equipment?.forEach((e) => events.push({ type: 'equipment', batchName: b.name, date: e.purchaseDate, detail: `${e.name}: ${e.quantity} ${e.unit}`, batchId: b.id }))
+      if (b.status === 'harvested' && b.harvestDate) {
+        events.push({ type: 'harvest', batchName: b.name, date: b.harvestDate, detail: `Panen ${b.harvestQuantity?.toLocaleString('id-ID')} ekor @ ${(b.harvestWeight || 0).toFixed(2)} kg`, batchId: b.id })
+      }
+    })
+    return events
+      .sort((a, b2) => new Date(b2.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10)
+  }, [batches])
 
   const renderSidebar = () => (
     <div className="flex flex-col h-full">
@@ -1063,42 +1214,46 @@ export default function HomePage() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {/* Hero Banner + Stats Cards - only on dashboard section */}
+                {/* === Dashboard Section (upgraded) === */}
                 {activeSection === 'dashboard' && (
                   <>
                     {/* Hero Banner */}
-                    <div className="relative rounded-2xl overflow-hidden mb-6 shadow-xl">
-                      <img src="/chicken-farm-hero.png" alt="Peternakan Ayam" className="w-full h-40 sm:h-56 object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/80 via-emerald-900/50 to-transparent flex items-center">
-                        <div className="px-6 sm:px-10">
-                          <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Selamat Datang di {appSettings.appName}</h2>
-                          <p className="text-emerald-100 text-xs sm:text-base max-w-md">Kelola bibit, biaya, berat, kematian, dan panen ayam Anda dengan mudah dan efisien.</p>
+                    <div className="relative rounded-2xl overflow-hidden mb-5 shadow-xl">
+                      <img src="/chicken-farm-hero.png" alt="Peternakan Ayam" className="w-full h-36 sm:h-48 object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/85 via-emerald-900/55 to-transparent flex items-center">
+                        <div className="px-5 sm:px-8">
+                          <h2 className="text-lg sm:text-2xl font-bold text-white mb-1">{appSettings.appName}</h2>
+                          <p className="text-emerald-100 text-xs sm:text-sm max-w-md">Pantau performa peternakan secara real-time — KPI, grafik pertumbuhan, biaya, dan aktivitas terkini.</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+                    {/* KPI Cards - 6 */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-5">
                       {[
-                        { icon: Package, label: 'Total Termin', value: dashboard?.totalBatches || 0, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
-                        { icon: Bird, label: 'Ayam Hidup', value: dashboard?.totalChickens || 0, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
-                        { icon: Skull, label: 'Total Mortalitas', value: dashboard?.totalMortality || 0, color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
+                        { icon: Package, label: 'Total Termin', value: String(dashboard?.totalBatches || 0), sub: `${dashboard?.activeBatches || 0} aktif · ${dashboard?.harvestedBatches || 0} panen`, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
+                        { icon: Bird, label: 'Ayam Hidup', value: (dashboard?.totalChickens || 0).toLocaleString('id-ID'), sub: 'ekor aktif', color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
+                        { icon: Skull, label: 'Mortalitas', value: (dashboard?.totalMortality || 0).toLocaleString('id-ID'), sub: 'ekor total', color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
+                        { icon: Wheat, label: 'Total Pakan', value: `${(dashboard?.totalFeedKg || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`, sub: 'kg terpakai', color: 'from-yellow-500 to-amber-600', shadow: 'shadow-amber-200/50' },
+                        { icon: Wallet, label: 'Total Biaya', value: formatCurrency(dashExtras.totalCost), sub: 'Pakan + Peralatan', color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
+                        { icon: TrendingUp, label: 'Pendapatan', value: formatCurrency(dashboard?.totalHarvestRevenue || 0), sub: `Laba: ${formatCurrency(dashExtras.totalProfit)}`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
                       ].map((stat, i) => (
                         <motion.div
                           key={stat.label}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.1 }}
+                          transition={{ delay: i * 0.05 }}
                         >
-                          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                            <CardContent className="p-4 sm:p-5">
-                              <div className="flex items-start justify-between">
+                          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full">
+                            <CardContent className="p-3 sm:p-4">
+                              <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-xs sm:text-sm text-muted-foreground font-medium">{stat.label}</p>
-                                  <p className="text-lg sm:text-2xl font-bold mt-1 truncate">{stat.value}</p>
+                                  <p className="text-[11px] sm:text-xs text-muted-foreground font-medium truncate">{stat.label}</p>
+                                  <p className="text-base sm:text-xl font-bold mt-0.5 truncate">{stat.value}</p>
+                                  <p className="text-[10px] sm:text-[11px] text-muted-foreground/80 mt-0.5 truncate">{stat.sub}</p>
                                 </div>
-                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg ${stat.shadow} shrink-0`}>
-                                  <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                                <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg ${stat.shadow} shrink-0`}>
+                                  <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                               </div>
                             </CardContent>
@@ -1106,6 +1261,278 @@ export default function HomePage() {
                         </motion.div>
                       ))}
                     </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap gap-2 mb-5">
+                      <Button size="sm" className="gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-700" onClick={() => {
+                        const nextTermin = batches.length > 0 ? Math.max(...batches.map((b) => b.terminNumber)) + 1 : 1
+                        setEditingBatch(null)
+                        setBatchForm({ name: '', terminNumber: String(nextTermin), arrivalDate: '', initialWeight: '', quantity: '', notes: '' })
+                        setAddBatchOpen(true)
+                      }}>
+                        <Plus className="w-4 h-4" /> Termin Baru
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => {
+                        const ab = batches.find((b) => b.status === 'active')
+                        if (ab) {
+                          setEditingWeight(null)
+                          setDialogBatchId(ab.id)
+                          setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
+                          setAddWeightOpen(true)
+                        } else {
+                          toast({ title: 'Info', description: 'Belum ada batch aktif untuk ditimbang' })
+                        }
+                      }}>
+                        <Scale className="w-4 h-4" /> Timbang
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => {
+                        const ab = batches.find((b) => b.status === 'active')
+                        if (ab) {
+                          setEditingEquipment(null)
+                          setDialogBatchId(ab.id)
+                          setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' })
+                          setShowAddUnit(false)
+                          setNewUnitName('')
+                          setAddEquipmentOpen(true)
+                        } else {
+                          toast({ title: 'Info', description: 'Belum ada batch aktif untuk mencatat biaya' })
+                        }
+                      }}>
+                        <Wrench className="w-4 h-4" /> Catat Biaya
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => setActiveSection('panen')}>
+                        <ShoppingBasket className="w-4 h-4" /> Kelola Panen
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setActiveSection('kalender')}>
+                        <CalendarDays className="w-4 h-4" /> Kalender
+                      </Button>
+                    </div>
+
+                    {/* Alerts / Insights */}
+                    {dashboardAlerts.length > 0 && (
+                      <div className="mb-5 space-y-2">
+                        {dashboardAlerts.slice(0, 4).map((alert, i) => {
+                          const styles = alert.level === 'warning'
+                            ? 'bg-amber-50 border-amber-200 text-amber-800'
+                            : alert.level === 'success'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-sky-50 border-sky-200 text-sky-800'
+                          const Icon = alert.level === 'warning' ? AlertTriangle : alert.level === 'success' ? CheckCircle2 : Info
+                          return (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.05 }}
+                              className={`flex items-start gap-3 rounded-xl border p-3 ${styles}`}
+                            >
+                              <Icon className="w-5 h-5 shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold">{alert.title}</p>
+                                <p className="text-xs opacity-80">{alert.desc}</p>
+                              </div>
+                              {alert.batchId && (
+                                <Button size="sm" variant="ghost" className="h-7 text-xs px-2 shrink-0" onClick={() => { const b = batches.find((x) => x.id === alert.batchId); if (b) openBatchDetail(b) }}>
+                                  Lihat <ChevronRight className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </motion.div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Charts row: Growth + Cost breakdown */}
+                    <div className="grid gap-4 lg:grid-cols-2 mb-5">
+                      {/* Growth chart */}
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-emerald-600" /> Grafik Pertumbuhan Batch Aktif
+                          </CardTitle>
+                          <CardDescription className="text-xs">Berat rata-rata (gram) vs umur (hari), dibanding kurva target standar</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {dashboardGrowthData.length > 1 ? (
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={dashboardGrowthData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                  <XAxis dataKey="umur" tick={{ fontSize: 11 }} />
+                                  <YAxis tick={{ fontSize: 11 }} unit="g" />
+                                  <Tooltip formatter={(value: number) => [`${value} g`, '']} />
+                                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                                  <Line type="monotone" dataKey="Target" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                                  {dashboardActiveBatchLines.map((b) => (
+                                    <Line key={b.name} type="monotone" dataKey={b.name} stroke={b.color} strokeWidth={2.5} dot={{ r: 3 }} />
+                                  ))}
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <div className="h-48 flex flex-col items-center justify-center text-muted-foreground">
+                              <TrendingUp className="w-10 h-10 mb-2 opacity-30" />
+                              <p className="text-sm">Belum ada data timbang cukup</p>
+                              <p className="text-xs">Catat minimal 2x penimbangan pada batch aktif</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Cost breakdown pie */}
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Wallet className="w-4 h-4 text-rose-600" /> Distribusi Biaya
+                          </CardTitle>
+                          <CardDescription className="text-xs">Total {formatCurrency(dashExtras.totalCost)}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {dashboardCostBreakdown.length > 0 && dashExtras.totalCost > 0 ? (
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie data={dashboardCostBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(entry: { percent?: number }) => entry.percent ? `${(entry.percent * 100).toFixed(0)}%` : ''}>
+                                    {dashboardCostBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                                  </Pie>
+                                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <div className="h-48 flex flex-col items-center justify-center text-muted-foreground">
+                              <Wallet className="w-10 h-10 mb-2 opacity-30" />
+                              <p className="text-sm">Belum ada data biaya</p>
+                              <p className="text-xs">Catat pakan atau peralatan untuk melihat distribusi</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Harvest performance bar */}
+                    {dashboardHarvestPerformance.length > 0 && (
+                      <Card className="border-0 shadow-lg mb-5">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4 text-amber-600" /> Performa Panen per Termin
+                          </CardTitle>
+                          <CardDescription className="text-xs">Laba/Rugi — hijau = untung, merah = rugi</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={dashboardHarvestPerformance}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 11 }} />
+                                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                <Bar dataKey="profit" name="Laba" radius={[6, 6, 0, 0]}>
+                                  {dashboardHarvestPerformance.map((entry, i) => (
+                                    <Cell key={i} fill={entry.profit >= 0 ? '#16a34a' : '#ef4444'} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Active batch status */}
+                    {batches.filter((b) => b.status === 'active').length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-semibold flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-emerald-600" /> Status Batch Aktif
+                          </h3>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setActiveSection('termin')}>Semua Termin <ChevronRight className="w-3 h-3" /></Button>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {batches.filter((b) => b.status === 'active').map((batch, i) => {
+                            const stats = getBatchStats(batch)
+                            const progress = Math.min((stats.latestWeight / 1800) * 100, 100)
+                            return (
+                              <motion.div key={batch.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
+                                <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => openBatchDetail(batch)}>
+                                  <div className="h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+                                  <CardContent className="p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-bold text-sm truncate">{batch.name}</p>
+                                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Aktif</Badge>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                                      <div><p className="text-muted-foreground">Umur</p><p className="font-semibold">{stats.ageDays} hari</p></div>
+                                      <div><p className="text-muted-foreground">Berat</p><p className="font-semibold">{(stats.latestWeight / 1000).toFixed(2)} kg</p></div>
+                                      <div><p className="text-muted-foreground">FCR</p><p className="font-semibold">{stats.fcr > 0 ? stats.fcr.toFixed(2) : '-'}</p></div>
+                                      <div><p className="text-muted-foreground">Mati</p><p className="font-semibold text-red-600">{stats.totalDead} ({stats.mortalityRate.toFixed(1)}%)</p></div>
+                                    </div>
+                                    <div className="mb-1">
+                                      <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                        <span>Progress ke target (1.8 kg)</span>
+                                        <span>{progress.toFixed(0)}%</span>
+                                      </div>
+                                      <Progress value={progress} className="h-1.5" />
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2">
+                                      <span className="text-xs text-muted-foreground">{stats.aliveCount.toLocaleString('id-ID')} ekor hidup</span>
+                                      <span className="text-xs font-semibold text-emerald-700">{formatCurrency(stats.totalCost)}</span>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </motion.div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recent activity */}
+                    <Card className="border-0 shadow-lg">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-emerald-600" /> Aktivitas Terbaru
+                        </CardTitle>
+                        <CardDescription className="text-xs">10 catatan terkini di seluruh termin</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {dashboardRecentActivity.length > 0 ? (
+                          <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
+                            {dashboardRecentActivity.map((ev, i) => {
+                              const cfg = {
+                                weight: { icon: Scale, color: 'bg-teal-100 text-teal-700' },
+                                mortality: { icon: Skull, color: 'bg-red-100 text-red-700' },
+                                feed: { icon: Wheat, color: 'bg-amber-100 text-amber-700' },
+                                equipment: { icon: Wrench, color: 'bg-indigo-100 text-indigo-700' },
+                                harvest: { icon: ShoppingBasket, color: 'bg-orange-100 text-orange-700' },
+                                arrival: { icon: Bird, color: 'bg-emerald-100 text-emerald-700' },
+                              }[ev.type]
+                              const Icon = cfg.icon
+                              return (
+                                <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.color}`}>
+                                    <Icon className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium truncate">{ev.detail}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{ev.batchName} · {formatDate(ev.date)}</p>
+                                  </div>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0" onClick={() => { const b = batches.find((x) => x.id === ev.batchId); if (b) openBatchDetail(b) }}>
+                                    <ChevronRight className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Clock className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                            <p className="text-sm">Belum ada aktivitas</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </>
                 )}
 

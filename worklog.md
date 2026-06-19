@@ -844,3 +844,44 @@ Stage Summary:
 - Batch detail dialog now has 5 tabs (Berat, Mortalitas, Biaya, Perhitungan, Kalender) — was 6
 - Harvest dialog (`openHarvestDialog`, `handleHarvest`) unchanged — works for both add + edit
 - Lint passes, dev server compiles cleanly
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Upgrade menu Dashboard agar lebih produktif
+
+Work Log:
+- Sync repo lokal ke latest remote (commit ad0100f - kalender sidebar + click detail)
+- Analisis struktur Dashboard lama: hanya Hero Banner + 3 Stats Cards (Total Termin, Ayam Hidup, Mortalitas). Tidak ada chart, alert, quick action, atau aktivitas terbaru.
+- Rancang upgrade Dashboard komprehensif dengan 7 komponen produktif:
+  1. Hero Banner (lebih compact, tagline baru tentang real-time monitoring)
+  2. 6 KPI Cards (Total Termin, Ayam Hidup, Mortalitas, Total Pakan, Total Biaya, Pendapatan) — masing-masing dengan sub-info (aktif/panen breakdown, laba, dll)
+  3. Quick Actions bar (Termin Baru, Timbang, Catat Biaya, Kelola Panen, Kalender) — akses cepat 1 klik
+  4. Smart Alerts/Insights (mortalitas >5%, siap panen, belum timbang >7 hari, FCR >2.0, panen rugi) dengan tombol "Lihat" ke batch detail
+  5. Grafik Pertumbuhan multi-batch (line chart, semua batch aktif + kurva Target standar broiler sebagai pembanding)
+  6. Distribusi Biaya (pie chart: Pakan + per kategori Peralatan, dengan persen label)
+  7. Performa Panen per Termin (bar chart laba/rugi, hijau=untung merah=rugi)
+  8. Status Batch Aktif (card per batch: umur, berat, FCR, mortalitas, progress bar ke target 1.8kg)
+  9. Aktivitas Terbaru (timeline 10 event terkini: tiba, timbang, mati, pakan, biaya, panen) dengan scroll
+- Implementasi:
+  - Tambah 4 icon imports: AlertTriangle, Wallet, Wheat, Clock
+  - Buat module-level pure function `computeBatchStats(batch)` supaya bisa dipakai di useMemo tanpa re-create setiap render
+  - Refactor `getBatchStats` komponen untuk delegate ke `computeBatchStats` (hindari duplikasi)
+  - Tambah 6 useMemo baru untuk data dashboard: dashboardGrowthData, dashboardActiveBatchLines, dashboardCostBreakdown, dashboardHarvestPerformance, dashExtras, dashboardAlerts, dashboardRecentActivity
+  - Ganti blok JSX Dashboard lama (44 baris) dengan versi baru (~320 baris) yang jauh lebih kaya
+  - Semua data di-derive client-side dari state `batches` (tidak perlu modifikasi backend API)
+- Lint: bersih tanpa error/warning
+- Dev server: ter-compile sukses (✓ Compiled in 370ms)
+- Verifikasi Agent Browser:
+  - Desktop (1280x900): semua 7 section render dengan benar, 6 KPI cards, quick actions, charts (empty state informatif), recent activity
+  - Mobile (390x844): KPI cards 2 kolom, quick actions wrap, charts stack vertikal, no overflow/cut-off
+  - Interaktivitas: tombol "Termin Baru" membuka dialog form dengan benar
+  - Tidak ada page errors di console
+
+Stage Summary:
+- Dashboard di-upgrade dari 3 kartu sederhana menjadi dashboard produktif lengkap dengan 6 KPI cards, 5 quick action buttons, smart alerts, 3 chart (growth line + cost pie + harvest bar), active batch status cards, dan recent activity timeline
+- Semua data di-derive dari state batches yang sudah ada — tidak ada perubahan backend
+- Layout responsif (mobile 2-col, desktop 6-col KPI; charts stack di mobile, 2-col di desktop)
+- Empty states informatif untuk semua chart/section ketika belum ada data
+- Smart alerts mendeteksi otomatis: mortalitas tinggi, siap panen, belum timbang, FCR buruk, panen rugi
+- Catatan: DB lokal broken (pre-existing SQLite vs PostgreSQL issue) — semua nilai 0 di sandbox, tapi production Vercel (Neon PostgreSQL) akan menampilkan data asli
