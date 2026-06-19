@@ -808,3 +808,39 @@ Stage Summary:
 - Perhitungan & Kalender tabs auto-update karena derived dari state `batches` yang di-refresh via fetchData() setelah setiap edit.
 - Lint PASS, dev server compiles, page serves 200, tidak ada error baru. File size: 2500 → 2708 lines (+208 lines untuk state, openEdit functions, edit-mode branches di handler, edit buttons di list, dialog conditional text).
 - Pre-existing issue (BUKAN caused by task ini): local .env DATABASE_URL = SQLite, db.ts & schema.prisma menggunakan PostgreSQL untuk Vercel. Local dev API gagal load data tapi production Vercel bekerja normal.
+
+---
+Task ID: move-panen-to-sidebar
+Agent: full-stack-developer
+Task: Pindahkan fitur Panen dari tab di Detail Termin ke menu sidebar. Sinkronkan seluruh termin ke menu Panen sidebar.
+
+Work Log:
+- Synced local to origin/main (git fetch origin && git reset --hard origin/main), HEAD = be48c89
+- Read worklog.md to understand previous agent work
+- Added `panen: 'Panen'` to SECTION_LABELS
+- Added Panen entry to NAV_ITEMS (after Termin, before Pengaturan) with ShoppingBasket icon + amber-600 color
+- Updated activeSection useState type to include 'panen'
+- Removed Panen TabsTrigger from batch detail dialog's TabsList
+- Changed TabsList grid from `sm:grid-cols-6` to `sm:grid-cols-5` (now 5 tabs: Berat, Mortalitas, Biaya, Perhitungan, Kalender)
+- Deleted entire `<TabsContent value="panen">...</TabsContent>` block (~59 lines) from batch detail dialog
+- Added new global "Panen Section" before Settings Section in main content area
+  - Summary cards: Total Termin, Sudah Panen, Belum Panen, Total Pendapatan
+  - Scrollable list of all batches with harvest status (Belum Panen / Sudah Panen badge)
+  - Each batch row shows: name, termin number, harvest status, and either harvest details (date/qty/weight/price) or alive count
+  - Each row has Panen/Edit Panen button calling `openHarvestDialog(batch)`
+- Verified no import changes needed (ShoppingBasket, Pencil, CheckCircle2, Badge all still used)
+- Ran `bun run lint` — exit 0, no errors
+- Verified dev.log: ✓ Compiled successfully, GET / 200, only pre-existing DATABASE_URL 500 errors on API routes (unrelated)
+- Verification checks:
+  - `grep -c "TabsTrigger value=" src/app/page.tsx` = 5 (was 6) ✓
+  - `grep "activeSection === 'panen'"` found ✓
+  - `grep -c "id: 'panen'"` = 1 ✓
+  - Final file: 2457 lines
+
+Stage Summary:
+- Panen (Harvest) feature successfully moved from per-termin tab in batch detail dialog to standalone sidebar menu
+- Sidebar now has 4 items: Dashboard, Termin, Panen, Pengaturan
+- Panen sidebar menu displays ALL batches (termin) in one place with harvest status summary and per-batch harvest management
+- Batch detail dialog now has 5 tabs (Berat, Mortalitas, Biaya, Perhitungan, Kalender) — was 6
+- Harvest dialog (`openHarvestDialog`, `handleHarvest`) unchanged — works for both add + edit
+- Lint passes, dev server compiles cleanly

@@ -197,12 +197,14 @@ const MORTALITY_REASON_COLORS: Record<string, string> = {
 const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   termin: 'Termin',
+  panen: 'Panen',
   settings: 'Pengaturan',
 }
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
   { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
+  { id: 'panen', label: 'Panen', icon: ShoppingBasket, iconColor: 'text-amber-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
 ] as const
 
@@ -215,7 +217,7 @@ export default function HomePage() {
   const { toast } = useToast()
 
   // Sidebar + section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'settings'>('dashboard')
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'panen' | 'settings'>('dashboard')
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
   // Settings state
@@ -1232,6 +1234,134 @@ export default function HomePage() {
                   </>
                 )}
 
+                {/* Panen Section */}
+                {activeSection === 'panen' && (
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <CardTitle className="flex items-center gap-2">
+                            <ShoppingBasket className="w-5 h-5 text-amber-600" />
+                            Manajemen Panen Seluruh Termin
+                          </CardTitle>
+                          <CardDescription>Kelola data panen untuk semua termin dalam satu tampilan</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {batches.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <ShoppingBasket className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p>Belum ada termin</p>
+                          <p className="text-xs mt-1">Buat termin terlebih dahulu sebelum mencatat panen</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Summary cards */}
+                          {(() => {
+                            const harvestedBatches = batches.filter((b) => b.status === 'harvested')
+                            const totalHarvestQty = harvestedBatches.reduce((s, b) => s + (b.harvestQuantity || 0), 0)
+                            const totalRevenue = harvestedBatches.reduce((s, b) => s + (b.harvestQuantity || 0) * (b.harvestWeight || 0) * (b.sellingPricePerKg || 0), 0)
+                            const activeBatches = batches.filter((b) => b.status === 'active').length
+                            return (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Total Termin</p>
+                                  <p className="text-lg font-bold text-amber-700">{batches.length}</p>
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Sudah Panen</p>
+                                  <p className="text-lg font-bold text-emerald-700">{harvestedBatches.length}</p>
+                                </div>
+                                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Belum Panen</p>
+                                  <p className="text-lg font-bold text-blue-700">{activeBatches}</p>
+                                </div>
+                                <div className="bg-green-50 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
+                                  <p className="text-xs text-muted-foreground">Total Pendapatan</p>
+                                  <p className="text-sm sm:text-lg font-bold text-green-700 break-words">{formatCurrency(totalRevenue)}</p>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* List of all batches with harvest actions */}
+                          <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {batches.map((batch) => {
+                              const isHarvested = batch.status === 'harvested'
+                              const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+                              const aliveCount = batch.quantity - totalDead
+                              const harvestQty = batch.harvestQuantity || 0
+                              const harvestWt = batch.harvestWeight || 0
+                              const sellPrice = batch.sellingPricePerKg || 0
+                              const totalBeratKg = harvestQty * harvestWt
+                              const pendapatan = totalBeratKg * sellPrice
+                              return (
+                                <div key={batch.id} className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-gradient-to-r from-white to-amber-50/30 border border-amber-100/50 hover:shadow-md transition-all gap-3">
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isHarvested ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                                      <ShoppingBasket className={`w-6 h-6 ${isHarvested ? 'text-amber-600' : 'text-gray-400'}`} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-bold truncate">{batch.name}</p>
+                                        <Badge variant="outline" className="text-xs shrink-0">Termin #{batch.terminNumber}</Badge>
+                                        <Badge variant={isHarvested ? 'secondary' : 'default'} className={isHarvested ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'}>
+                                          {isHarvested ? 'Sudah Panen' : 'Belum Panen'}
+                                        </Badge>
+                                      </div>
+                                      {isHarvested ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs">
+                                          <div>
+                                            <span className="text-muted-foreground">Tgl Panen: </span>
+                                            <span className="font-medium">{batch.harvestDate ? formatDate(batch.harvestDate) : '—'}</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-muted-foreground">Jumlah: </span>
+                                            <span className="font-medium">{harvestQty.toLocaleString('id-ID')} ekor</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-muted-foreground">Berat: </span>
+                                            <span className="font-medium">{harvestWt.toFixed(2)} kg/ekor ({totalBeratKg.toFixed(1)} kg)</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-muted-foreground">Harga: </span>
+                                            <span className="font-medium">{formatCurrency(sellPrice)}/kg</span>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Tiba {formatDate(batch.arrivalDate)} • Hidup {aliveCount.toLocaleString('id-ID')} ekor
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    {isHarvested && (
+                                      <div className="text-right hidden sm:block">
+                                        <p className="text-xs text-muted-foreground">Pendapatan</p>
+                                        <p className="text-base font-bold text-green-700 break-words">{formatCurrency(pendapatan)}</p>
+                                      </div>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant={isHarvested ? 'outline' : 'default'}
+                                      className={`gap-2 shrink-0 ${isHarvested ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700'}`}
+                                      onClick={() => openHarvestDialog(batch)}
+                                    >
+                                      {isHarvested ? <><Pencil className="w-4 h-4" /> Edit Panen</> : <><CheckCircle2 className="w-4 h-4" /> Panen</>}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Settings Section */}
                 {activeSection === 'settings' && (
                   <Card className="border-0 shadow-lg">
@@ -1428,7 +1558,7 @@ export default function HomePage() {
 
                   {/* Detail Tabs: Weight, Mortality, Biaya */}
                   <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-6 sm:flex sm:flex-wrap">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-5 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -1437,9 +1567,6 @@ export default function HomePage() {
                       </TabsTrigger>
                       <TabsTrigger value="biaya" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto">
                         <Wrench className="w-4 h-4" /> Biaya
-                      </TabsTrigger>
-                      <TabsTrigger value="panen" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
-                        <ShoppingBasket className="w-4 h-4" /> Panen
                       </TabsTrigger>
                       <TabsTrigger value="hitung" className="gap-2 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 w-full sm:w-auto">
                         <Calculator className="w-4 h-4" /> Perhitungan
@@ -1666,66 +1793,6 @@ export default function HomePage() {
                               </>
                             )
                           })()}
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-
-                    {/* Panen Records (per termin) */}
-                    <TabsContent value="panen">
-                      <Card className="border-0 shadow-lg">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                          <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <ShoppingBasket className="w-4 h-4 text-amber-600" />
-                              Data Panen
-                            </CardTitle>
-                            <CardDescription>Informasi panen untuk termin {selectedBatch.name}</CardDescription>
-                          </div>
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openHarvestDialog(selectedBatch)}>
-                            {selectedBatch.status === 'harvested' ? <><Pencil className="w-4 h-4" /> Edit Panen</> : <><CheckCircle2 className="w-4 h-4" /> Panen</>}
-                          </Button>
-                        </CardHeader>
-                        <CardContent>
-                          {selectedBatch.status === 'harvested' ? (
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Tanggal Panen</p>
-                                  <p className="text-sm font-bold text-amber-700">{selectedBatch.harvestDate ? formatDate(selectedBatch.harvestDate) : '—'}</p>
-                                </div>
-                                <div className="bg-orange-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Jumlah Panen</p>
-                                  <p className="text-lg font-bold text-orange-700">{(selectedBatch.harvestQuantity || 0).toLocaleString('id-ID')} ekor</p>
-                                </div>
-                                <div className="bg-teal-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Berat/Ekor</p>
-                                  <p className="text-lg font-bold text-teal-700">{(selectedBatch.harvestWeight || 0).toFixed(2)} kg</p>
-                                </div>
-                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Harga/kg</p>
-                                  <p className="text-sm font-bold text-emerald-700">{formatCurrency(selectedBatch.sellingPricePerKg || 0)}</p>
-                                </div>
-                              </div>
-                              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
-                                <div className="grid grid-cols-2 gap-4 text-center">
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Total Berat Panen</p>
-                                    <p className="text-xl font-bold text-amber-700">{((selectedBatch.harvestQuantity || 0) * (selectedBatch.harvestWeight || 0)).toFixed(1)} kg</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Total Pendapatan</p>
-                                    <p className="text-base sm:text-xl font-bold text-green-700 break-words">{formatCurrency((selectedBatch.harvestQuantity || 0) * (selectedBatch.harvestWeight || 0) * (selectedBatch.sellingPricePerKg || 0))}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-muted-foreground">
-                              <ShoppingBasket className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                              <p className="text-sm">Termin ini belum dipanen</p>
-                              <p className="text-xs mt-1">Klik tombol Panen untuk mencatat data panen</p>
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     </TabsContent>
