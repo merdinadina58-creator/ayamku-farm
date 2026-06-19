@@ -1079,3 +1079,35 @@ Stage Summary:
 - Spasi & Unicode dipertahankan (contoh: "AyamKu Farm_Termin 2 Bulan Mei"); hanya karakter ilegal filesystem yang dibuang sehingga file selalu bisa disimpan di Windows/Mac/Linux.
 - Header dalam file CSV juga sekarang pakai nama aplikasi dinamis (sebelumnya hardcoded "AYAMKU FARM").
 - Lint PASS, dev server clean, verifikasi browser sukses.
+
+---
+Task ID: target-weight-2kg
+Agent: Main Agent
+Task: Ubah target berat ayam "layak jual" dari 1.8 kg menjadi 2 kg
+
+Work Log:
+- User request: target berat ayam agar layak jual = 2 kg (sebelumnya 1.8 kg / 1800g).
+- Cari semua referensi target berat di src/app/page.tsx. Ditemukan 6 lokasi (1.8/1800) + 1 threshold alert (1500g).
+- Edit via MultiEdit (6 perubahan sekaligus):
+  1. Line 1120: `estimateHarvest(batch, targetGram = 1800)` → `= 2000` (default param estimasi panen)
+  2. Line 1582-1583: Alert "Siap Panen" threshold `stats.latestWeight >= 1500` → `>= 2000`, pesan ditambah "(2 kg)" agar konsisten dengan target baru. Sebelumnya alert fired di 1.5kg dengan pesan "Sudah mencapai target panen" yang menyesatkan kalau target 2kg. Sekarang fires saat benar-benar capai 2kg.
+  3. Line 2032: `progress = Math.min((stats.latestWeight / 1800) * 100, 100)` → `/ 2000` (progress bar Dashboard Status Batch Aktif)
+  4. Line 2050: label "Progress ke target (1.8 kg)" → "(2 kg)"
+  5. Line 2238-2240: label "Target: ~1.8 kg" → "~2 kg" + progress `/1800` → `/2000` (Termin section batch card)
+  6. Line 3543: harvest weight input `placeholder="1.8"` → `placeholder="2"` (hint berat panen expected)
+- TIDAK diubah: line 1593 range FCR ideal (1.6-1.8) — itu metric Feed Conversion Ratio, bukan target berat.
+- TIDAK diubah: line 3005 "tidak layak jual" di deskripsi Mortalitas — itu tentang ayam mati/afkir, unrelated ke target berat.
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser dengan mock data (batch aktif, berat 1600g, age 28 hari):
+  - Dashboard "Status Batch Aktif": label "Progress ke target (2 kg)" + "80%" (1600/2000=80%) ✓
+  - Termin section batch card: label "Target: ~2 kg" ✓ + "Estimasi siap panen ~7 hari lagi (26 Jun 2026)" (ADG ~57g/hari dari 1600g ke 2000g) ✓
+  - Alert "Siap Panen" TIDAK muncul (berat 1.6kg < 2kg target) — logika threshold benar ✓
+- dev.log clean: GET / 200, tidak ada error baru.
+
+Stage Summary:
+- Target berat "layak jual" diubah dari 1.8 kg → 2 kg di seluruh aplikasi (Dashboard, Termin, estimasi panen, alert siap panen, hint form panen).
+- Progress bar sekarang menghitung ke 2000g (sebelumnya 1800g).
+- Alert "Siap Panen" sekarang fires saat berat ≥ 2000g (sebelumnya ≥ 1500g dengan pesan menyesatkan "sudah capai target").
+- Estimasi panen otomatis memproyeksikan hari ke target 2kg.
+- Range FCR ideal (1.6-1.8) tetap, karena bukan target berat.
+- Lint PASS, dev server clean, verifikasi browser sukses.

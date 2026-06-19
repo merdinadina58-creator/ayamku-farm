@@ -1117,7 +1117,7 @@ export default function HomePage() {
   // Uses the last two weight records to compute average daily gain (ADG),
   // then projects how many days until the batch reaches the target weight.
   // Returns null if insufficient data.
-  const estimateHarvest = (batch: Batch, targetGram = 1800): { daysToTarget: number; estDate: Date; adg: number } | null => {
+  const estimateHarvest = (batch: Batch, targetGram = 2000): { daysToTarget: number; estDate: Date; adg: number } | null => {
     if (batch.status !== 'active' || batch.weightRecords.length < 2) return null
     const sorted = [...batch.weightRecords].sort((a, b) => a.ageDays - b.ageDays)
     const latest = sorted[sorted.length - 1]
@@ -1579,8 +1579,8 @@ export default function HomePage() {
         if (stats.mortalityRate > 5) {
           alerts.push({ level: 'warning', title: `${b.name}: Mortalitas Tinggi`, desc: `Tingkat kematian ${stats.mortalityRate.toFixed(1)}% (${stats.totalDead} ekor). Perlu evaluasi manajemen kandang.`, batchId: b.id })
         }
-        if (stats.ageDays >= 30 && stats.latestWeight >= 1500) {
-          alerts.push({ level: 'success', title: `${b.name}: Siap Panen`, desc: `Umur ${stats.ageDays} hari, berat rata-rata ${(stats.latestWeight / 1000).toFixed(2)} kg. Sudah mencapai target panen.`, batchId: b.id })
+        if (stats.ageDays >= 30 && stats.latestWeight >= 2000) {
+          alerts.push({ level: 'success', title: `${b.name}: Siap Panen`, desc: `Umur ${stats.ageDays} hari, berat rata-rata ${(stats.latestWeight / 1000).toFixed(2)} kg. Sudah mencapai target panen (2 kg).`, batchId: b.id })
         }
         const latestWeightDate = b.weightRecords.length > 0
           ? b.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, b.weightRecords[0]).date
@@ -2029,7 +2029,7 @@ export default function HomePage() {
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           {batches.filter((b) => b.status === 'active').map((batch, i) => {
                             const stats = getBatchStats(batch)
-                            const progress = Math.min((stats.latestWeight / 1800) * 100, 100)
+                            const progress = Math.min((stats.latestWeight / 2000) * 100, 100)
                             return (
                               <motion.div key={batch.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                                 <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => openBatchDetail(batch)}>
@@ -2047,7 +2047,7 @@ export default function HomePage() {
                                     </div>
                                     <div className="mb-1">
                                       <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                                        <span>Progress ke target (1.8 kg)</span>
+                                        <span>Progress ke target (2 kg)</span>
                                         <span>{progress.toFixed(0)}%</span>
                                       </div>
                                       <Progress value={progress} className="h-1.5" />
@@ -2235,9 +2235,9 @@ export default function HomePage() {
                                   <div>
                                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                                       <span>Berat: {(stats.latestWeight / 1000).toFixed(2)} kg</span>
-                                      <span>Target: ~1.8 kg</span>
+                                      <span>Target: ~2 kg</span>
                                     </div>
-                                    <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
+                                    <Progress value={Math.min((stats.latestWeight / 2000) * 100, 100)} className="h-2" />
                                   </div>
                                   {/* Estimasi Panen - only for active batches with enough weight data */}
                                   {batch.status === 'active' && harvestEst && (
@@ -3540,7 +3540,7 @@ export default function HomePage() {
               </div>
               <div className="space-y-2">
                 <Label>Berat Rata-rata (kg/ekor)</Label>
-                <Input type="number" step="0.01" min="0" placeholder="1.8" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
+                <Input type="number" step="0.01" min="0" placeholder="2" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
