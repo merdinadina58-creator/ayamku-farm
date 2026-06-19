@@ -1311,3 +1311,73 @@ Stage Summary:
 - File changed: `src/app/page.tsx` (import Camera + 2 dialog upload areas refactored).
 - Lint PASS, dev server clean, page renders tanpa error.
 - Production test: user bisa coba di HP Android/iOS — buka dialog Tambah Biaya/Pakan → klik "Ambil Foto" → kamera langsung terbuka → ambil foto nota → foto terkompres & tersimpan.
+
+---
+Task ID: hapus-pakan-kategori-dinamis
+Agent: Main Agent
+Task: Hapus fitur Pakan dari setiap termin (sudah digantikan Biaya) + buat Kategori dinamis seperti Satuan (bisa tambah kategori baru)
+
+Work Log:
+- User request: hapus fitur pakan dari setiap termin (sudah digantikan fitur Biaya), dan buat agar Kategori di fitur Biaya bisa ditambahkan seperti Satuan.
+- Audit lengkap via subagent Explore: temukan semua referensi Feed/Pakan (schema, API, UI, dashboard, CSV, PDF, activity) dan pelajari pola Unit (Satuan) untuk replikasi.
+
+Fase 1: Tambah model Category (mirror Unit)
+- `prisma/schema.prisma`: tambah model `Category { id, name @unique, createdAt }`.
+- `bunx prisma generate` berhasil (Prisma Client v6.19.2).
+
+Fase 2: Buat API routes Category (mirror Unit)
+- `src/app/api/categories/route.ts`: GET (auto-seed DEFAULT_CATEGORIES jika kosong) + POST (standarisasi nama, dedup guard, case-insensitive check).
+- `src/app/api/categories/[id]/route.ts`: DELETE (kategori dihapus dari master, equipment tetap simpan nilai string).
+
+Fase 3: Update page.tsx untuk Category dinamis
+- Tambah `Category` interface, state (`categories`, `showAddCategory`, `newCategoryName`, `savingCategory`).
+- Fetch `/api/categories` di `fetchData` Promise.all.
+- Tambah `handleAddCategory` (mirror `handleAddUnit`).
+- Ganti category Select di Equipment dialog: dari hardcoded `EQUIPMENT_CATEGORIES` → dynamic `categories` dengan opsi `__add_new__` → inline input + Save/Cancel (dashed border indigo, mirror Satuan).
+- Hapus konstanta `EQUIPMENT_CATEGORIES`, ganti dengan `DEFAULT_EQUIPMENT_CATEGORY` untuk default form.
+
+Fase 4: Hapus fitur Pakan dari page.tsx
+- Hapus `FeedRecord` interface, `feedRecords` dari `Batch` interface, feed fields dari `DashboardData`.
+- Hapus `FEED_TYPE_COLORS` constant.
+- `computeBatchStats`: hapus `totalFeed`/`fcr`/`feedPerEkor`; `totalCost` sekarang murni dari `batch.equipment` (biaya operasional). Profit math tetap valid: `profit = totalHarvestValue - totalCost`.
+- Hapus state: `addFeedOpen`, `feedForm`, `editingFeed`.
+- Hapus handlers: `openAddFeed`, `openEditFeed`, `handleAddFeed`, `handleDeleteFeed`, `handleFeedNotaUpload`. Pertahankan `compressNotaImage` & `handleEquipmentNotaUpload` (masih dipakai).
+- Hapus `Wheat` dari lucide-react imports.
+- CSV export: hapus "Total Pakan", "Pakan per Ekor", "FCR" rows + Section "Riwayat Pakan".
+- PDF export: hapus "Total Pakan", "Pakan per Ekor", "FCR" dari statRows; hapus Section "Riwayat Pakan" autoTable; hapus feedNotas dari Lampiran Foto Nota (hanya equipNotas sekarang).
+- `dashExtras`: hapus `feedCost`, `totalCost = equipmentCost`.
+- `dashboardCostBreakdown`: hapus seed 'Pakan' entry, COLORS index dari `i` (bukan `i+1`).
+- `dashboardAlerts`: hapus alert "FCR Tinggi".
+- `dashboardRecentActivity`: hapus `'feed'` dari EvType union, hapus feed event forEach.
+- KPI cards: 6 → 5 (hapus "Total Pakan"), grid `xl:grid-cols-6` → `xl:grid-cols-5`, sub "Pakan + Peralatan" → "Peralatan & operasional".
+- Activity feed config: hapus `feed:` entry.
+- Rules text: hapus "Belanja pakan" bullet.
+- Batch detail tabs: hapus TabsTrigger "pakan" + TabsContent "pakan" (summary cards, list, empty state, edit/delete/nota buttons). Grid `grid-cols-4 sm:grid-cols-5` → `grid-cols-4 sm:flex`.
+- Batch card stats: "FCR" → "Biaya" (formatCurrency).
+- Batch detail header stats: "FCR" → "Biaya" (formatCurrency).
+- Perhitungan tab: hapus "Pakan", "Pakan/Ekor", "FCR" cards. Total Biaya sekarang murni equipment. Tambah "Jumlah Item" card. Fix `totalCost = stats.totalCost` (sebelumnya `stats.totalCost + equipCost` = double count).
+- Hapus Add/Edit Pakan Dialog (100+ baris JSX).
+- Empty-state text: "Catat pakan atau peralatan" → "Catat biaya peralatan".
+
+Fase 5: Hapus feed dari API routes
+- `src/app/api/batches/route.ts`: hapus `feedRecords` dari include.
+- `src/app/api/batches/[id]/route.ts`: hapus `feedRecords` dari include.
+- `src/app/api/dashboard/route.ts`: hapus `feedRecords: true` include, hapus totalFeedKg/totalFeedCost aggregations, hapus per-batch totalFeed/fcr/feedPerEktor, hapus response keys. totalCost sekarang dari equipment.
+- Delete `src/app/api/feed/[id]/route.ts` & `src/app/api/batches/[id]/feed/route.ts`.
+- Pertahankan `FeedRecord` model di schema.prisma (data lama tetap aman di DB, tidak di-drop).
+
+Verifikasi:
+- `bun run lint` → exit 0, no errors.
+- dev.log clean: GET / 200, tidak ada compile error baru.
+- agent-browser (390x844 mobile): page renders HTTP 200, no console errors, no page errors.
+- VLM confirm: 5 KPI cards (Total Termin, Ayam Hidup, Mortalitas, Total Biaya, Pendapatan), no 'Pakan', layout clean.
+- Text scan: hasTotalPakan=false, hasPakanWord=false, hasFCR=false, hasTambahPakan=false, hasRiwayatPakan=false. hasTotalBiaya=true, hasPendapatan=true.
+
+Stage Summary:
+- Fitur Pakan dihapus sepenuhnya dari UI/API (tab, dialog, KPI, CSV, PDF, activity, dashboard). Model FeedRecord dipertahankan di schema agar data lama di DB Neon tetap aman (tidak di-drop saat prisma db push).
+- Kategori di dialog Biaya sekarang dinamis: user bisa pilih dari daftar kategori yang ada ATAU tambah kategori baru lewat inline input (mirror pola Satuan). Kategori baru tersimpan di tabel Category (PostgreSQL) & otomatis muncul di dropdown sesi berikutnya.
+- computeBatchStats: totalCost murni dari equipment, profit = totalHarvestValue - equipmentCost. FCR & feedPerEkor dihapus (tidak ada lagi feed data).
+- Files changed: prisma/schema.prisma, src/app/api/categories/route.ts (new), src/app/api/categories/[id]/route.ts (new), src/app/api/batches/route.ts, src/app/api/batches/[id]/route.ts, src/app/api/dashboard/route.ts, src/app/page.tsx. Deleted: src/app/api/feed/[id]/route.ts, src/app/api/batches/[id]/feed/route.ts.
+- Push ke GitHub: commit 60df119, sukses.
+- Production migration WAJIB: user harus jalankan `prisma db push` terhadap Neon PostgreSQL untuk membuat tabel `Category` (tabel FeedRecord tetap dipertahankan). Instruksi diberikan ke user.
+- Lint PASS, dev server clean, verifikasi browser sukses (mobile 390x844) dengan VLM confirmation.
