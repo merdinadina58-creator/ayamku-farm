@@ -1850,15 +1850,17 @@ export default function HomePage() {
                         <Plus className="w-4 h-4" /> Termin Baru
                       </Button>
                       <Button size="sm" variant="outline" className="gap-1.5 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => {
-                        const ab = batches.find((b) => b.status === 'active')
-                        if (ab) {
-                          setEditingWeight(null)
-                          setDialogBatchId(ab.id)
-                          setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
-                          setAddWeightOpen(true)
-                        } else {
-                          toast({ title: 'Info', description: 'Belum ada batch aktif untuk ditimbang' })
+                        const activeBatches = batches.filter((b) => b.status === 'active')
+                        if (activeBatches.length === 0) {
+                          toast({ title: 'Info', description: 'Belum ada termin aktif untuk ditimbang' })
+                          return
                         }
+                        setEditingWeight(null)
+                        setSelectedBatch(null) // pastikan selector termin tampil
+                        // Jika hanya 1 termin aktif → pre-select; jika banyak → user pilih sendiri
+                        setDialogBatchId(activeBatches.length === 1 ? activeBatches[0].id : '')
+                        setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' })
+                        setAddWeightOpen(true)
                       }}>
                         <Scale className="w-4 h-4" /> Timbang
                       </Button>
@@ -2276,8 +2278,8 @@ export default function HomePage() {
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openBatchDetail(batch)}>
                                       <ChevronRight className="w-3 h-3" /> Detail
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setEditingWeight(null); setDialogBatchId(batch.id); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
-                                      <Plus className="w-3 h-3" /> Berat
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setEditingWeight(null); setDialogBatchId(batch.id); setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                                      <Scale className="w-3 h-3" /> Timbang
                                     </Button>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
@@ -2944,7 +2946,7 @@ export default function HomePage() {
                             <CardDescription>Catatan timbang berat ayam</CardDescription>
                           </div>
                           {selectedBatch.status === 'active' && (
-                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setEditingWeight(null); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shrink-0" onClick={() => { setEditingWeight(null); setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                               <Plus className="w-4 h-4" /> Tambah
                             </Button>
                           )}
@@ -2954,7 +2956,7 @@ export default function HomePage() {
                             <div className="text-center py-8 text-muted-foreground">
                               <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
                               <p className="text-sm">Belum ada catatan berat</p>
-                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingWeight(null); setWeightForm({ date: '', averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
+                              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingWeight(null); setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                                 <Plus className="w-3 h-3" /> Tambah Data Pertama
                               </Button>
                             </div>
@@ -3363,7 +3365,8 @@ export default function HomePage() {
                 <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
                   <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
                   <SelectContent>
-                    {batches.map((b) => (
+                    {/* Hanya termin aktif yang bisa ditimbang (ayam sudah panen tidak ditimbang) */}
+                    {batches.filter((b) => b.status === 'active').map((b) => (
                       <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
                     ))}
                   </SelectContent>

@@ -1111,3 +1111,41 @@ Stage Summary:
 - Estimasi panen otomatis memproyeksikan hari ke target 2kg.
 - Range FCR ideal (1.6-1.8) tetap, karena bukan target berat.
 - Lint PASS, dev server clean, verifikasi browser sukses.
+
+---
+Task ID: timbang-per-termin
+Agent: Main Agent
+Task: Fitur "Timbang" harus ada pada setiap termin, perbaiki agar mudah catat per termin
+
+Work Log:
+- User request: fitur Timbang harus accessible per-termin, mudah catat setiap termin.
+- Audit lokasi Timbang saat ini:
+  - Dashboard quick action "Timbang": auto-pick termin aktif PERTAMA → tidak bisa pilih termin jika ada beberapa aktif. BUG.
+  - Termin section batch card: ada tombol "+Berat" (per-termin ✓) tapi label kurang jelas & tanggal tidak pre-fill hari ini.
+  - Batch detail Berat tab: ada "Tambah" (per-termin ✓) tapi tanggal tidak pre-fill hari ini.
+  - Dialog Timbang selector: menampilkan SEMUA termin termasuk yang sudah panen → tidak masuk akal menimbang ayam sudah panen.
+- 5 perbaahan via MultiEdit + Edit:
+  1. Dashboard "Timbang" quick action: ganti logic — `batches.filter(status==='active')`. Jika 0 → toast "Belum ada termin aktif". Jika 1 → pre-select. Jika >1 → `setDialogBatchId('')` agar selector tampil kosong & user wajib pilih. Tambah `setSelectedBatch(null)` agar selector pasti tampil. Tanggal auto hari ini (sudah ada).
+  2. Termin card quick action: rename label "+Berat" → "Timbang", ganti icon Plus → Scale (konsisten dengan Dashboard), pre-fill tanggal hari ini (sebelumnya '').
+  3. Batch detail Berat tab "Tambah": pre-fill tanggal hari ini (sebelumnya '').
+  4. Batch detail Berat tab empty state "Tambah Data Pertama": pre-fill tanggal hari ini (sebelumnya '').
+  5. Dialog Timbang selector: filter `batches.filter(b => b.status === 'active')` agar hanya termin aktif muncul (ayam sudah panen tidak ditimbang). Tambah comment.
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser dengan mock 3 batch (2 aktif: "Termin 1 Maret", "Termin 2 Bulan Mei"; 1 panen: "Termin Lama"):
+  - Dashboard "Timbang" dengan 2 aktif → dialog buka, selector "Pilih termin..." kosong, tombol Simpan disabled sampai pilih ✓
+  - Selector dropdown → hanya 2 termin aktif muncul, "Termin Lama" (panen) TIDAK muncul ✓
+  - Pilih "Termin 2 Bulan Mei" → umur otomatis 28 hari (dari 22 Mei 2026), tanggal masuk tampil ✓
+  - Termin section batch card → tombol "Timbang" (bukan "+Berat") per card ✓
+  - Klik "Timbang" di card "Termin 1 Maret" → pre-select termin itu, umur 110 hari otomatis, tanggal hari ini ✓
+  - Batch detail Berat tab "Tambah" → tanggal auto 2026-06-19 (hari ini) ✓
+- dev.log clean: GET / 200, tidak ada error baru.
+
+Stage Summary:
+- Fitur Timbang sekarang benar-benar per-termin dan mudah:
+  - Dashboard "Timbang": jika beberapa termin aktif → user pilih via selector (tidak auto-pick yang pertama).
+  - Termin card: tombol "Timbang" jelas per card, 1 klik langsung pre-select termin itu + tanggal hari ini.
+  - Batch detail Berat tab: "Tambah" pre-fill tanggal hari ini.
+  - Dialog selector: hanya termin aktif (yang sudah panen tidak bisa ditimbang).
+- Semua form Timbang sekarang pre-fill tanggal hari ini (sebelumnya kosong) → hemat 1 langkah input.
+- Umur ayam tetap otomatis dihitung dari tanggal masuk (tidak berubah).
+- Lint PASS, dev server clean, verifikasi browser sukses dengan 3 skenario (Dashboard multi-aktif, per-card, batch detail).
