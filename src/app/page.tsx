@@ -1876,7 +1876,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-amber-50/30 to-white">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-emerald-50 via-amber-50/30 to-white">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -1887,9 +1887,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-emerald-50/80 via-amber-50/20 to-white">
+    <div className="min-h-[100dvh] flex bg-gradient-to-br from-emerald-50/80 via-amber-50/20 to-white">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-emerald-100 bg-white/70 backdrop-blur-xl shrink-0 sticky top-0 h-screen">
+      <aside className="hidden lg:flex w-64 flex-col border-r border-emerald-100 bg-white/70 backdrop-blur-xl shrink-0 sticky top-0 h-dvh">
         {renderSidebar()}
       </aside>
 
@@ -2548,7 +2548,7 @@ export default function HomePage() {
                           })()}
 
                           {/* List of all batches with harvest actions */}
-                          <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                          <div className="space-y-2 max-h-[60dvh] overflow-y-auto custom-scrollbar">
                             {batches.map((batch) => {
                               const isHarvested = batch.status === 'harvested'
                               const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
@@ -3461,7 +3461,7 @@ export default function HomePage() {
         </main>
 
         {/* Footer */}
-        <footer className="mt-auto border-t bg-white/80 backdrop-blur-sm py-4">
+        <footer className="mt-auto border-t bg-white/80 backdrop-blur-sm py-4 pb-safe">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
             <p className="text-sm text-muted-foreground">
               <span className="font-semibold bg-gradient-to-r from-emerald-600 to-amber-600 bg-clip-text text-transparent">{appSettings.appName}</span>
@@ -3481,7 +3481,7 @@ export default function HomePage() {
             </DialogTitle>
             <DialogDescription>{editingBatch ? 'Perbarui data termin' : 'Tambahkan bibit ayam baru ke peternakan'}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="batch-name">Nama Termin</Label>
@@ -3527,7 +3527,7 @@ export default function HomePage() {
             </DialogTitle>
             <DialogDescription>{editingWeight ? `Perbarui data berat untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan berat ayam${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {!selectedBatch && (
               <div className="space-y-2">
                 <Label>Termin</Label>
@@ -3598,7 +3598,7 @@ export default function HomePage() {
             </DialogTitle>
             <DialogDescription>{editingMortality ? `Perbarui data mortalitas untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan ayam mati/afkir${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {!selectedBatch && (
               <div className="space-y-2">
                 <Label>Termin</Label>
@@ -3672,7 +3672,7 @@ export default function HomePage() {
                 : `Tandai termin ${selectedBatch?.name} sebagai sudah panen`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {/* Konfirmasi termin yang dipanen — mencegah salah-termin panen */}
             {selectedBatch && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
@@ -3750,7 +3750,7 @@ export default function HomePage() {
             </DialogTitle>
             <DialogDescription>{editingEquipment ? 'Perbarui catatan biaya' : `Catat pembelian dan biaya operasional${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {/* Pilih termin — biaya wajib terikat ke sebuah termin. */}
             {!selectedBatch && (
               <div className="space-y-2">
@@ -3892,7 +3892,7 @@ export default function HomePage() {
             </DialogTitle>
             <DialogDescription>{editingFeed ? 'Perbarui catatan pakan' : `Catat pembelian pakan untuk ${selectedBatch?.name ?? 'termin ini'}`}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {/* Konfirmasi termin pakan — pakan wajib terikat ke sebuah termin */}
             {selectedBatch && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
@@ -3982,7 +3982,7 @@ export default function HomePage() {
               {dayDetail?.events.length || 0} kegiatan pada tanggal ini
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {dayDetail?.events.map((event, i) => (
               <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-white">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${event.type === 'tiba' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
@@ -4013,7 +4013,7 @@ export default function HomePage() {
       {/* PDF Preview Dialog — renders the generated PDF in an iframe so the
           user can review the report before downloading. */}
       <Dialog open={!!pdfPreview} onOpenChange={(open) => { if (!open) closePdfPreview() }}>
-        <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent className="sm:max-w-4xl h-[90dvh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-5 py-4 border-b border-emerald-100 flex-row items-center justify-between space-y-0">
             <div className="min-w-0">
               <DialogTitle className="flex items-center gap-2 text-base">
@@ -4074,13 +4074,13 @@ export default function HomePage() {
               {notaViewer?.fileName || 'Foto nota pembelian'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 pt-1">
+          <div className="space-y-3 pt-1 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
             {notaViewer && (
-              <div className="rounded-xl overflow-hidden border bg-slate-50 max-h-[60vh] flex items-center justify-center">
+              <div className="rounded-xl overflow-hidden border bg-slate-50 max-h-[60dvh] flex items-center justify-center">
                 <img
                   src={notaViewer.src}
                   alt={notaViewer.title}
-                  className="w-full max-h-[60vh] object-contain"
+                  className="w-full max-h-[60dvh] object-contain"
                 />
               </div>
             )}
@@ -4104,22 +4104,6 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Custom scrollbar styles */}
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #d1d5db;
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
-        }
-      `}</style>
     </div>
   )
 }

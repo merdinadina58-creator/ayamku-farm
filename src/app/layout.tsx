@@ -43,6 +43,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  // viewportFit=cover enables env(safe-area-inset-*) on iOS notch devices,
+  // so the sticky footer & header don't get hidden behind the notch / home indicator.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

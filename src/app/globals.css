@@ -116,7 +116,89 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
     @apply bg-background text-foreground;
+    /* Prevent horizontal scroll caused by negative margins / scrollbar gutters. */
+    overflow-x: hidden;
+  }
+  /* Modern mobile browsers (Android Chrome, iOS Safari) auto-hide the URL bar,
+     which changes the visible viewport height. Using 100dvh on the root wrapper
+     keeps the layout stable so the sticky footer never overlaps content. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Respect iOS safe-area (notch / home indicator) when viewport-fit=cover. */
+    scroll-padding-top: env(safe-area-inset-top);
+    scroll-padding-bottom: env(safe-area-inset-bottom);
+  }
+  body {
+    /* Lock body scroll when a Radix dialog/sheet is open. Radix adds
+       `data-scroll-locked` to <body> automatically; we just neutralise the
+       remaining scrollbar gutter shift so the layout doesn't jump. */
+    scrollbar-gutter: stable both-edges;
+  }
+  /* When a Radix overlay is open, prevent the background from scrolling on
+     touch devices (Android Chrome sometimes leaks touch events through). */
+  body[data-scroll-locked] {
+    overflow: hidden;
+    touch-action: none;
+  }
+  /* But allow touch scrolling INSIDE dialog/sheet content. */
+  body[data-scroll-locked] [data-slot="dialog-content"],
+  body[data-scroll-locked] [data-slot="sheet-content"],
+  body[data-scroll-locked] [data-slot="drawer-content"],
+  body[data-scroll-locked] [role="dialog"] {
+    touch-action: pan-y;
+  }
+}
+
+/* ---------- Custom scrollbar (global, applies to .custom-scrollbar and
+   all scrollable dialog/sheet/select bodies) ---------- */
+@layer utilities {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+    /* iOS < 13 momentum scrolling inside scroll containers. */
+    -webkit-overflow-scrolling: touch;
+    /* Prevent scroll chaining: scrolling to the end of a dialog body should
+       NOT start scrolling the page behind it. Critical for Android Chrome. */
+    overscroll-behavior: contain;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+  /* Apply the same nice scrollbar to Radix Select dropdowns (which don't
+     get .custom-scrollbar because they're portaled). */
+  [data-slot="select-content"] {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  [data-slot="select-content"]::-webkit-scrollbar {
+    width: 6px;
+  }
+  [data-slot="select-content"]::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+  }
+  /* Safe-area helpers for iOS notch / home indicator. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
   }
 }

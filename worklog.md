@@ -1201,3 +1201,74 @@ Stage Summary:
 - Files changed: `prisma/schema.prisma`, `src/app/api/batches/[id]/feed/route.ts`, `src/app/api/feed/[id]/route.ts`, `src/app/api/equipment/route.ts`, `src/app/api/equipment/[id]/route.ts`, `src/app/page.tsx`.
 - Production deploy note: jalankan `prisma db push` (atau `prisma migrate`) di Neon PostgreSQL untuk membuat kolom `notaData`/`notaName` di tabel FeedRecord & Equipment. Local sandbox skip (pre-existing SQLite/DIRECT_URL issue, tidak caused by task ini).
 - Lint PASS, dev server clean, verifikasi browser sukses untuk 8 skenario (4 Pakan + 4 Biaya).
+
+---
+Task ID: scroll-mode-fix
+Agent: Main Agent
+Task: Perbaiki mode scroll untuk semua jendela/dialog agar sempurna di Android & PC/laptop — tidak ada fitur yang saling menumpuk/menimpa
+
+Work Log:
+- User request: fix scroll mode for ALL dialogs/windows on both Android & PC, no overlapping/hiding.
+- Audit root causes:
+  1. DialogContent pakai `grid` layout TANPA max-height → form panjang overflow off-screen di mobile (Android Chrome terutama).
+  2. Dialog body tidak punya scroll container → tombol Simpan tak terjangkau.
+  3. Pakai `100vh` (bukan `100dvh`) → Android browser UI auto-hide bikin viewport berubah & layout overlap.
+  4. Tidak ada iOS safe-area-inset support.
+  5. Custom scrollbar hanya defined inline di page.tsx (tidak global).
+- Solusi universal diterapkan di 4 file:
+
+1. `src/components/ui/dialog.tsx` (root cause fix):
+   - DialogContent: `grid` → `flex flex-col` + tambah `max-h-[calc(100dvh-2rem)] overflow-hidden`.
+     - dvh (dynamic viewport height) adaptif terhadap Android Chrome auto-hide toolbar & iOS Safari chrome.
+     - 2rem margin aman dari edge di mobile & desktop.
+   - Close button: tambah `z-10` agar selalu di atas body yang scroll.
+   - DialogHeader: tambah `shrink-0` agar header tidak ter-squish saat body scroll (sticky header).
+   - DialogFooter: tambah `shrink-0` agar footer (Save/Cancel) pinned di bawah.
+
+2. `src/app/globals.css` (mobile-friendly scroll infrastructure):
+   - `html, body`: `overflow-x: hidden` (no horizontal scroll).
+   - `html`: `scroll-padding-top/bottom: env(safe-area-inset-*)` (iOS notch respect).
+   - `body[data-scroll-locked]` (Radix auto-adds when dialog open): `overflow: hidden; touch-action: none` — prevents background scroll on Android touch.
+   - Dialog/Sheet/Drawer content exceptions: `touch-action: pan-y` — allows touch scroll INSIDE dialog.
+   - `.custom-scrollbar` global: `scrollbar-width: thin`, `-webkit-overflow-scrolling: touch` (iOS momentum), `overscroll-behavior: contain` (no scroll chaining to background).
+   - `[data-slot="select-content"]`: same scrollbar styling untuk Radix Select dropdowns.
+   - `.pb-safe` / `.pt-safe` utilities: `env(safe-area-inset-bottom/top)`.
+
+3. `src/app/layout.tsx` (viewport):
+   - `viewportFit: "cover"` → enables env(safe-area-inset-*) di iOS notch devices.
+
+4. `src/app/page.tsx` (apply per-dialog):
+   - Root wrapper: `min-h-screen` → `min-h-[100dvh]` (loading state & main app) — dynamic viewport.
+   - Desktop sidebar: `h-screen` → `h-dvh` (sticky sidebar full height, adaptif).
+   - 6 form dialog bodies (`space-y-4 pt-2`): tambah `flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1` — scrollable body, sticky header.
+     - Add Batch, Add Weight, Add Mortality, Harvest, Add Equipment, Add Feed dialogs.
+   - Day Detail dialog body (`space-y-3 pt-2`): same scrollable treatment.
+   - Nota Viewer dialog body (`space-y-3 pt-1`): same scrollable treatment.
+   - PDF Preview dialog: `h-[90vh]` → `h-[90dvh]` (dynamic viewport).
+   - Footer: tambah `pb-safe` (iOS home indicator respect).
+   - 3 inline `max-h-[60vh]` → `max-h-[60dvh]` (harvest list + nota viewer image).
+   - Remove inline `<style jsx global>` (custom scrollbar) — moved to globals.css.
+
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser (390x844 mobile, 390x300 super-short mobile, 1920x1080 desktop):
+  - Mobile home (390x844): render HTTP 200, no console errors, footer at page bottom (1814-1871), content 1871px, scroll 1027px. ✓
+  - Mobile Add Batch dialog (390x844): all elements reachable, Save btn at y=602 (within viewport). ✓
+  - Mobile Add Batch dialog (390x300 super-short): dialog capped at max-h=268px (300-32), centered (rect_top=16, rect_bottom=284). Body scrollable: scrollHeight=368, clientHeight=154, canScroll=true, scrollTop range 0-214. At scrollTop=0: Save at y=437 (off-screen below). At scrollTop=214: Save at y=223 (visible). Header stays at top (sticky). Close btn at top-right z-10. ✓
+  - VLM confirm: title visible at top, close btn visible, form fields visible at top state, Save btn visible at scrolled-bottom state, dialog fits viewport, nothing overflows. ✓
+  - Mobile sidebar Sheet (390x844): fills full height (0-844), brand header + nav items + footer info + close button all visible, no overflow. ✓
+  - Desktop home (1920x1080): sidebar sticky full height (0-1080, h-dvh works), footer at page bottom (1142-1179), no overlap. ✓
+  - Desktop Add Batch dialog (1920x1080): dialog 482px tall, fits naturally without scroll (body_scrollHeight=368 = body_height=368), centered. ✓
+- dev.log clean: hanya pre-existing DATABASE_URL 500s (sandbox SQLite vs code PostgreSQL expectation — bukan caused by task ini).
+
+Stage Summary:
+- Semua dialog (9 total: Add Batch, Add Weight, Add Mortality, Harvest, Add Equipment, Add Feed, Day Detail, PDF Preview, Nota Viewer) sekarang punya scroll mode yang benar di Android & PC/laptop.
+- Dialog tidak pernah overflow off-screen: max-h-[calc(100dvh-2rem)] caps height, body scrolls internally.
+- Header & close button selalu visible (sticky via shrink-0 + z-10).
+- Tombol Simpan selalu reachable: user scroll body untuk capai bottom.
+- Mobile sidebar (Sheet) full-height, scrollable nav jika menu panjang.
+- Sticky footer pattern: `min-h-[100dvh] flex flex-col` + `mt-auto` → footer di bottom viewport saat content pendek, di bottom page saat content panjang (no overlap, no floating gap).
+- iOS safe-area respected via `viewportFit: cover` + `pb-safe`/`pt-safe` + `env(safe-area-inset-*)`.
+- Android touch scroll: `touch-action: pan-y` inside dialog, `overscroll-behavior: contain` prevents scroll chaining to background.
+- Custom scrollbar global (`.custom-scrollbar` + `[data-slot="select-content"]`).
+- Files changed: `src/components/ui/dialog.tsx`, `src/app/globals.css`, `src/app/layout.tsx`, `src/app/page.tsx`.
+- Lint PASS, dev server clean, verifikasi browser sukses di 3 viewport (mobile 390x844, super-short 390x300, desktop 1920x1080) dengan eval + VLM confirmation.

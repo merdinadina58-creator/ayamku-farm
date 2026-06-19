@@ -1,0 +1,602 @@
+     1→  3470→          </div>
+     2→  3471→        </footer>
+     3→  3472→      </div>
+     4→  3473→
+     5→  3474→      {/* Add Batch Dialog */}
+     6→  3475→      <Dialog open={addBatchOpen} onOpenChange={(open) => { setAddBatchOpen(open); if (!open) setEditingBatch(null) }}>
+     7→  3476→        <DialogContent className="sm:max-w-md">
+     8→  3477→          <DialogHeader>
+     9→  3478→            <DialogTitle className="flex items-center gap-2">
+    10→  3479→              <Package className="w-5 h-5 text-emerald-600" />
+    11→  3480→              {editingBatch ? 'Edit Termin' : 'Tambah Termin Baru'}
+    12→  3481→            </DialogTitle>
+    13→  3482→            <DialogDescription>{editingBatch ? 'Perbarui data termin' : 'Tambahkan bibit ayam baru ke peternakan'}</DialogDescription>
+    14→  3483→          </DialogHeader>
+    15→  3484→          <div className="space-y-4 pt-2">
+    16→  3485→            <div className="grid grid-cols-2 gap-3">
+    17→  3486→              <div className="space-y-2">
+    18→  3487→                <Label htmlFor="batch-name">Nama Termin</Label>
+    19→  3488→                <Input id="batch-name" placeholder="Termin 1" value={batchForm.name} onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })} />
+    20→  3489→              </div>
+    21→  3490→              <div className="space-y-2">
+    22→  3491→                <Label htmlFor="termin-number">No. Termin</Label>
+    23→  3492→                <Input id="termin-number" type="number" min="1" value={batchForm.terminNumber} onChange={(e) => setBatchForm({ ...batchForm, terminNumber: e.target.value })} />
+    24→  3493→              </div>
+    25→  3494→            </div>
+    26→  3495→            <div className="grid grid-cols-2 gap-3">
+    27→  3496→              <div className="space-y-2">
+    28→  3497→                <Label htmlFor="arrival-date">Tanggal Datang</Label>
+    29→  3498→                <Input id="arrival-date" type="date" value={batchForm.arrivalDate} onChange={(e) => setBatchForm({ ...batchForm, arrivalDate: e.target.value })} />
+    30→  3499→              </div>
+    31→  3500→              <div className="space-y-2">
+    32→  3501→                <Label htmlFor="quantity">Jumlah (ekor)</Label>
+    33→  3502→                <Input id="quantity" type="number" min="1" placeholder="1000" value={batchForm.quantity} onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })} />
+    34→  3503→              </div>
+    35→  3504→            </div>
+    36→  3505→            <div className="space-y-2">
+    37→  3506→              <Label htmlFor="initial-weight">Berat Awal (kg/ekor)</Label>
+    38→  3507→              <Input id="initial-weight" type="number" step="0.001" min="0" placeholder="0.040" value={batchForm.initialWeight} onChange={(e) => setBatchForm({ ...batchForm, initialWeight: e.target.value })} />
+    39→  3508→            </div>
+    40→  3509→            <div className="space-y-2">
+    41→  3510→              <Label htmlFor="batch-notes">Catatan</Label>
+    42→  3511→              <Textarea id="batch-notes" placeholder="Catatan opsional..." value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} />
+    43→  3512→            </div>
+    44→  3513→            <Button onClick={handleAddBatch} className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800" disabled={submitting || !batchForm.name || !batchForm.arrivalDate || !batchForm.initialWeight || !batchForm.quantity}>
+    45→  3514→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingBatch ? 'Simpan Perubahan' : 'Simpan Termin')}
+    46→  3515→            </Button>
+    47→  3516→          </div>
+    48→  3517→        </DialogContent>
+    49→  3518→      </Dialog>
+    50→  3519→
+    51→  3520→      {/* Add Weight Dialog */}
+    52→  3521→      <Dialog open={addWeightOpen} onOpenChange={(open) => { setAddWeightOpen(open); if (!open) setEditingWeight(null) }}>
+    53→  3522→        <DialogContent className="sm:max-w-md">
+    54→  3523→          <DialogHeader>
+    55→  3524→            <DialogTitle className="flex items-center gap-2">
+    56→  3525→              <Scale className="w-5 h-5 text-teal-600" />
+    57→  3526→              {editingWeight ? 'Edit Data Timbang' : 'Tambah Data Timbang'}
+    58→  3527→            </DialogTitle>
+    59→  3528→            <DialogDescription>{editingWeight ? `Perbarui data berat untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan berat ayam${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
+    60→  3529→          </DialogHeader>
+    61→  3530→          <div className="space-y-4 pt-2">
+    62→  3531→            {!selectedBatch && (
+    63→  3532→              <div className="space-y-2">
+    64→  3533→                <Label>Termin</Label>
+    65→  3534→                <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
+    66→  3535→                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
+    67→  3536→                  <SelectContent>
+    68→  3537→                    {/* Hanya termin aktif yang bisa ditimbang (ayam sudah panen tidak ditimbang) */}
+    69→  3538→                    {batches.filter((b) => b.status === 'active').map((b) => (
+    70→  3539→                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
+    71→  3540→                    ))}
+    72→  3541→                  </SelectContent>
+    73→  3542→                </Select>
+    74→  3543→              </div>
+    75→  3544→            )}
+    76→  3545→            <div className="space-y-2">
+    77→  3546→              <Label>Tanggal Timbang</Label>
+    78→  3547→              <Input type="date" value={weightForm.date} onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })} />
+    79→  3548→            </div>
+    80→  3549→            {/* Umur ayam otomatis terhitung dari tanggal timbang - tanggal masuk batch.
+    81→  3550→                Pengguna tidak perlu menginput umur lagi. */}
+    82→  3551→            <div className="grid grid-cols-2 gap-3">
+    83→  3552→              <div className="space-y-2">
+    84→  3553→                <Label>Umur Ayam (otomatis)</Label>
+    85→  3554→                <div className="flex h-9 items-center rounded-md border border-teal-200 bg-teal-50 px-3 text-sm font-bold text-teal-700">
+    86→  3555→                  {computedAgeDays !== null ? `${computedAgeDays} hari` : '—'}
+    87→  3556→                </div>
+    88→  3557→                {weightBatch && (
+    89→  3558→                  <p className="text-xs text-muted-foreground">
+    90→  3559→                    Masuk: {formatDate(weightBatch.arrivalDate)}
+    91→  3560→                  </p>
+    92→  3561→                )}
+    93→  3562→              </div>
+    94→  3563→              <div className="space-y-2">
+    95→  3564→                <Label>Jumlah Sampel</Label>
+    96→  3565→                <Input type="number" min="1" value={weightForm.sampleCount} onChange={(e) => setWeightForm({ ...weightForm, sampleCount: e.target.value })} />
+    97→  3566→              </div>
+    98→  3567→            </div>
+    99→  3568→            {weightForm.date && weightBatch && computedAgeDays === null && (
+   100→  3569→              <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+   101→  3570→                Tanggal timbang sebelum tanggal masuk batch — periksa kembali tanggalnya.
+   102→  3571→              </p>
+   103→  3572→            )}
+   104→  3573→            <div className="space-y-2">
+   105→  3574→              <Label>Berat Rata-rata (gram)</Label>
+   106→  3575→              <Input type="number" step="1" min="0" placeholder="160" value={weightForm.averageWeightGram} onChange={(e) => setWeightForm({ ...weightForm, averageWeightGram: e.target.value })} />
+   107→  3576→              {weightForm.averageWeightGram && (
+   108→  3577→                <p className="text-xs text-muted-foreground">= {(parseFloat(weightForm.averageWeightGram) / 1000).toFixed(3)} kg</p>
+   109→  3578→              )}
+   110→  3579→            </div>
+   111→  3580→            <div className="space-y-2">
+   112→  3581→              <Label>Catatan</Label>
+   113→  3582→              <Textarea placeholder="Catatan opsional..." value={weightForm.notes} onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })} />
+   114→  3583→            </div>
+   115→  3584→            <Button onClick={handleAddWeight} className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !weightForm.date || !weightForm.averageWeightGram || computedAgeDays === null}>
+   116→  3585→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingWeight ? 'Simpan Perubahan' : 'Simpan Data Timbang')}
+   117→  3586→            </Button>
+   118→  3587→          </div>
+   119→  3588→        </DialogContent>
+   120→  3589→      </Dialog>
+   121→  3590→
+   122→  3591→      {/* Add Mortality Dialog */}
+   123→  3592→      <Dialog open={addMortalityOpen} onOpenChange={(open) => { setAddMortalityOpen(open); if (!open) setEditingMortality(null) }}>
+   124→  3593→        <DialogContent className="sm:max-w-md">
+   125→  3594→          <DialogHeader>
+   126→  3595→            <DialogTitle className="flex items-center gap-2">
+   127→  3596→              <Skull className="w-5 h-5 text-red-600" />
+   128→  3597→              {editingMortality ? 'Edit Data Mortalitas' : 'Tambah Data Mortalitas'}
+   129→  3598→            </DialogTitle>
+   130→  3599→            <DialogDescription>{editingMortality ? `Perbarui data mortalitas untuk ${selectedBatch?.name || 'termin ini'}` : `Catatan ayam mati/afkir${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
+   131→  3600→          </DialogHeader>
+   132→  3601→          <div className="space-y-4 pt-2">
+   133→  3602→            {!selectedBatch && (
+   134→  3603→              <div className="space-y-2">
+   135→  3604→                <Label>Termin</Label>
+   136→  3605→                <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
+   137→  3606→                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
+   138→  3607→                  <SelectContent>
+   139→  3608→                    {batches.map((b) => (
+   140→  3609→                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
+   141→  3610→                    ))}
+   142→  3611→                  </SelectContent>
+   143→  3612→                </Select>
+   144→  3613→              </div>
+   145→  3614→            )}
+   146→  3615→            <div className="grid grid-cols-2 gap-3">
+   147→  3616→              <div className="space-y-2">
+   148→  3617→                <Label>Tanggal</Label>
+   149→  3618→                <Input type="date" value={mortalityForm.date} onChange={(e) => setMortalityForm({ ...mortalityForm, date: e.target.value })} />
+   150→  3619→              </div>
+   151→  3620→              <div className="space-y-2">
+   152→  3621→                <Label>Jumlah (ekor)</Label>
+   153→  3622→                <Input type="number" min="1" placeholder="5" value={mortalityForm.quantity} onChange={(e) => setMortalityForm({ ...mortalityForm, quantity: e.target.value })} />
+   154→  3623→              </div>
+   155→  3624→            </div>
+   156→  3625→            <div className="space-y-2">
+   157→  3626→              <Label>Penyebab</Label>
+   158→  3627→              <Select value={mortalityForm.reason} onValueChange={(v) => setMortalityForm({ ...mortalityForm, reason: v })}>
+   159→  3628→                <SelectTrigger><SelectValue /></SelectTrigger>
+   160→  3629→                <SelectContent>
+   161→  3630→                  <SelectItem value="sakit">Sakit</SelectItem>
+   162→  3631→                  <SelectItem value="stress">Stress / Heat</SelectItem>
+   163→  3632→                  <SelectItem value="kecelakaan">Kecelakaan</SelectItem>
+   164→  3633→                  <SelectItem value="afkir">Afkir / Culling</SelectItem>
+   165→  3634→                  <SelectItem value="lainnya">Lainnya</SelectItem>
+   166→  3635→                </SelectContent>
+   167→  3636→              </Select>
+   168→  3637→            </div>
+   169→  3638→            <div className="space-y-2">
+   170→  3639→              <Label>Catatan</Label>
+   171→  3640→              <Textarea placeholder="Catatan opsional..." value={mortalityForm.notes} onChange={(e) => setMortalityForm({ ...mortalityForm, notes: e.target.value })} />
+   172→  3641→            </div>
+   173→  3642→            {mortalityForm.quantity && (selectedBatch || dialogBatchId) && (() => {
+   174→  3643→              const batch = selectedBatch || batches.find((b) => b.id === dialogBatchId)
+   175→  3644→              if (!batch) return null
+   176→  3645→              return (
+   177→  3646→                <div className="bg-red-50 rounded-lg p-3 text-center">
+   178→  3647→                  <p className="text-xs text-muted-foreground">Sisa Ayam Hidup (setelah input)</p>
+   179→  3648→                  <p className="text-lg font-bold text-red-700">
+   180→  3649→                    {batch.quantity - batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0) - parseInt(mortalityForm.quantity || '0')} ekor
+   181→  3650→                  </p>
+   182→  3651→                </div>
+   183→  3652→              )
+   184→  3653→            })()}
+   185→  3654→            <Button onClick={handleAddMortality} className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !mortalityForm.date || !mortalityForm.quantity}>
+   186→  3655→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingMortality ? 'Simpan Perubahan' : 'Simpan Data Mortalitas')}
+   187→  3656→            </Button>
+   188→  3657→          </div>
+   189→  3658→        </DialogContent>
+   190→  3659→      </Dialog>
+   191→  3660→
+   192→  3661→      {/* Harvest Dialog */}
+   193→  3662→      <Dialog open={harvestOpen} onOpenChange={setHarvestOpen}>
+   194→  3663→        <DialogContent className="sm:max-w-md">
+   195→  3664→          <DialogHeader>
+   196→  3665→            <DialogTitle className="flex items-center gap-2">
+   197→  3666→              <ShoppingBasket className="w-5 h-5 text-amber-600" />
+   198→  3667→              {selectedBatch?.status === 'harvested' ? 'Edit Data Panen' : 'Panen Ayam'}
+   199→  3668→            </DialogTitle>
+   200→  3669→            <DialogDescription>
+   201→  3670→              {selectedBatch?.status === 'harvested'
+   202→  3671→                ? `Perbarui data panen untuk termin ${selectedBatch?.name}`
+   203→  3672→                : `Tandai termin ${selectedBatch?.name} sebagai sudah panen`}
+   204→  3673→            </DialogDescription>
+   205→  3674→          </DialogHeader>
+   206→  3675→          <div className="space-y-4 pt-2">
+   207→  3676→            {/* Konfirmasi termin yang dipanen — mencegah salah-termin panen */}
+   208→  3677→            {selectedBatch && (
+   209→  3678→              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+   210→  3679→                <div className="flex items-center gap-2">
+   211→  3680→                  <Info className="w-4 h-4 text-amber-600" />
+   212→  3681→                  <p className="font-semibold text-sm text-amber-800">Konfirmasi Termin yang Dipanen</p>
+   213→  3682→                </div>
+   214→  3683→                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-amber-900">
+   215→  3684→                  <div><span className="text-amber-700">Termin:</span> <span className="font-medium">{selectedBatch.name} (#{selectedBatch.terminNumber})</span></div>
+   216→  3685→                  <div><span className="text-amber-700">Tgl Ayam Masuk:</span> <span className="font-medium">{formatDate(selectedBatch.arrivalDate)}</span></div>
+   217→  3686→                  <div><span className="text-amber-700">Jumlah Awal:</span> <span className="font-medium">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</span></div>
+   218→  3687→                  <div><span className="text-amber-700">Ayam Hidup:</span> <span className="font-medium">{(selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)).toLocaleString('id-ID')} ekor</span></div>
+   219→  3688→                </div>
+   220→  3689→              </div>
+   221→  3690→            )}
+   222→  3691→            <div className="space-y-2">
+   223→  3692→              <Label>Tanggal Panen</Label>
+   224→  3693→              <Input type="date" value={harvestForm.harvestDate} onChange={(e) => setHarvestForm({ ...harvestForm, harvestDate: e.target.value })} />
+   225→  3694→              {harvestDateError && (
+   226→  3695→                <p className="text-xs text-red-600 flex items-center gap-1">
+   227→  3696→                  <AlertTriangle className="w-3 h-3" />{harvestDateError}
+   228→  3697→                </p>
+   229→  3698→              )}
+   230→  3699→            </div>
+   231→  3700→            <div className="grid grid-cols-2 gap-3">
+   232→  3701→              <div className="space-y-2">
+   233→  3702→                <Label>Jumlah Panen (ekor)</Label>
+   234→  3703→                <Input type="number" min="0" placeholder="4800" value={harvestForm.harvestQuantity} onChange={(e) => setHarvestForm({ ...harvestForm, harvestQuantity: e.target.value })} />
+   235→  3704→                {selectedBatch && (
+   236→  3705→                  <p className="text-xs text-muted-foreground">Hidup: {selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)} ekor</p>
+   237→  3706→                )}
+   238→  3707→                {selectedBatch && harvestForm.harvestQuantity && parseInt(harvestForm.harvestQuantity) > (selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)) && (
+   239→  3708→                  <p className="text-xs text-amber-600 flex items-center gap-1">
+   240→  3709→                    <AlertTriangle className="w-3 h-3" />Jumlah panen melebihi ayam hidup saat ini
+   241→  3710→                  </p>
+   242→  3711→                )}
+   243→  3712→              </div>
+   244→  3713→              <div className="space-y-2">
+   245→  3714→                <Label>Berat Rata-rata (kg/ekor)</Label>
+   246→  3715→                <Input type="number" step="0.01" min="0" placeholder="2" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
+   247→  3716→              </div>
+   248→  3717→            </div>
+   249→  3718→            <div className="space-y-2">
+   250→  3719→              <Label>Harga Jual per kg (Rp)</Label>
+   251→  3720→              <Input type="number" step="100" min="0" placeholder="22000" value={harvestForm.sellingPricePerKg} onChange={(e) => setHarvestForm({ ...harvestForm, sellingPricePerKg: e.target.value })} />
+   252→  3721→            </div>
+   253→  3722→            {harvestForm.harvestQuantity && harvestForm.harvestWeight && harvestForm.sellingPricePerKg && (
+   254→  3723→              <div className="bg-amber-50 rounded-lg p-3">
+   255→  3724→                <div className="grid grid-cols-2 gap-3 text-center">
+   256→  3725→                  <div>
+   257→  3726→                    <p className="text-xs text-muted-foreground">Total Berat Panen</p>
+   258→  3727→                    <p className="text-lg font-bold text-amber-700">{(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight)).toFixed(1)} kg</p>
+   259→  3728→                  </div>
+   260→  3729→                  <div>
+   261→  3730→                    <p className="text-xs text-muted-foreground">Total Pendapatan</p>
+   262→  3731→                    <p className="text-base sm:text-lg font-bold text-green-700 break-words">{formatCurrency(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight) * parseFloat(harvestForm.sellingPricePerKg))}</p>
+   263→  3732→                  </div>
+   264→  3733→                </div>
+   265→  3734→              </div>
+   266→  3735→            )}
+   267→  3736→            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg || harvestDateError}>
+   268→  3737→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (selectedBatch?.status === 'harvested' ? 'Simpan Perubahan' : 'Konfirmasi Panen')}
+   269→  3738→            </Button>
+   270→  3739→          </div>
+   271→  3740→        </DialogContent>
+   272→  3741→      </Dialog>
+   273→  3742→
+   274→  3743→      {/* Add Biaya Dialog */}
+   275→  3744→      <Dialog open={addEquipmentOpen} onOpenChange={(open) => { setAddEquipmentOpen(open); if (!open) setEditingEquipment(null) }}>
+   276→  3745→        <DialogContent className="sm:max-w-md">
+   277→  3746→          <DialogHeader>
+   278→  3747→            <DialogTitle className="flex items-center gap-2">
+   279→  3748→              <Wrench className="w-5 h-5 text-indigo-600" />
+   280→  3749→              {editingEquipment ? 'Edit Biaya' : 'Tambah Biaya'}
+   281→  3750→            </DialogTitle>
+   282→  3751→            <DialogDescription>{editingEquipment ? 'Perbarui catatan biaya' : `Catat pembelian dan biaya operasional${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
+   283→  3752→          </DialogHeader>
+   284→  3753→          <div className="space-y-4 pt-2">
+   285→  3754→            {/* Pilih termin — biaya wajib terikat ke sebuah termin. */}
+   286→  3755→            {!selectedBatch && (
+   287→  3756→              <div className="space-y-2">
+   288→  3757→                <Label>Termin</Label>
+   289→  3758→                <Select value={dialogBatchId} onValueChange={(v) => setDialogBatchId(v)}>
+   290→  3759→                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
+   291→  3760→                  <SelectContent>
+   292→  3761→                    {batches.map((b) => (
+   293→  3762→                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
+   294→  3763→                    ))}
+   295→  3764→                  </SelectContent>
+   296→  3765→                </Select>
+   297→  3766→              </div>
+   298→  3767→            )}
+   299→  3768→            <div className="space-y-2">
+   300→  3769→              <Label>Nama Barang</Label>
+   301→  3770→              <Input placeholder="mis. Broiler Pelet, Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
+   302→  3771→            </div>
+   303→  3772→            <div className="space-y-2">
+   304→  3773→              <Label>Kategori</Label>
+   305→  3774→              <Select value={equipmentForm.category} onValueChange={(v) => setEquipmentForm({ ...equipmentForm, category: v })}>
+   306→  3775→                <SelectTrigger><SelectValue /></SelectTrigger>
+   307→  3776→                <SelectContent>
+   308→  3777→                  {EQUIPMENT_CATEGORIES.map((c) => (
+   309→  3778→                    <SelectItem key={c} value={c}>{c}</SelectItem>
+   310→  3779→                  ))}
+   311→  3780→                </SelectContent>
+   312→  3781→              </Select>
+   313→  3782→            </div>
+   314→  3783→            <div className="grid grid-cols-2 gap-3">
+   315→  3784→              <div className="space-y-2">
+   316→  3785→                <Label>Jumlah</Label>
+   317→  3786→                <Input type="number" min="1" placeholder="5" value={equipmentForm.quantity} onChange={(e) => setEquipmentForm({ ...equipmentForm, quantity: e.target.value })} />
+   318→  3787→              </div>
+   319→  3788→              <div className="space-y-2">
+   320→  3789→                <Label>Satuan</Label>
+   321→  3790→                <Select
+   322→  3791→                  value={showAddUnit ? '__add_new__' : equipmentForm.unit}
+   323→  3792→                  onValueChange={(v) => {
+   324→  3793→                    if (v === '__add_new__') {
+   325→  3794→                      setShowAddUnit(true)
+   326→  3795→                    } else {
+   327→  3796→                      setShowAddUnit(false)
+   328→  3797→                      setEquipmentForm({ ...equipmentForm, unit: v })
+   329→  3798→                    }
+   330→  3799→                  }}
+   331→  3800→                >
+   332→  3801→                  <SelectTrigger><SelectValue placeholder="Pilih satuan" /></SelectTrigger>
+   333→  3802→                  <SelectContent>
+   334→  3803→                    {units.map((u) => (
+   335→  3804→                      <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+   336→  3805→                    ))}
+   337→  3806→                    <SelectItem value="__add_new__">➕ Tambah Satuan Baru…</SelectItem>
+   338→  3807→                  </SelectContent>
+   339→  3808→                </Select>
+   340→  3809→              </div>
+   341→  3810→            </div>
+   342→  3811→            {showAddUnit && (
+   343→  3812→              <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+   344→  3813→                <Input
+   345→  3814→                  placeholder="Satuan baru, mis. Sak, Karung, Liter…"
+   346→  3815→                  value={newUnitName}
+   347→  3816→                  onChange={(e) => setNewUnitName(e.target.value)}
+   348→  3817→                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit() } }}
+   349→  3818→                  autoFocus
+   350→  3819→                />
+   351→  3820→                <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddUnit} disabled={savingUnit || !newUnitName.trim()}>
+   352→  3821→                  {savingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+   353→  3822→                </Button>
+   354→  3823→                <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddUnit(false); setNewUnitName('') }}>
+   355→  3824→                  Batal
+   356→  3825→                </Button>
+   357→  3826→              </div>
+   358→  3827→            )}
+   359→  3828→            <div className="space-y-2">
+   360→  3829→              <Label>Harga / {equipmentForm.unit || 'satuan'} (Rp)</Label>
+   361→  3830→              <Input type="number" step="100" min="0" placeholder="500000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
+   362→  3831→            </div>
+   363→  3832→            <div className="space-y-2">
+   364→  3833→              <Label>Tanggal Beli</Label>
+   365→  3834→              <Input type="date" value={equipmentForm.purchaseDate} onChange={(e) => setEquipmentForm({ ...equipmentForm, purchaseDate: e.target.value })} />
+   366→  3835→            </div>
+   367→  3836→            {equipmentForm.quantity && equipmentForm.unitPrice && (
+   368→  3837→              <div className="bg-indigo-50 rounded-lg p-3 text-center">
+   369→  3838→                <p className="text-xs text-muted-foreground">Total Harga</p>
+   370→  3839→                <p className="text-lg font-bold text-indigo-700">{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
+   371→  3840→                <p className="text-xs text-muted-foreground mt-0.5">
+   372→  3841→                  {equipmentForm.quantity || 0} {equipmentForm.unit || 'satuan'} × {formatCurrency(parseFloat(equipmentForm.unitPrice) || 0)}
+   373→  3842→                </p>
+   374→  3843→              </div>
+   375→  3844→            )}
+   376→  3845→            <div className="space-y-2">
+   377→  3846→              <Label>Catatan</Label>
+   378→  3847→              <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
+   379→  3848→            </div>
+   380→  3849→            {/* Foto nota pembelian peralatan — upload, preview, & hapus */}
+   381→  3850→            <div className="space-y-2">
+   382→  3851→              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
+   383→  3852→              {equipmentForm.notaData ? (
+   384→  3853→                <div className="relative rounded-lg overflow-hidden border border-indigo-200 group">
+   385→  3854→                  <img src={equipmentForm.notaData} alt="Nota pembelian" className="w-full max-h-48 object-contain bg-slate-50" />
+   386→  3855→                  <button
+   387→  3856→                    type="button"
+   388→  3857→                    onClick={() => setEquipmentForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+   389→  3858→                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+   390→  3859→                    aria-label="Hapus foto nota"
+   391→  3860→                  >
+   392→  3861→                    <XIcon className="w-4 h-4" />
+   393→  3862→                  </button>
+   394→  3863→                  {equipmentForm.notaName && (
+   395→  3864→                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{equipmentForm.notaName}</p>
+   396→  3865→                  )}
+   397→  3866→                </div>
+   398→  3867→              ) : (
+   399→  3868→                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-indigo-300 rounded-lg p-4 cursor-pointer hover:bg-indigo-50/50 transition-colors">
+   400→  3869→                  {notaUploading ? (
+   401→  3870→                    <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
+   402→  3871→                  ) : (
+   403→  3872→                    <><Upload className="w-5 h-5 text-indigo-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
+   404→  3873→                  )}
+   405→  3874→                  <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
+   406→  3875→                </label>
+   407→  3876→              )}
+   408→  3877→            </div>
+   409→  3878→            <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
+   410→  3879→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
+   411→  3880→            </Button>
+   412→  3881→          </div>
+   413→  3882→        </DialogContent>
+   414→  3883→      </Dialog>
+   415→  3884→
+   416→  3885→      {/* Add/Edit Pakan Dialog */}
+   417→  3886→      <Dialog open={addFeedOpen} onOpenChange={(open) => { setAddFeedOpen(open); if (!open) setEditingFeed(null) }}>
+   418→  3887→        <DialogContent className="sm:max-w-md">
+   419→  3888→          <DialogHeader>
+   420→  3889→            <DialogTitle className="flex items-center gap-2">
+   421→  3890→              <Wheat className="w-5 h-5 text-amber-600" />
+   422→  3891→              {editingFeed ? 'Edit Pakan' : 'Tambah Pakan'}
+   423→  3892→            </DialogTitle>
+   424→  3893→            <DialogDescription>{editingFeed ? 'Perbarui catatan pakan' : `Catat pembelian pakan untuk ${selectedBatch?.name ?? 'termin ini'}`}</DialogDescription>
+   425→  3894→          </DialogHeader>
+   426→  3895→          <div className="space-y-4 pt-2">
+   427→  3896→            {/* Konfirmasi termin pakan — pakan wajib terikat ke sebuah termin */}
+   428→  3897→            {selectedBatch && (
+   429→  3898→              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+   430→  3899→                <span className="text-amber-700">Termin:</span> <b>{selectedBatch.name} (#{selectedBatch.terminNumber})</b> — pakan terikat ke termin ini
+   431→  3900→              </div>
+   432→  3901→            )}
+   433→  3902→            <div className="space-y-2">
+   434→  3903→              <Label>Tanggal Beli Pakan</Label>
+   435→  3904→              <Input type="date" value={feedForm.date} onChange={(e) => setFeedForm({ ...feedForm, date: e.target.value })} />
+   436→  3905→            </div>
+   437→  3906→            <div className="space-y-2">
+   438→  3907→              <Label>Jenis Pakan</Label>
+   439→  3908→              <Select value={feedForm.feedType} onValueChange={(v) => setFeedForm({ ...feedForm, feedType: v })}>
+   440→  3909→                <SelectTrigger><SelectValue /></SelectTrigger>
+   441→  3910→                <SelectContent>
+   442→  3911→                  {['Starter', 'Grower', 'Finisher', 'Pre-Starter', 'Konsentrat', 'Lainnya'].map((t) => (
+   443→  3912→                    <SelectItem key={t} value={t}>{t}</SelectItem>
+   444→  3913→                  ))}
+   445→  3914→                </SelectContent>
+   446→  3915→              </Select>
+   447→  3916→            </div>
+   448→  3917→            <div className="grid grid-cols-2 gap-3">
+   449→  3918→              <div className="space-y-2">
+   450→  3919→                <Label>Jumlah (kg)</Label>
+   451→  3920→                <Input type="number" step="0.01" min="0" placeholder="50" value={feedForm.quantityKg} onChange={(e) => setFeedForm({ ...feedForm, quantityKg: e.target.value })} />
+   452→  3921→              </div>
+   453→  3922→              <div className="space-y-2">
+   454→  3923→                <Label>Harga/kg (Rp)</Label>
+   455→  3924→                <Input type="number" step="100" min="0" placeholder="8500" value={feedForm.pricePerKg} onChange={(e) => setFeedForm({ ...feedForm, pricePerKg: e.target.value })} />
+   456→  3925→              </div>
+   457→  3926→            </div>
+   458→  3927→            {feedForm.quantityKg && feedForm.pricePerKg && (
+   459→  3928→              <div className="bg-amber-50 rounded-lg p-3 text-center">
+   460→  3929→                <p className="text-xs text-muted-foreground">Total Biaya Pakan</p>
+   461→  3930→                <p className="text-lg font-bold text-amber-700">{formatCurrency(parseFloat(feedForm.quantityKg) * parseFloat(feedForm.pricePerKg))}</p>
+   462→  3931→              </div>
+   463→  3932→            )}
+   464→  3933→            <div className="space-y-2">
+   465→  3934→              <Label>Catatan (opsional)</Label>
+   466→  3935→              <Textarea placeholder="mis. Sak ke-3, pakan tambahan..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} rows={2} />
+   467→  3936→            </div>
+   468→  3937→            {/* Foto nota pembelian pakan — upload, preview, & hapus */}
+   469→  3938→            <div className="space-y-2">
+   470→  3939→              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
+   471→  3940→              {feedForm.notaData ? (
+   472→  3941→                <div className="relative rounded-lg overflow-hidden border border-amber-200 group">
+   473→  3942→                  <img src={feedForm.notaData} alt="Nota pembelian pakan" className="w-full max-h-48 object-contain bg-slate-50" />
+   474→  3943→                  <button
+   475→  3944→                    type="button"
+   476→  3945→                    onClick={() => setFeedForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+   477→  3946→                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+   478→  3947→                    aria-label="Hapus foto nota"
+   479→  3948→                  >
+   480→  3949→                    <XIcon className="w-4 h-4" />
+   481→  3950→                  </button>
+   482→  3951→                  {feedForm.notaName && (
+   483→  3952→                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{feedForm.notaName}</p>
+   484→  3953→                  )}
+   485→  3954→                </div>
+   486→  3955→              ) : (
+   487→  3956→                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-amber-300 rounded-lg p-4 cursor-pointer hover:bg-amber-50/50 transition-colors">
+   488→  3957→                  {notaUploading ? (
+   489→  3958→                    <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
+   490→  3959→                  ) : (
+   491→  3960→                    <><Upload className="w-5 h-5 text-amber-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
+   492→  3961→                  )}
+   493→  3962→                  <input type="file" accept="image/*" onChange={handleFeedNotaUpload} className="hidden" />
+   494→  3963→                </label>
+   495→  3964→              )}
+   496→  3965→            </div>
+   497→  3966→            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.feedType || !feedForm.quantityKg || !feedForm.pricePerKg}>
+   498→  3967→              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingFeed ? 'Simpan Perubahan' : 'Simpan Data Pakan')}
+   499→  3968→            </Button>
+   500→  3969→          </div>
+   501→  3970→        </DialogContent>
+   502→  3971→      </Dialog>
+   503→  3972→
+   504→  3973→      {/* Day Detail Dialog (Calendar) */}
+   505→  3974→      <Dialog open={!!dayDetail} onOpenChange={(open) => !open && setDayDetail(null)}>
+   506→  3975→        <DialogContent className="sm:max-w-md">
+   507→  3976→          <DialogHeader>
+   508→  3977→            <DialogTitle className="flex items-center gap-2">
+   509→  3978→              <CalendarDays className="w-5 h-5 text-emerald-600" />
+   510→  3979→              {dayDetail?.date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+   511→  3980→            </DialogTitle>
+   512→  3981→            <DialogDescription>
+   513→  3982→              {dayDetail?.events.length || 0} kegiatan pada tanggal ini
+   514→  3983→            </DialogDescription>
+   515→  3984→          </DialogHeader>
+   516→  3985→          <div className="space-y-3 pt-2">
+   517→  3986→            {dayDetail?.events.map((event, i) => (
+   518→  3987→              <div key={i} className="flex items-center gap-3 p-3 rounded-xl border bg-white">
+   519→  3988→                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${event.type === 'tiba' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+   520→  3989→                  {event.type === 'tiba' ? (
+   521→  3990→                    <Bird className="w-5 h-5 text-emerald-700" />
+   522→  3991→                  ) : (
+   523→  3992→                    <ShoppingBasket className="w-5 h-5 text-amber-700" />
+   524→  3993→                  )}
+   525→  3994→                </div>
+   526→  3995→                <div className="flex-1 min-w-0">
+   527→  3996→                  <p className="font-medium text-sm truncate">{event.batch.name}</p>
+   528→  3997→                  <p className="text-xs text-muted-foreground">
+   529→  3998→                    Termin #{event.batch.terminNumber} •{' '}
+   530→  3999→                    {event.type === 'tiba'
+   531→  4000→                      ? `Bibit tiba • ${event.batch.quantity.toLocaleString('id-ID')} ekor`
+   532→  4001→                      : `Panen • ${event.batch.harvestQuantity?.toLocaleString('id-ID') || 0} ekor`}
+   533→  4002→                  </p>
+   534→  4003→                </div>
+   535→  4004→                <Badge variant="outline" className={`shrink-0 ${event.type === 'tiba' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+   536→  4005→                  {event.type === 'tiba' ? 'Tiba' : 'Panen'}
+   537→  4006→                </Badge>
+   538→  4007→              </div>
+   539→  4008→            ))}
+   540→  4009→          </div>
+   541→  4010→        </DialogContent>
+   542→  4011→      </Dialog>
+   543→  4012→
+   544→  4013→      {/* PDF Preview Dialog — renders the generated PDF in an iframe so the
+   545→  4014→          user can review the report before downloading. */}
+   546→  4015→      <Dialog open={!!pdfPreview} onOpenChange={(open) => { if (!open) closePdfPreview() }}>
+   547→  4016→        <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+   548→  4017→          <DialogHeader className="px-5 py-4 border-b border-emerald-100 flex-row items-center justify-between space-y-0">
+   549→  4018→            <div className="min-w-0">
+   550→  4019→              <DialogTitle className="flex items-center gap-2 text-base">
+   551→  4020→                <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
+   552→  4021→                <span className="truncate">Preview Laporan — {pdfPreview?.batch.name}</span>
+   553→  4022→              </DialogTitle>
+   554→  4023→              <DialogDescription className="text-xs mt-0.5">
+   555→  4024→                Termin #{pdfPreview?.batch.terminNumber} • Tinjau laporan sebelum mengunduh
+   556→  4025→              </DialogDescription>
+   557→  4026→            </div>
+   558→  4027→            <div className="flex gap-2 shrink-0">
+   559→  4028→              <Button
+   560→  4029→                size="sm"
+   561→  4030→                variant="outline"
+   562→  4031→                className="gap-1.5"
+   563→  4032→                onClick={() => {
+   564→  4033→                  if (pdfPreview) window.open(pdfPreview.url, '_blank')
+   565→  4034→                }}
+   566→  4035→              >
+   567→  4036→                <Printer className="w-4 h-4" /> Buka Tab
+   568→  4037→              </Button>
+   569→  4038→              <Button
+   570→  4039→                size="sm"
+   571→  4040→                className="gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-700"
+   572→  4041→                onClick={() => {
+   573→  4042→                  if (pdfPreview) {
+   574→  4043→                    downloadBatchPDF(pdfPreview.batch)
+   575→  4044→                    closePdfPreview()
+   576→  4045→                  }
+   577→  4046→                }}
+   578→  4047→              >
+   579→  4048→                <Download className="w-4 h-4" /> Download PDF
+   580→  4049→              </Button>
+   581→  4050→            </div>
+   582→  4051→          </DialogHeader>
+   583→  4052→          <div className="flex-1 min-h-0 bg-muted/30">
+   584→  4053→            {pdfPreview?.url && (
+   585→  4054→              <iframe
+   586→  4055→                src={pdfPreview.url}
+   587→  4056→                title="Preview PDF"
+   588→  4057→                className="w-full h-full border-0"
+   589→  4058→              />
+   590→  4059→            )}
+   591→  4060→          </div>
+   592→  4061→        </DialogContent>
+   593→  4062→      </Dialog>
+   594→  4063→
+   595→  4064→      {/* Nota Viewer Dialog — menampilkan foto nota pembelian ukuran penuh
+   596→  4065→          dengan tombol download. Dipakai bersama oleh list pakan & peralatan. */}
+   597→  4066→      <Dialog open={!!notaViewer} onOpenChange={(open) => !open && setNotaViewer(null)}>
+   598→  4067→        <DialogContent className="sm:max-w-2xl">
+   599→  4068→          <DialogHeader>
+   600→  4069→            <DialogTitle className="flex items-center gap-2">
+   601→
+   602→[showing lines 3470-4069 of 4126; use offset=4070 with limit to continue reading]
