@@ -45,6 +45,7 @@ import {
   Printer,
   RotateCcw,
   Receipt,
+  Camera,
   X as XIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -3865,14 +3866,29 @@ export default function HomePage() {
                   )}
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-indigo-300 rounded-lg p-4 cursor-pointer hover:bg-indigo-50/50 transition-colors">
-                  {notaUploading ? (
-                    <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
-                  ) : (
-                    <><Upload className="w-5 h-5 text-indigo-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
-                  )}
-                  <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Ambil Foto langsung dari kamera.
+                      `capture="environment"` membuka kamera belakang di mobile
+                      (Android Chrome & iOS Safari). Di desktop, browser akan
+                      fall back ke file picker biasa. */}
+                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                    {notaUploading ? (
+                      <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                    ) : (
+                      <><Camera className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
+                    )}
+                    <input type="file" accept="image/*" capture="environment" onChange={handleEquipmentNotaUpload} className="hidden" />
+                  </label>
+                  {/* Pilih dari galeri / file explorer. */}
+                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                    {notaUploading ? (
+                      <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                    ) : (
+                      <><ImageIcon className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
+                    )}
+                    <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
+                  </label>
+                </div>
               )}
             </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
@@ -3953,14 +3969,29 @@ export default function HomePage() {
                   )}
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-amber-300 rounded-lg p-4 cursor-pointer hover:bg-amber-50/50 transition-colors">
-                  {notaUploading ? (
-                    <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-xs text-muted-foreground">Memproses foto...</span></>
-                  ) : (
-                    <><Upload className="w-5 h-5 text-amber-500" /><span className="text-xs text-muted-foreground text-center">Klik untuk upload foto nota<br /><span className="text-[10px]">JPG/PNG • otomatis dikompres</span></span></>
-                  )}
-                  <input type="file" accept="image/*" onChange={handleFeedNotaUpload} className="hidden" />
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Ambil Foto langsung dari kamera.
+                      `capture="environment"` membuka kamera belakang di mobile
+                      (Android Chrome & iOS Safari). Di desktop, browser akan
+                      fall back ke file picker biasa. */}
+                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-amber-300 rounded-lg p-3 cursor-pointer hover:bg-amber-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                    {notaUploading ? (
+                      <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                    ) : (
+                      <><Camera className="w-5 h-5 text-amber-500" /><span className="text-[11px] font-medium text-amber-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
+                    )}
+                    <input type="file" accept="image/*" capture="environment" onChange={handleFeedNotaUpload} className="hidden" />
+                  </label>
+                  {/* Pilih dari galeri / file explorer. */}
+                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-amber-300 rounded-lg p-3 cursor-pointer hover:bg-amber-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                    {notaUploading ? (
+                      <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                    ) : (
+                      <><ImageIcon className="w-5 h-5 text-amber-500" /><span className="text-[11px] font-medium text-amber-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
+                    )}
+                    <input type="file" accept="image/*" onChange={handleFeedNotaUpload} className="hidden" />
+                  </label>
+                </div>
               )}
             </div>
             <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.feedType || !feedForm.quantityKg || !feedForm.pricePerKg}>

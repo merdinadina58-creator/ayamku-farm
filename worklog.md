@@ -1272,3 +1272,42 @@ Stage Summary:
 - Custom scrollbar global (`.custom-scrollbar` + `[data-slot="select-content"]`).
 - Files changed: `src/components/ui/dialog.tsx`, `src/app/globals.css`, `src/app/layout.tsx`, `src/app/page.tsx`.
 - Lint PASS, dev server clean, verifikasi browser sukses di 3 viewport (mobile 390x844, super-short 390x300, desktop 1920x1080) dengan eval + VLM confirmation.
+
+---
+Task ID: camera-capture-nota
+Agent: Main Agent
+Task: Tambah opsi ambil foto langsung dari kamera untuk upload nota pembelian (selain pilih dari galeri)
+
+Work Log:
+- User request: foto nota pembelian bisa diambil langsung dari kamera aplikasi, tidak hanya upload dari galeri.
+- Audit UI saat ini: dialog Pakan & Biaya punya 1 area upload dashed-border dengan `<input type="file" accept="image/*">` — di mobile ini membuka file picker (galeri), bukan kamera langsung.
+- Solusi: split 1 area upload jadi 2 tombol berdampingan (grid-cols-2):
+  1. "Ambil Foto" — `<input type="file" accept="image/*" capture="environment">` → buka kamera belakang di mobile.
+  2. "Pilih Galeri" — `<input type="file" accept="image/*">` → buka file picker/galeri.
+- Implementasi di `src/app/page.tsx`:
+  - Tambah import `Camera` dari lucide-react.
+  - Equipment dialog (indigo theme): ganti single `<label>` dashed → `<div className="grid grid-cols-2 gap-2">` berisi 2 label. Tombol kiri: Camera icon + "Ambil Foto / dari kamera" dengan `capture="environment"`. Tombol kanan: ImageIcon + "Pilih Galeri / JPG/PNG • dikompres" tanpa capture.
+  - Feed dialog (amber theme): sama, tema amber.
+  - Saat `notaUploading=true`: kedua tombol dapat `pointer-events-none opacity-60` agar tidak bisa diklik saat memproses.
+  - Handler `handleEquipmentNotaUpload` & `handleFeedNotaUpload` tidak berubah — sudah generic, terima File dari sumber mana pun (kamera atau galeri). Kompresi & validasi type image tetap berlaku.
+- `capture="environment"` behavior:
+  - Android Chrome: langsung buka kamera belakang (rear camera).
+  - iOS Safari: buka camera app, user bisa switch front/back.
+  - Desktop browser: capture attr di-ignore, fall back ke file picker biasa.
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser (390x844 mobile):
+  - Page renders HTTP 200, no console errors, no page errors.
+  - Source code grep confirm: kedua dialog punya "Ambil Foto", "Pilih Galeri", `capture="environment"`, Camera icon class.
+  - Tidak bisa buka dialog langsung di sandbox karena pre-existing DATABASE_URL issue blocks batch creation (Catat Biaya guard "Belum ada batch aktif"). Namun JSX structure valid (lint pass, dev server clean, page renders).
+- dev.log clean: hanya pre-existing DATABASE_URL 500s.
+
+Stage Summary:
+- Upload foto nota sekarang punya 2 opsi di dialog Pakan & Biaya:
+  1. "Ambil Foto" — buka kamera langsung di mobile (capture=environment), fall back ke file picker di desktop.
+  2. "Pilih Galeri" — pilih dari galeri/file explorer seperti sebelumnya.
+- Kompresi otomatis (resize max 900px, JPEG q=0.7) tetap berlaku untuk kedua sumber.
+- Validasi type image tetap berlaku.
+- Loading state (notaUploading) men-disable kedua tombol saat memproses.
+- File changed: `src/app/page.tsx` (import Camera + 2 dialog upload areas refactored).
+- Lint PASS, dev server clean, page renders tanpa error.
+- Production test: user bisa coba di HP Android/iOS — buka dialog Tambah Biaya/Pakan → klik "Ambil Foto" → kamera langsung terbuka → ambil foto nota → foto terkompres & tersimpan.
