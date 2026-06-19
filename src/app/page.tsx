@@ -34,7 +34,6 @@ import {
   Pencil,
   AlertTriangle,
   Wallet,
-  Wheat,
   Clock,
   Download,
   Search,
@@ -66,19 +65,6 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
 // Types
-interface FeedRecord {
-  id: string
-  batchId: string
-  date: string
-  feedType: string
-  quantityKg: number
-  pricePerKg: number
-  notes: string | null
-  // Foto nota pembelian pakan (base64 JPEG data URL, sudah dikompres).
-  notaData: string | null
-  notaName: string | null
-  createdAt: string
-}
 
 interface WeightRecord {
   id: string
@@ -116,7 +102,6 @@ interface Batch {
   notes: string | null
   createdAt: string
   updatedAt: string
-  feedRecords: FeedRecord[]
   weightRecords: WeightRecord[]
   mortalityRecords: MortalityRecord[]
   equipment: Equipment[]
@@ -128,8 +113,6 @@ interface DashboardData {
   harvestedBatches: number
   totalChickens: number
   totalMortality: number
-  totalFeedKg: number
-  totalFeedCost: number
   totalHarvestRevenue: number
   batchSummaries: Array<{
     id: string
@@ -140,10 +123,6 @@ interface DashboardData {
     initialWeight: number
     latestWeightGram: number
     ageDays: number
-    totalFeedKg: number
-    totalFeedCost: number
-    fcr: number
-    feedPerEkor: number
     totalDead: number
     aliveCount: number
     mortalityRate: number
@@ -184,25 +163,17 @@ interface Unit {
   name: string
 }
 
-const EQUIPMENT_CATEGORIES = [
-  'Kandang & Infrastruktur',
-  'Peralatan Pakan & Minum',
-  'Pemanas & Ventilasi',
-  'Kebersihan & Sanitasi',
-  'Alat Timbang & Ukur',
-  'Alat Kesehatan',
-  'Lainnya',
-] as const
+interface Category {
+  id: string
+  name: string
+}
+
+// Kategori default — juga dipakai API untuk auto-seed tabel Category saat kosong.
+// Di UI, kategori diambil dinamis dari /api/categories agar user bisa tambah baru.
+const DEFAULT_EQUIPMENT_CATEGORY = 'Peralatan Pakan & Minum'
 
 // Color palette
 const COLORS = ['#16a34a', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899']
-const FEED_TYPE_COLORS: Record<string, string> = {
-  'Starter': '#16a34a',
-  'Grower': '#f59e0b',
-  'Finisher': '#ef4444',
-  'Pre-Starter': '#06b6d4',
-  'Lainnya': '#8b5cf6',
-}
 const MORTALITY_REASON_LABELS: Record<string, string> = {
   'sakit': 'Sakit',
   'stress': 'Stress / Heat',
@@ -221,20 +192,20 @@ const MORTALITY_REASON_COLORS: Record<string, string> = {
 // Pure helper for batch statistics (module-level so it can be used in useMemos
 // without being recreated every render). Mirrors the logic previously inline
 // in the component's getBatchStats closure.
+//
+// Catatan: fitur Pakan (feedRecords) sudah dihapus — totalCost sekarang
+// murni dari equipment (biaya operasional). FCR & feedPerEktor dihilangkan.
 function computeBatchStats(batch: Batch) {
-  const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
-  const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+  const totalCost = batch.equipment?.reduce((s, e) => s + e.quantity * e.unitPrice, 0) || 0
   const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
   const aliveCount = batch.quantity - totalDead
   const latestWeight = batch.weightRecords.length > 0
     ? batch.weightRecords.reduce((latest, r) => new Date(r.date) > new Date(latest.date) ? r : latest, batch.weightRecords[0]).averageWeightGram
     : batch.initialWeight * 1000
   const weightGain = latestWeight - batch.initialWeight * 1000
-  const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
   const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
   const arrival = new Date(batch.arrivalDate)
   const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
-  const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
   const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
   const harvestQty = batch.harvestQuantity || 0
   const harvestWt = batch.harvestWeight || 0
@@ -243,8 +214,8 @@ function computeBatchStats(batch: Batch) {
   const totalHarvestValue = totalHarvestKg * sellPrice
   const profit = totalHarvestValue - totalCost
   return {
-    totalFeed, totalCost, latestWeight, weightGain, fcr, ageDays,
-    feedPerEkor, totalDead, aliveCount, mortalityRate,
+    totalCost, latestWeight, weightGain, ageDays,
+    totalDead, aliveCount, mortalityRate,
     harvestQty, harvestWt, sellPrice, totalHarvestKg, totalHarvestValue, profit,
   }
 }
@@ -362,15 +333,14 @@ export default function HomePage() {
   const [addMortalityOpen, setAddMortalityOpen] = useState(false)
   const [harvestOpen, setHarvestOpen] = useState(false)
   const [addEquipmentOpen, setAddEquipmentOpen] = useState(false)
-  const [addFeedOpen, setAddFeedOpen] = useState(false)
 
-  // When adding feed/weight/mortality from a MAIN section (not from batch detail),
+  // When adding weight/mortality from a MAIN section (not from batch detail),
   // we need the user to pick which batch the record belongs to.
   const [dialogBatchId, setDialogBatchId] = useState('')
 
   // Equipment form — peralatan dibeli PER TERMIN (terikat ke batch).
   // Tidak ada lagi state `equipments` terpisah; semua peralatan datang
-  // nested di setiap batch (batches[].equipment), sama seperti pakan/berat/mortalitas.
+  // nested di setiap batch (batches[].equipment), sama seperti berat/mortalitas.
   const [equipmentForm, setEquipmentForm] = useState({
     name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '',
   })
@@ -379,6 +349,12 @@ export default function HomePage() {
   const [showAddUnit, setShowAddUnit] = useState(false)
   const [newUnitName, setNewUnitName] = useState('')
   const [savingUnit, setSavingUnit] = useState(false)
+
+  // Master daftar kategori biaya + state untuk tambah kategori baru (mirror Unit)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [savingCategory, setSavingCategory] = useState(false)
 
   // Submission guard: prevents double-submit (double-click / race condition)
   const [submitting, setSubmitting] = useState(false)
@@ -397,16 +373,12 @@ export default function HomePage() {
   const [harvestForm, setHarvestForm] = useState({
     harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
-  const [feedForm, setFeedForm] = useState({
-    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '',
-  })
 
   // Edit mode states — null = add mode, object = edit mode
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [editingWeight, setEditingWeight] = useState<WeightRecord | null>(null)
   const [editingMortality, setEditingMortality] = useState<MortalityRecord | null>(null)
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
-  const [editingFeed, setEditingFeed] = useState<FeedRecord | null>(null)
 
   // ============================================================
   // Auto-compute chicken age (umur) untuk form timbang berat.
@@ -452,11 +424,12 @@ export default function HomePage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [batchRes, dashRes, settingsRes, unitsRes] = await Promise.all([
+      const [batchRes, dashRes, settingsRes, unitsRes, categoriesRes] = await Promise.all([
         fetch('/api/batches'),
         fetch('/api/dashboard'),
         fetch('/api/settings'),
         fetch('/api/units'),
+        fetch('/api/categories'),
       ])
 
       // Parse each response, guarding against non-OK responses so the UI
@@ -465,6 +438,7 @@ export default function HomePage() {
       const dashData = dashRes.ok ? await dashRes.json() : null
       const settingsData = settingsRes.ok ? await settingsRes.json() : {}
       const unitsData = unitsRes.ok ? await unitsRes.json() : []
+      const categoriesData = categoriesRes.ok ? await categoriesRes.json() : []
 
       setBatches(Array.isArray(batchData) ? batchData : [])
       setDashboard(dashData)
@@ -472,6 +446,7 @@ export default function HomePage() {
       setSettingsForm({ appName: settingsData.appName || 'AyamKu Farm', logoData: settingsData.logoData || '' })
       setLogoPreview(settingsData.logoData || '')
       setUnits(Array.isArray(unitsData) ? unitsData : [])
+      setCategories(Array.isArray(categoriesData) ? categoriesData : [])
     } catch {
       toast({ title: 'Error', description: 'Gagal memuat data', variant: 'destructive' })
     } finally {
@@ -937,158 +912,13 @@ export default function HomePage() {
   }
 
   // ============================================================
-  // Pakan (Feed) — CRUD per-termin. Mirror dari pola equipment/weight:
-  // openAddFeed / openEditFeed / handleAddFeed / handleDeleteFeed.
-  // ============================================================
-  const openAddFeed = (batch: Batch) => {
-    setEditingFeed(null)
-    setSelectedBatch(batch)
-    setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
-    setAddFeedOpen(true)
-  }
-
-  const openEditFeed = (f: FeedRecord, batch: Batch) => {
-    setEditingFeed(f)
-    setSelectedBatch(batch)
-    setFeedForm({
-      date: f.date ? new Date(f.date).toISOString().split('T')[0] : '',
-      feedType: f.feedType,
-      quantityKg: f.quantityKg.toString(),
-      pricePerKg: f.pricePerKg.toString(),
-      notes: f.notes || '',
-      notaData: f.notaData || '',
-      notaName: f.notaName || '',
-    })
-    setAddFeedOpen(true)
-  }
-
-  const handleAddFeed = async () => {
-    if (!selectedBatch) return
-    if (submittingRef.current) return
-    submittingRef.current = true
-    setSubmitting(true)
-    const isEdit = !!editingFeed
-    try {
-      const payload = {
-        date: feedForm.date,
-        feedType: feedForm.feedType,
-        quantityKg: feedForm.quantityKg,
-        pricePerKg: feedForm.pricePerKg,
-        notes: feedForm.notes,
-        notaData: feedForm.notaData,
-        notaName: feedForm.notaName,
-      }
-      if (isEdit) {
-        const editId = editingFeed!.id
-        const res = await fetch(`/api/feed/${editId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: payload.date,
-            feedType: payload.feedType,
-            quantityKg: parseFloat(payload.quantityKg),
-            pricePerKg: parseFloat(payload.pricePerKg),
-            notes: payload.notes,
-            notaData: payload.notaData,
-            notaName: payload.notaName,
-          }),
-        })
-        if (!res.ok) throw new Error()
-        setAddFeedOpen(false)
-        setEditingFeed(null)
-        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
-        toast({ title: 'Berhasil! ✏️', description: 'Catatan pakan berhasil diperbarui' })
-        await fetchData()
-        if (view === 'batch-detail' && selectedBatch?.id) {
-          try {
-            const freshRes = await fetch('/api/batches')
-            if (freshRes.ok) {
-              const freshBatches = await freshRes.json()
-              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
-              if (updated) setSelectedBatch(updated)
-            }
-          } catch {}
-        }
-      } else {
-        const res = await fetch(`/api/batches/${selectedBatch.id}/feed`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        if (!res.ok) throw new Error()
-        setAddFeedOpen(false)
-        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '', notaData: '', notaName: '' })
-        toast({ title: 'Berhasil! 🌾', description: 'Catatan pakan berhasil ditambahkan ke termin' })
-        await fetchData()
-        if (view === 'batch-detail' && selectedBatch?.id) {
-          try {
-            const freshRes = await fetch('/api/batches')
-            if (freshRes.ok) {
-              const freshBatches = await freshRes.json()
-              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
-              if (updated) setSelectedBatch(updated)
-            }
-          } catch {}
-        }
-      }
-    } catch {
-      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui pakan' : 'Gagal menambahkan pakan', variant: 'destructive' })
-    } finally {
-      submittingRef.current = false
-      setSubmitting(false)
-    }
-  }
-
-  const handleDeleteFeed = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus catatan pakan ini?')) return
-    try {
-      await fetch(`/api/feed/${id}`, { method: 'DELETE' })
-      toast({ title: 'Dihapus', description: 'Catatan pakan berhasil dihapus' })
-      await fetchData()
-      if (view === 'batch-detail' && selectedBatch?.id) {
-        try {
-          const freshRes = await fetch('/api/batches')
-          if (freshRes.ok) {
-            const freshBatches = await freshRes.json()
-            const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
-            if (updated) setSelectedBatch(updated)
-          }
-        } catch {}
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Gagal menghapus pakan', variant: 'destructive' })
-    }
-  }
-
-  // ============================================================
-  // Upload foto nota pembelian — untuk pakan & peralatan.
+  // Upload foto nota pembelian — untuk peralatan.
   // Foto dikompresi (resize max 900px, JPEG q=0.7) sebelum disimpan
   // sebagai base64 data URL di state form, lalu dikirim ke API dan
   // disimpan langsung di database (Opsi A: base64 di PostgreSQL).
   // ============================================================
   const [notaViewer, setNotaViewer] = useState<{ src: string; title: string; fileName?: string } | null>(null)
   const [notaUploading, setNotaUploading] = useState(false)
-
-  const handleFeedNotaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Error', description: 'File harus berupa gambar', variant: 'destructive' })
-      e.target.value = ''
-      return
-    }
-    setNotaUploading(true)
-    try {
-      const compressed = await compressNotaImage(file)
-      setFeedForm((prev) => ({ ...prev, notaData: compressed, notaName: file.name }))
-      toast({ title: 'Foto nota ditambahkan 📷', description: 'Foto akan tersimpan bersama catatan pakan ini' })
-    } catch {
-      toast({ title: 'Error', description: 'Gagal memproses foto nota', variant: 'destructive' })
-    } finally {
-      setNotaUploading(false)
-      e.target.value = ''
-    }
-  }
 
   const handleEquipmentNotaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1155,6 +985,42 @@ export default function HomePage() {
       toast({ title: 'Error', description: 'Gagal menambah satuan', variant: 'destructive' })
     } finally {
       setSavingUnit(false)
+    }
+  }
+
+  // Tambah kategori biaya baru (Kandang, Peralatan Pakan & Minum, dll) ke master
+  // daftar. Kategori baru otomatis terpilih di form peralatan setelah disimpan.
+  // Pola identik dengan handleAddUnit — master daftar di backend, dipakai dropdown.
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!name) {
+      toast({ title: 'Oops', description: 'Nama kategori tidak boleh kosong', variant: 'destructive' })
+      return
+    }
+    if (savingCategory) return
+    setSavingCategory(true)
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error()
+      const created: Category = await res.json()
+      // Tambahkan ke daftar kategori (hindari duplikat di state), urut abjad.
+      setCategories((prev) =>
+        prev.some((c) => c.name.toLowerCase() === created.name.toLowerCase())
+          ? prev
+          : [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setEquipmentForm((prev) => ({ ...prev, category: created.name }))
+      setNewCategoryName('')
+      setShowAddCategory(false)
+      toast({ title: 'Kategori ditambahkan ✅', description: `Kategori "${created.name}" siap dipakai` })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menambah kategori', variant: 'destructive' })
+    } finally {
+      setSavingCategory(false)
     }
   }
 
@@ -1295,9 +1161,6 @@ export default function HomePage() {
     rows.push(['Berat Terkini (gram)', stats.latestWeight])
     rows.push(['Berat Terkini (kg)', (stats.latestWeight / 1000).toFixed(3)])
     rows.push(['Pertambahan Berat (gram)', Math.round(stats.weightGain)])
-    rows.push(['Total Pakan (kg)', stats.totalFeed.toFixed(2)])
-    rows.push(['Pakan per Ekor (kg)', stats.feedPerEkor.toFixed(3)])
-    rows.push(['FCR', stats.fcr.toFixed(2)])
     rows.push(['Total Biaya (Rp)', Math.round(stats.totalCost)])
     if (batch.status === 'harvested') {
       rows.push(['Total Panen (kg)', stats.totalHarvestKg.toFixed(2)])
@@ -1318,14 +1181,7 @@ export default function HomePage() {
     ;[...batch.mortalityRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((m) => {
       rows.push([formatDate(m.date), m.quantity, m.reason, m.notes || '-'])
     })
-    // Section 5: Feed records
-    rows.push([])
-    rows.push(['Riwayat Pakan'])
-    rows.push(['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg (Rp)', 'Total (Rp)', 'Ada Nota', 'Catatan'])
-    ;[...batch.feedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((f) => {
-      rows.push([formatDate(f.date), f.feedType, f.quantityKg, f.pricePerKg, Math.round(f.quantityKg * f.pricePerKg), f.notaData ? 'Ya' : 'Tidak', f.notes || '-'])
-    })
-    // Section 6: Equipment costs
+    // Section 5: Equipment costs
     rows.push([])
     rows.push(['Riwayat Biaya / Peralatan'])
     rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Ada Nota', 'Catatan'])
@@ -1425,9 +1281,6 @@ export default function HomePage() {
       ['Total Mati', `${stats.totalDead} ekor (${stats.mortalityRate.toFixed(2)}%)`],
       ['Berat Terkini', `${(stats.latestWeight / 1000).toFixed(3)} kg (${stats.latestWeight} g)`],
       ['Pertambahan Berat', `${Math.round(stats.weightGain)} g`],
-      ['Total Pakan', `${stats.totalFeed.toFixed(2)} kg`],
-      ['Pakan per Ekor', `${stats.feedPerEkor.toFixed(3)} kg`],
-      ['FCR', stats.fcr.toFixed(2)],
       ['Total Biaya', formatCurrency(stats.totalCost)],
     ]
     if (batch.status === 'harvested') {
@@ -1482,25 +1335,7 @@ export default function HomePage() {
       y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
     }
 
-    // --- Section 5: Riwayat Pakan ---
-    if (batch.feedRecords.length > 0) {
-      sectionTitle('Riwayat Pakan')
-      autoTable(doc, {
-        startY: y,
-        head: [['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg', 'Total', 'Catatan']],
-        body: [...batch.feedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((f) => [
-          formatDate(f.date), f.feedType, f.quantityKg.toFixed(2),
-          formatCurrency(f.pricePerKg), formatCurrency(Math.round(f.quantityKg * f.pricePerKg)), f.notes || '-',
-        ]),
-        theme: 'striped',
-        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // amber-500
-        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
-        margin: { left: margin, right: margin },
-      })
-      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
-    }
-
-    // --- Section 6: Riwayat Biaya / Peralatan ---
+    // --- Section 5: Riwayat Biaya / Peralatan ---
     if (batch.equipment.length > 0) {
       sectionTitle('Riwayat Biaya / Peralatan')
       autoTable(doc, {
@@ -1517,13 +1352,11 @@ export default function HomePage() {
       })
     }
 
-    // --- Section 7: Lampiran Foto Nota ---
-    // Tampilkan thumbnail foto nota untuk pakan & peralatan yang punya nota.
+    // --- Section 6: Lampiran Foto Nota ---
+    // Tampilkan thumbnail foto nota untuk peralatan yang punya nota.
     // Layout: 2 gambar per baris, masing-masing ~250pt lebar dengan label.
-    const feedNotas = batch.feedRecords.filter((f) => f.notaData)
     const equipNotas = batch.equipment.filter((e) => e.notaData)
     const allNotas: Array<{ data: string; label: string }> = [
-      ...feedNotas.map((f) => ({ data: f.notaData!, label: `Pakan ${f.feedType} — ${formatDate(f.date)}` })),
       ...equipNotas.map((e) => ({ data: e.notaData!, label: `${e.name} — ${formatDate(e.purchaseDate)}` })),
     ]
     if (allNotas.length > 0) {
@@ -1679,22 +1512,16 @@ export default function HomePage() {
     [batches]
   )
 
-  // Cost breakdown for pie chart: feed cost + equipment cost grouped by category
+  // Cost breakdown for pie chart: equipment cost grouped by category
   const dashboardCostBreakdown = useMemo(() => {
-    const feedCost = batches.reduce(
-      (s, b) => s + b.feedRecords.reduce((s2, f) => s2 + f.quantityKg * f.pricePerKg, 0),
-      0
-    )
     const eqByCat: Record<string, number> = {}
     batches.forEach((b) => b.equipment?.forEach((e) => {
       const cat = e.category || 'Lainnya'
       eqByCat[cat] = (eqByCat[cat] || 0) + e.quantity * e.unitPrice
     }))
-    const result: Array<{ name: string; value: number; color: string }> = [
-      { name: 'Pakan', value: Math.round(feedCost), color: '#16a34a' },
-    ]
+    const result: Array<{ name: string; value: number; color: string }> = []
     Object.entries(eqByCat).forEach(([name, value], i) => {
-      if (value > 0) result.push({ name, value: Math.round(value), color: COLORS[(i + 1) % COLORS.length] })
+      if (value > 0) result.push({ name, value: Math.round(value), color: COLORS[i % COLORS.length] })
     })
     return result
   }, [batches])
@@ -1715,19 +1542,15 @@ export default function HomePage() {
 
   // Extra totals not in the dashboard API response
   const dashExtras = useMemo(() => {
-    const feedCost = batches.reduce(
-      (s, b) => s + b.feedRecords.reduce((s2, f) => s2 + f.quantityKg * f.pricePerKg, 0),
-      0
-    )
     const equipmentCost = batches.reduce(
       (s, b) => s + (b.equipment?.reduce((s2, e) => s2 + e.quantity * e.unitPrice, 0) || 0),
       0
     )
-    const totalCost = feedCost + equipmentCost
+    const totalCost = equipmentCost
     const totalProfit = batches
       .filter((b) => b.status === 'harvested')
       .reduce((s, b) => s + computeBatchStats(b).profit, 0)
-    return { totalCost, totalProfit, feedCost, equipmentCost }
+    return { totalCost, totalProfit, equipmentCost }
   }, [batches])
 
   // Smart alerts/insights across all batches
@@ -1749,9 +1572,6 @@ export default function HomePage() {
         if (!latestWeightDate || daysSince > 7) {
           alerts.push({ level: 'info', title: `${b.name}: Belum Timbang`, desc: `Data penimbangan terakhir ${latestWeightDate ? ` ${Math.floor(daysSince)} hari lalu` : 'belum ada'}. Lakukan penimbangan rutin.`, batchId: b.id })
         }
-        if (stats.fcr > 2.0 && stats.fcr > 0) {
-          alerts.push({ level: 'warning', title: `${b.name}: FCR Tinggi`, desc: `FCR ${stats.fcr.toFixed(2)} di atas ideal (1.6-1.8). Evaluasi kualitas pakan & manajemen.`, batchId: b.id })
-        }
       } else if (b.status === 'harvested' && stats.profit < 0) {
         alerts.push({ level: 'warning', title: `${b.name}: Panen Rugi`, desc: `Terjadi kerugian pada panen ini. Evaluasi biaya produksi & harga jual.`, batchId: b.id })
       }
@@ -1761,13 +1581,12 @@ export default function HomePage() {
 
   // Recent activity timeline (latest 10 events across all batches)
   const dashboardRecentActivity = useMemo(() => {
-    type EvType = 'weight' | 'mortality' | 'feed' | 'equipment' | 'harvest' | 'arrival'
+    type EvType = 'weight' | 'mortality' | 'equipment' | 'harvest' | 'arrival'
     const events: Array<{ type: EvType; batchName: string; date: string; detail: string; batchId: string }> = []
     batches.forEach((b) => {
       events.push({ type: 'arrival', batchName: b.name, date: b.arrivalDate, detail: `${b.quantity.toLocaleString('id-ID')} ekor DOC masuk`, batchId: b.id })
       b.weightRecords.forEach((w) => events.push({ type: 'weight', batchName: b.name, date: w.date, detail: `Timbang: ${w.averageWeightGram} g (umur ${w.ageDays} hari)`, batchId: b.id }))
       b.mortalityRecords.forEach((m) => events.push({ type: 'mortality', batchName: b.name, date: m.date, detail: `${m.quantity} ekor mati — ${m.reason}`, batchId: b.id }))
-      b.feedRecords.forEach((f) => events.push({ type: 'feed', batchName: b.name, date: f.date, detail: `Pakan ${f.feedType}: ${f.quantityKg} kg`, batchId: b.id }))
       b.equipment?.forEach((e) => events.push({ type: 'equipment', batchName: b.name, date: e.purchaseDate, detail: `${e.name}: ${e.quantity} ${e.unit}`, batchId: b.id }))
       if (b.status === 'harvested' && b.harvestDate) {
         events.push({ type: 'harvest', batchName: b.name, date: b.harvestDate, detail: `Panen ${b.harvestQuantity?.toLocaleString('id-ID')} ekor @ ${(b.harvestWeight || 0).toFixed(2)} kg`, batchId: b.id })
@@ -1965,14 +1784,13 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    {/* KPI Cards - 6 */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-5">
+                    {/* KPI Cards - 5 (Pakan card dihapus — fitur pakan sudah digantikan Biaya) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-5">
                       {[
                         { icon: Package, label: 'Total Termin', value: String(dashboard?.totalBatches || 0), sub: `${dashboard?.activeBatches || 0} aktif · ${dashboard?.harvestedBatches || 0} panen`, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
                         { icon: Bird, label: 'Ayam Hidup', value: (dashboard?.totalChickens || 0).toLocaleString('id-ID'), sub: 'ekor aktif', color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
                         { icon: Skull, label: 'Mortalitas', value: (dashboard?.totalMortality || 0).toLocaleString('id-ID'), sub: 'ekor total', color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
-                        { icon: Wheat, label: 'Total Pakan', value: `${(dashboard?.totalFeedKg || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`, sub: 'kg terpakai', color: 'from-yellow-500 to-amber-600', shadow: 'shadow-amber-200/50' },
-                        { icon: Wallet, label: 'Total Biaya', value: formatCurrency(dashExtras.totalCost), sub: 'Pakan + Peralatan', color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
+                        { icon: Wallet, label: 'Total Biaya', value: formatCurrency(dashExtras.totalCost), sub: 'Peralatan & operasional', color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
                         { icon: TrendingUp, label: 'Pendapatan', value: formatCurrency(dashboard?.totalHarvestRevenue || 0), sub: `Laba: ${formatCurrency(dashExtras.totalProfit)}`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
                       ].map((stat, i) => (
                         <motion.div
@@ -2143,7 +1961,7 @@ export default function HomePage() {
                             <div className="h-48 flex flex-col items-center justify-center text-muted-foreground">
                               <Wallet className="w-10 h-10 mb-2 opacity-30" />
                               <p className="text-sm">Belum ada data biaya</p>
-                              <p className="text-xs">Catat pakan atau peralatan untuk melihat distribusi</p>
+                              <p className="text-xs">Catat biaya peralatan untuk melihat distribusi</p>
                             </div>
                           )}
                         </CardContent>
@@ -2204,7 +2022,7 @@ export default function HomePage() {
                                     <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                                       <div><p className="text-muted-foreground">Umur</p><p className="font-semibold">{stats.ageDays} hari</p></div>
                                       <div><p className="text-muted-foreground">Berat</p><p className="font-semibold">{(stats.latestWeight / 1000).toFixed(2)} kg</p></div>
-                                      <div><p className="text-muted-foreground">FCR</p><p className="font-semibold">{stats.fcr > 0 ? stats.fcr.toFixed(2) : '-'}</p></div>
+                                      <div><p className="text-muted-foreground">Biaya</p><p className="font-semibold">{formatCurrency(stats.totalCost)}</p></div>
                                       <div><p className="text-muted-foreground">Mati</p><p className="font-semibold text-red-600">{stats.totalDead} ({stats.mortalityRate.toFixed(1)}%)</p></div>
                                     </div>
                                     <div className="mb-1">
@@ -2242,7 +2060,6 @@ export default function HomePage() {
                               const cfg = {
                                 weight: { icon: Scale, color: 'bg-teal-100 text-teal-700' },
                                 mortality: { icon: Skull, color: 'bg-red-100 text-red-700' },
-                                feed: { icon: Wheat, color: 'bg-amber-100 text-amber-700' },
                                 equipment: { icon: Wrench, color: 'bg-indigo-100 text-indigo-700' },
                                 harvest: { icon: ShoppingBasket, color: 'bg-orange-100 text-orange-700' },
                                 arrival: { icon: Bird, color: 'bg-emerald-100 text-emerald-700' },
@@ -2511,7 +2328,6 @@ export default function HomePage() {
                                   <li>Setiap kedatangan ayam dicatat sebagai <b>1 Termin</b> terpisah (nama, tanggal, jumlah, berat awal).</li>
                                   <li><b>Mortalitas</b> (mati/afkir) terikat ke 1 Termin — tidak boleh dicampur antar termin.</li>
                                   <li><b>Panen</b> terikat ke 1 Termin, dan tanggal panen tidak boleh sebelum tanggal ayam masuk.</li>
-                                  <li><b>Belanja pakan</b> terikat ke 1 Termin (catat di tab Pakan pada detail termin).</li>
                                   <li><b>Penimbangan berat</b> terikat ke 1 Termin (catat di tab Berat pada detail termin).</li>
                                   <li><b>Peralatan & biaya</b> terikat ke 1 Termin (catat di tab Biaya pada detail termin).</li>
                                   <li>Jika panen salah termin, gunakan tombol <b>"Batalkan Panen"</b> lalu catat panen ke termin yang benar.</li>
@@ -2945,7 +2761,7 @@ export default function HomePage() {
                           { icon: Skull, label: 'Mati/Afkir', value: `${stats.totalDead} (${stats.mortalityRate.toFixed(1)}%)`, bg: 'bg-red-50', text: 'text-red-700' },
                           { icon: Calendar, label: 'Umur', value: `${stats.ageDays} hari`, bg: 'bg-amber-50', text: 'text-amber-700' },
                           { icon: Scale, label: 'Berat', value: `${(stats.latestWeight / 1000).toFixed(2)} kg`, bg: 'bg-teal-50', text: 'text-teal-700' },
-                          { icon: TrendingUp, label: 'FCR', value: stats.fcr.toFixed(2), bg: 'bg-violet-50', text: 'text-violet-700' },
+                          { icon: Wallet, label: 'Biaya', value: formatCurrency(stats.totalCost), bg: 'bg-violet-50', text: 'text-violet-700' },
                         ].map((stat) => (
                           <Card key={stat.label} className="border-0 shadow-md">
                             <CardContent className="p-3 sm:p-4">
@@ -2991,12 +2807,9 @@ export default function HomePage() {
                     </Card>
                   )}
 
-                  {/* Detail Tabs: Weight, Mortality, Biaya */}
+                  {/* Detail Tabs: Weight, Mortality, Biaya, Perhitungan */}
                   <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-4 sm:grid-cols-5 sm:flex sm:flex-wrap">
-                      <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
-                        <Wheat className="w-4 h-4" /> Pakan
-                      </TabsTrigger>
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-4 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -3010,94 +2823,6 @@ export default function HomePage() {
                         <Calculator className="w-4 h-4" /> Perhitungan
                       </TabsTrigger>
                     </TabsList>
-
-                    {/* Feed Records (per termin) */}
-                    <TabsContent value="pakan">
-                      <Card className="border-0 shadow-lg">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                          <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <Wheat className="w-4 h-4 text-amber-600" />
-                              Riwayat Pakan
-                            </CardTitle>
-                            <CardDescription>Catatan pembelian pakan untuk termin ini</CardDescription>
-                          </div>
-                          {selectedBatch.status === 'active' && (
-                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openAddFeed(selectedBatch)}>
-                              <Plus className="w-4 h-4" /> Tambah
-                            </Button>
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          {(() => {
-                            const feedList = selectedBatch.feedRecords ?? []
-                            const totalKg = feedList.reduce((s, f) => s + f.quantityKg, 0)
-                            const totalCost = feedList.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
-                            return (
-                              <>
-                                {/* Summary row */}
-                                <div className="grid grid-cols-3 gap-3 mb-4">
-                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Jenis</p>
-                                    <p className="text-lg font-bold text-amber-700">{feedList.length}</p>
-                                  </div>
-                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Total Pakan</p>
-                                    <p className="text-lg font-bold text-emerald-700">{totalKg.toFixed(1)} kg</p>
-                                  </div>
-                                  <div className="bg-rose-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-muted-foreground">Total Biaya Pakan</p>
-                                    <p className="text-sm sm:text-lg font-bold text-rose-700 break-words">{formatCurrency(totalCost)}</p>
-                                  </div>
-                                </div>
-
-                                {feedList.length === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                    <p className="text-sm">Belum ada catatan pakan untuk termin ini</p>
-                                    {selectedBatch.status === 'active' && (
-                                      <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => openAddFeed(selectedBatch)}>
-                                        <Plus className="w-3 h-3" /> Tambah Pakan Pertama
-                                      </Button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                                    {feedList.map((f) => (
-                                      <div key={f.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                                            <Wheat className="w-5 h-5 text-amber-600" />
-                                          </div>
-                                          <div className="min-w-0">
-                                            <p className="font-medium text-sm truncate">{f.feedType}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{f.quantityKg} kg × {formatCurrency(f.pricePerKg)}/kg • {formatDate(f.date)}{f.notes ? ` • ${f.notes}` : ''}</p>
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                          <p className="font-bold text-sm">{formatCurrency(f.quantityKg * f.pricePerKg)}</p>
-                                          {f.notaData && (
-                                            <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={(ev) => { ev.stopPropagation(); setNotaViewer({ src: f.notaData!, title: `Nota Pakan ${f.feedType}`, fileName: f.notaName || undefined }) }} title="Lihat foto nota">
-                                              <Receipt className="w-3.5 h-3.5" />
-                                            </Button>
-                                          )}
-                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(ev) => { ev.stopPropagation(); openEditFeed(f, selectedBatch) }}>
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </Button>
-                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); handleDeleteFeed(f.id) }}>
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </>
-                            )
-                          })()}
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
 
                     {/* Weight Records */}
                     <TabsContent value="berat">
@@ -3331,7 +3056,7 @@ export default function HomePage() {
                         const stats = getBatchStats(selectedBatch)
                         const equipList = selectedBatch.equipment ?? []
                         const equipCost = equipList.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
-                        const totalCost = stats.totalCost + equipCost
+                        const totalCost = stats.totalCost // totalCost sekarang murni biaya operasional (equipment)
                         return (
                           <Card className="border-0 shadow-lg">
                             <CardHeader>
@@ -3339,7 +3064,7 @@ export default function HomePage() {
                                 <Calculator className="w-4 h-4 text-rose-600" />
                                 Perhitungan Termin {selectedBatch.name}
                               </CardTitle>
-                              <CardDescription>Kalkulasi biaya, FCR, mortalitas, dan profit untuk termin ini</CardDescription>
+                              <CardDescription>Kalkulasi biaya, mortalitas, dan profit untuk termin ini</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -3348,22 +3073,9 @@ export default function HomePage() {
                                   <p className="text-sm sm:text-lg font-bold text-indigo-700 break-words">{formatCurrency(totalCost)}</p>
                                 </div>
                                 <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Biaya Operasional</p>
-                                  <p className="text-sm sm:text-lg font-bold text-amber-700 break-words">{formatCurrency(equipCost)}</p>
-                                </div>
-                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Pakan</p>
-                                  <p className="text-lg font-bold text-emerald-700">{stats.totalFeed.toFixed(1)} kg</p>
-                                </div>
-                                <div className="bg-teal-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Pakan/Ekor</p>
-                                  <p className="text-lg font-bold text-teal-700">{stats.feedPerEkor.toFixed(2)} kg</p>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div className="bg-violet-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">FCR</p>
-                                  <p className="text-lg font-bold text-violet-700">{stats.fcr.toFixed(2)}</p>
+                                  <p className="text-xs text-muted-foreground">Jumlah Item</p>
+                                  <p className="text-lg font-bold text-amber-700">{equipList.length}</p>
+                                  <p className="text-xs text-amber-500">catatan biaya</p>
                                 </div>
                                 <div className="bg-red-50 rounded-xl p-3 text-center">
                                   <p className="text-xs text-muted-foreground">Mati/Afkir</p>
@@ -3373,10 +3085,6 @@ export default function HomePage() {
                                 <div className="bg-green-50 rounded-xl p-3 text-center">
                                   <p className="text-xs text-muted-foreground">Hidup</p>
                                   <p className="text-lg font-bold text-green-700">{stats.aliveCount.toLocaleString('id-ID')} ekor</p>
-                                </div>
-                                <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                  <p className="text-xs text-muted-foreground">Umur</p>
-                                  <p className="text-lg font-bold text-amber-700">{stats.ageDays} hari</p>
                                 </div>
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -3772,15 +3480,43 @@ export default function HomePage() {
             </div>
             <div className="space-y-2">
               <Label>Kategori</Label>
-              <Select value={equipmentForm.category} onValueChange={(v) => setEquipmentForm({ ...equipmentForm, category: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={showAddCategory ? '__add_new__' : equipmentForm.category}
+                onValueChange={(v) => {
+                  if (v === '__add_new__') {
+                    setShowAddCategory(true)
+                  } else {
+                    setShowAddCategory(false)
+                    setEquipmentForm({ ...equipmentForm, category: v })
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
                 <SelectContent>
-                  {EQUIPMENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                   ))}
+                  <SelectItem value="__add_new__">➕ Tambah Kategori Baru…</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {showAddCategory && (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                <Input
+                  placeholder="Kategori baru, mis. Obat & Vitamin, Listrik…"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory() } }}
+                  autoFocus
+                />
+                <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddCategory} disabled={savingCategory || !newCategoryName.trim()}>
+                  {savingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddCategory(false); setNewCategoryName('') }}>
+                  Batal
+                </Button>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Jumlah</Label>
@@ -3893,109 +3629,6 @@ export default function HomePage() {
             </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add/Edit Pakan Dialog */}
-      <Dialog open={addFeedOpen} onOpenChange={(open) => { setAddFeedOpen(open); if (!open) setEditingFeed(null) }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wheat className="w-5 h-5 text-amber-600" />
-              {editingFeed ? 'Edit Pakan' : 'Tambah Pakan'}
-            </DialogTitle>
-            <DialogDescription>{editingFeed ? 'Perbarui catatan pakan' : `Catat pembelian pakan untuk ${selectedBatch?.name ?? 'termin ini'}`}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-            {/* Konfirmasi termin pakan — pakan wajib terikat ke sebuah termin */}
-            {selectedBatch && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
-                <span className="text-amber-700">Termin:</span> <b>{selectedBatch.name} (#{selectedBatch.terminNumber})</b> — pakan terikat ke termin ini
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Tanggal Beli Pakan</Label>
-              <Input type="date" value={feedForm.date} onChange={(e) => setFeedForm({ ...feedForm, date: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Jenis Pakan</Label>
-              <Select value={feedForm.feedType} onValueChange={(v) => setFeedForm({ ...feedForm, feedType: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {['Starter', 'Grower', 'Finisher', 'Pre-Starter', 'Konsentrat', 'Lainnya'].map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Jumlah (kg)</Label>
-                <Input type="number" step="0.01" min="0" placeholder="50" value={feedForm.quantityKg} onChange={(e) => setFeedForm({ ...feedForm, quantityKg: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Harga/kg (Rp)</Label>
-                <Input type="number" step="100" min="0" placeholder="8500" value={feedForm.pricePerKg} onChange={(e) => setFeedForm({ ...feedForm, pricePerKg: e.target.value })} />
-              </div>
-            </div>
-            {feedForm.quantityKg && feedForm.pricePerKg && (
-              <div className="bg-amber-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total Biaya Pakan</p>
-                <p className="text-lg font-bold text-amber-700">{formatCurrency(parseFloat(feedForm.quantityKg) * parseFloat(feedForm.pricePerKg))}</p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Catatan (opsional)</Label>
-              <Textarea placeholder="mis. Sak ke-3, pakan tambahan..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} rows={2} />
-            </div>
-            {/* Foto nota pembelian pakan — upload, preview, & hapus */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
-              {feedForm.notaData ? (
-                <div className="relative rounded-lg overflow-hidden border border-amber-200 group">
-                  <img src={feedForm.notaData} alt="Nota pembelian pakan" className="w-full max-h-48 object-contain bg-slate-50" />
-                  <button
-                    type="button"
-                    onClick={() => setFeedForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
-                    aria-label="Hapus foto nota"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </button>
-                  {feedForm.notaName && (
-                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{feedForm.notaName}</p>
-                  )}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Ambil Foto langsung dari kamera.
-                      `capture="environment"` membuka kamera belakang di mobile
-                      (Android Chrome & iOS Safari). Di desktop, browser akan
-                      fall back ke file picker biasa. */}
-                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-amber-300 rounded-lg p-3 cursor-pointer hover:bg-amber-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                    {notaUploading ? (
-                      <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
-                    ) : (
-                      <><Camera className="w-5 h-5 text-amber-500" /><span className="text-[11px] font-medium text-amber-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
-                    )}
-                    <input type="file" accept="image/*" capture="environment" onChange={handleFeedNotaUpload} className="hidden" />
-                  </label>
-                  {/* Pilih dari galeri / file explorer. */}
-                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-amber-300 rounded-lg p-3 cursor-pointer hover:bg-amber-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                    {notaUploading ? (
-                      <><Loader2 className="w-5 h-5 text-amber-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
-                    ) : (
-                      <><ImageIcon className="w-5 h-5 text-amber-500" /><span className="text-[11px] font-medium text-amber-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
-                    )}
-                    <input type="file" accept="image/*" onChange={handleFeedNotaUpload} className="hidden" />
-                  </label>
-                </div>
-              )}
-            </div>
-            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.feedType || !feedForm.quantityKg || !feedForm.pricePerKg}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingFeed ? 'Simpan Perubahan' : 'Simpan Data Pakan')}
             </Button>
           </div>
         </DialogContent>

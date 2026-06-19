@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const batches = await db.batch.findMany({
       include: {
-        feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: { orderBy: { date: 'desc' } },
         equipment: { orderBy: { purchaseDate: 'desc' } },

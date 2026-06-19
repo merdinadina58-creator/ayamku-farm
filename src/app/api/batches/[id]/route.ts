@@ -10,7 +10,6 @@ export async function GET(
     const batch = await db.batch.findUnique({
       where: { id },
       include: {
-        feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: { orderBy: { date: 'desc' } },
       },

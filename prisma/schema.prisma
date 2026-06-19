@@ -109,3 +109,12 @@ model Unit {
   name      String   @unique // nama satuan, mis. "Sak"
   createdAt DateTime @default(now())
 }
+
+// Master daftar kategori biaya (Kandang, Peralatan Pakan & Minum, dll).
+// Pengguna bisa menambah kategori baru lewat UI; kategori tersimpan di sini
+// agar tetap tersedia di dropdown pada sesi berikutnya.
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique // nama kategori, mis. "Kandang & Infrastruktur"
+  createdAt DateTime @default(now())
+}
