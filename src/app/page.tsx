@@ -198,6 +198,7 @@ const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   termin: 'Termin',
   panen: 'Panen',
+  kalender: 'Kalender',
   settings: 'Pengaturan',
 }
 
@@ -205,6 +206,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
   { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
   { id: 'panen', label: 'Panen', icon: ShoppingBasket, iconColor: 'text-amber-600' },
+  { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
 ] as const
 
@@ -217,7 +219,7 @@ export default function HomePage() {
   const { toast } = useToast()
 
   // Sidebar + section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'panen' | 'settings'>('dashboard')
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'termin' | 'panen' | 'kalender' | 'settings'>('dashboard')
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
   // Settings state
@@ -1362,6 +1364,145 @@ export default function HomePage() {
                   </Card>
                 )}
 
+                {/* Kalender Section */}
+                {activeSection === 'kalender' && (
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <CardTitle className="flex items-center gap-2">
+                            <CalendarDays className="w-5 h-5 text-emerald-600" />
+                            Kalender Peternakan
+                          </CardTitle>
+                          <CardDescription>Jadwal kedatangan bibit & panen seluruh termin — klik tanggal untuk lihat detail</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {batches.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <CalendarDays className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p>Belum ada termin tercatat</p>
+                          <p className="text-xs mt-1">Buat termin terlebih dahulu untuk melihat jadwal di kalender</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Summary cards */}
+                          {(() => {
+                            const tibaCount = batches.length
+                            const panenCount = batches.filter((b) => b.status === 'harvested').length
+                            const upcomingPanen = batches.filter((b) => b.status === 'active').length
+                            return (
+                              <div className="grid grid-cols-3 gap-3 mb-5">
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Total Tiba</p>
+                                  <p className="text-lg font-bold text-emerald-700">{tibaCount}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Sudah Panen</p>
+                                  <p className="text-lg font-bold text-amber-700">{panenCount}</p>
+                                </div>
+                                <div className="bg-teal-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-muted-foreground">Aktif (Belum Panen)</p>
+                                  <p className="text-lg font-bold text-teal-700">{upcomingPanen}</p>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Month navigation */}
+                          <div className="flex items-center justify-between mb-4">
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
+                              <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <h3 className="text-base font-bold capitalize">
+                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                            </h3>
+                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {/* Day header */}
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
+                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
+                            ))}
+                          </div>
+
+                          {/* Calendar grid — SEMUA event dari SEMUA batch, klik untuk detail */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {calendarCells.map((cell, i) => {
+                              if (!cell.date) {
+                                return <div key={`blank-${i}`} className="min-h-[56px] sm:min-h-[72px]" />
+                              }
+                              const events = cell.events
+                              const hasTiba = events.some((e) => e.type === 'tiba')
+                              const hasPanen = events.some((e) => e.type === 'panen')
+                              const isToday = new Date().toDateString() === cell.date.toDateString()
+                              const hasEvents = events.length > 0
+                              return (
+                                <button
+                                  key={cell.day}
+                                  type="button"
+                                  disabled={!hasEvents}
+                                  onClick={() => hasEvents && setDayDetail({ date: cell.date!, events })}
+                                  className={`min-h-[56px] sm:min-h-[72px] p-1.5 rounded-lg border text-left transition-all ${
+                                    hasEvents
+                                      ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-100 hover:border-emerald-400 cursor-pointer'
+                                      : 'border-gray-100 cursor-default'
+                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
+                                >
+                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
+                                  {hasTiba && (
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">
+                                        {events.filter((e) => e.type === 'tiba').length > 1 ? `${events.filter((e) => e.type === 'tiba').length} Tiba` : 'Tiba'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {hasPanen && (
+                                    <div className="mt-0.5 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                      <span className="block text-[10px] font-medium text-amber-700 truncate">
+                                        {events.filter((e) => e.type === 'panen').length > 1 ? `${events.filter((e) => e.type === 'panen').length} Panen` : 'Panen'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {hasEvents && events.length > 2 && (
+                                    <p className="text-[9px] text-muted-foreground mt-0.5">+{events.length - 2} lainnya</p>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* Legend */}
+                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span className="text-muted-foreground">Panen</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
+                              <span className="text-muted-foreground">Hari ini</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Info className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-muted-foreground">Klik tanggal berwarna untuk detail</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Settings Section */}
                 {activeSection === 'settings' && (
                   <Card className="border-0 shadow-lg">
@@ -1558,7 +1699,7 @@ export default function HomePage() {
 
                   {/* Detail Tabs: Weight, Mortality, Biaya */}
                   <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-5 sm:flex sm:flex-wrap">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-4 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -1570,9 +1711,6 @@ export default function HomePage() {
                       </TabsTrigger>
                       <TabsTrigger value="hitung" className="gap-2 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 w-full sm:w-auto">
                         <Calculator className="w-4 h-4" /> Perhitungan
-                      </TabsTrigger>
-                      <TabsTrigger value="kalender" className="gap-2 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 w-full sm:w-auto">
-                        <CalendarDays className="w-4 h-4" /> Kalender
                       </TabsTrigger>
                     </TabsList>
 
@@ -1891,102 +2029,6 @@ export default function HomePage() {
                       })()}
                     </TabsContent>
 
-                    {/* Kalender (per termin) */}
-                    <TabsContent value="kalender">
-                      <Card className="border-0 shadow-lg">
-                        <CardHeader>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <CalendarDays className="w-4 h-4 text-emerald-600" />
-                            Kalender Termin {selectedBatch.name}
-                          </CardTitle>
-                          <CardDescription>Jadwal kedatangan dan panen untuk termin ini</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                            <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                              <p className="text-xs text-muted-foreground">Tiba (Bibit Masuk)</p>
-                              <p className="text-sm font-bold text-emerald-700">{formatDate(selectedBatch.arrivalDate)}</p>
-                              <p className="text-xs text-muted-foreground">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</p>
-                            </div>
-                            <div className="bg-amber-50 rounded-xl p-3 text-center">
-                              <p className="text-xs text-muted-foreground">Panen</p>
-                              <p className="text-sm font-bold text-amber-700">{selectedBatch.harvestDate ? formatDate(selectedBatch.harvestDate) : 'Belum panen'}</p>
-                              <p className="text-xs text-muted-foreground">{selectedBatch.harvestQuantity ? `${selectedBatch.harvestQuantity.toLocaleString('id-ID')} ekor` : '—'}</p>
-                            </div>
-                            <div className="bg-teal-50 rounded-xl p-3 text-center">
-                              <p className="text-xs text-muted-foreground">Umur</p>
-                              <p className="text-sm font-bold text-teal-700">{getBatchStats(selectedBatch).ageDays} hari</p>
-                              <p className="text-xs text-muted-foreground">{selectedBatch.status === 'active' ? 'Masih aktif' : 'Sudah panen'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between mb-4">
-                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
-                              <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <h3 className="text-base font-bold capitalize">
-                              {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-                            </h3>
-                            <Button variant="outline" size="icon" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
-                              <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1">{d}</div>
-                            ))}
-                          </div>
-                          <div className="grid grid-cols-7 gap-1">
-                            {calendarCells.map((cell, i) => {
-                              if (!cell.date) {
-                                return <div key={`blank-${i}`} className="min-h-[50px] sm:min-h-[60px]" />
-                              }
-                              const events = cell.events.filter((e) => e.batch.id === selectedBatch.id)
-                              const hasTiba = events.some((e) => e.type === 'tiba')
-                              const hasPanen = events.some((e) => e.type === 'panen')
-                              const isToday = new Date().toDateString() === cell.date.toDateString()
-                              return (
-                                <div
-                                  key={cell.day}
-                                  className={`min-h-[50px] sm:min-h-[60px] p-1.5 rounded-lg border text-left transition-all ${
-                                    events.length > 0
-                                      ? 'border-emerald-200 bg-emerald-50/30'
-                                      : 'border-gray-100'
-                                  } ${isToday ? 'ring-2 ring-emerald-400' : ''}`}
-                                >
-                                  <p className={`text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-gray-600'}`}>{cell.day}</p>
-                                  {hasTiba && (
-                                    <div className="mt-1 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                      <span className="block text-[10px] font-medium text-emerald-700 truncate">Tiba</span>
-                                    </div>
-                                  )}
-                                  {hasPanen && (
-                                    <div className="mt-0.5 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                      <span className="block text-[10px] font-medium text-amber-700 truncate">Panen</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span className="text-muted-foreground">Tiba (bibit masuk)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500" />
-                              <span className="text-muted-foreground">Panen</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded bg-white ring-2 ring-emerald-400" />
-                              <span className="text-muted-foreground">Hari ini</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
                   </Tabs>
 
                   {/* Total Panen Card (only for harvested batches) */}
