@@ -1048,3 +1048,34 @@ Stage Summary:
 - Hotfix applied: feed/[id] route import path corrected (next.server → next/server).
 - User can now: (a) revert a wrongly-harvested termin via "Batalkan Panen", (b) is blocked from recording a harvest dated before the arrival date, (c) sees clear per-termin context in the harvest dialog, (d) reads the 7 separation rules in the Panen section, (e) manages feed (pakan) per-termin via the new Pakan tab.
 - Production deployment (Vercel/Neon PostgreSQL) will pick up these commits. The local sandbox's broken SQLite DATABASE_URL only affects local API responses, not the frontend code.
+
+---
+Task ID: export-filename-by-termin
+Agent: Main Agent
+Task: Ubah nama file export (PDF & CSV) jadi format "{NamaAplikasi}_{NamaTermin}"
+
+Work Log:
+- User request: nama file export harus ikut nama aplikasi + nama termin, contoh "AyamKu Farm_Termin 2 Bulan Mei".
+- Identifikasi 3 lokasi penamaan file: CSV (line ~1205), PDF download (line ~1418), dan header CSV hardcoded "AYAMKU FARM" (line ~1132).
+- Tambah helper modul-level `buildExportFileName(appName, terminName)` setelah `computeBatchStats` (line ~243). Helper: sanitize hanya karakter ilegal filesystem `[\\/:*?"<>|]` + control chars, collapse spasi ganda, trim. Pertahankan spasi & Unicode. Fallback: appName kosong → "AyamKu Farm", terminName kosong → "Termin".
+- Update CSV export: `a.download = ${buildExportFileName(appSettings.appName, batch.name)}.csv` (hapus safeName lama).
+- Update PDF download: `doc.save(${buildExportFileName(appSettings.appName, batch.name)}.pdf)` (hapus safeName lama).
+- Update header CSV: `LAPORAN TERMIN - ${(appSettings.appName || 'AYAMKU FARM').toUpperCase()}` supaya konsisten dinamis.
+- `bun run lint` → exit 0, no errors.
+- Verifikasi agent-browser dengan mock data (appName="AyamKu Farm", termin="Termin 2 Bulan Mei"):
+  - Hook HTMLAnchorElement.prototype.download setter untuk capture filename dari jsPDF (yang pakai dispatchEvent, bukan click()).
+  - CSV export → captured: "AyamKu Farm_Termin 2 Bulan Mei.csv" ✓
+  - PDF download → captured: "AyamKu Farm_Termin 2 Bulan Mei.pdf" ✓
+- Verifikasi edge case via eval inline replication helper:
+  - "Peternakan Maju Jaya" + "Termin 3: Panen Juli/August" → "Peternakan Maju Jaya_Termin 3 Panen JuliAugust" (karakter : dan / dibuang, spasi tetap) ✓
+  - Karakter ilegal * ? | dibuang ✓
+  - App kosong → fallback "AyamKu Farm" ✓
+  - Termin kosong → fallback "Termin" ✓
+- dev.log clean: GET / 200, hanya pre-existing DATABASE_URL 500s di API routes.
+
+Stage Summary:
+- Nama file export sekarang dinamis mengikuti {NamaAplikasi}_{NamaTermin}, persis sesuai contoh user.
+- Berlaku untuk 3 jalur: Preview PDF (iframe blob), Download PDF, dan CSV (Excel).
+- Spasi & Unicode dipertahankan (contoh: "AyamKu Farm_Termin 2 Bulan Mei"); hanya karakter ilegal filesystem yang dibuang sehingga file selalu bisa disimpan di Windows/Mac/Linux.
+- Header dalam file CSV juga sekarang pakai nama aplikasi dinamis (sebelumnya hardcoded "AYAMKU FARM").
+- Lint PASS, dev server clean, verifikasi browser sukses.

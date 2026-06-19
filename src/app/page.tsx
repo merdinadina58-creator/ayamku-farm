@@ -240,6 +240,22 @@ function computeBatchStats(batch: Batch) {
   }
 }
 
+// Build a filesystem-safe export file name in the format:
+//   "{AppName}_{TerminName}"
+// Spaces & Unicode letters are preserved (e.g. "AyamKu Farm_Termin 2 Bulan Mei"),
+// only filesystem-illegal characters ([\\/:*?"<>|] and control chars) are stripped.
+// Empty inputs fall back to safe defaults so the file always has a usable name.
+function buildExportFileName(appName: string, terminName: string): string {
+  const sanitize = (s: string) =>
+    (s || '')
+      .replace(/[\\/:*?"<>|\x00-\x1f]/g, '') // filesystem-illegal chars
+      .replace(/\s+/g, ' ')                  // collapse multiple spaces
+      .trim()
+  const app = sanitize(appName) || 'AyamKu Farm'
+  const termin = sanitize(terminName) || 'Termin'
+  return `${app}_${termin}`
+}
+
 const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   termin: 'Termin',
@@ -1129,7 +1145,7 @@ export default function HomePage() {
     }
     const rows: string[][] = []
     // Section 1: Batch info
-    rows.push(['LAPORAN TERMIN - AYAMKU FARM'])
+    rows.push([`LAPORAN TERMIN - ${(appSettings.appName || 'AYAMKU FARM').toUpperCase()}`])
     rows.push([])
     rows.push(['Informasi Termin'])
     rows.push(['Nama Termin', batch.name])
@@ -1201,8 +1217,7 @@ export default function HomePage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const safeName = batch.name.replace(/[^a-zA-Z0-9-_]/g, '_')
-    a.download = `Laporan_${safeName}_Termin${batch.terminNumber}.csv`
+    a.download = `${buildExportFileName(appSettings.appName, batch.name)}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -1414,8 +1429,7 @@ export default function HomePage() {
   // Save the PDF directly to the user's device (no preview).
   const downloadBatchPDF = (batch: Batch) => {
     const doc = generateBatchPDF(batch)
-    const safeName = batch.name.replace(/[^a-zA-Z0-9-_]/g, '_')
-    doc.save(`Laporan_${safeName}_Termin${batch.terminNumber}.pdf`)
+    doc.save(`${buildExportFileName(appSettings.appName, batch.name)}.pdf`)
     toast({ title: 'PDF terunduh 📄', description: `Laporan PDF untuk ${batch.name} berhasil diunduh` })
   }
 
