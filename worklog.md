@@ -915,3 +915,37 @@ Stage Summary:
 - Search & Filter: cari by nama/nomor/tanggal + filter status (Semua/Aktif/Panen) dengan empty state informatif
 - Estimasi Panen: prediksi otomatis hari siap panen berdasarkan growth rate riil dari history timbang
 - Semua client-side, tidak ada perubahan backend/API
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Tambah Export PDF (siap print) — laporan formal, bukan CSV saja
+
+Work Log:
+- User feedback: kenapa CSV bukan PDF? PDF memang lebih cocok untuk laporan formal siap print/share
+- Install jspdf@4.2.1 + jspdf-autotable@5.0.8 (client-side, ringan, bisa generate PDF terstruktur)
+- Tambah import jsPDF, autoTable, DropdownMenu components, FileText & FileSpreadsheet icons
+- Implementasi `exportBatchPDF(batch)`:
+  - Header banner hijau emerald dengan appName + "Laporan Termin Peternakan Ayam" + timestamp cetak
+  - Section 1: Informasi Termin (nama, nomor, tanggal, status, jumlah, berat awal, catatan + data panen jika harvested)
+  - Section 2: Ringkasan Statistik (umur, hidup, mati, berat, FCR, pakan, biaya + laba jika harvested)
+  - Section 3: Riwayat Penimbangan (tabel, header teal)
+  - Section 4: Riwayat Mortalitas (tabel, header merah)
+  - Section 5: Riwayat Pakan (tabel, header amber)
+  - Section 6: Riwayat Biaya/Peralatan (tabel, header indigo)
+  - Auto-paginasi: section title cek space, add page jika perlu
+  - Footer setiap halaman: "AppName • Laporan {nama} (Termin #N)" + "Halaman X / Y"
+  - Format A4, unit pt, margin 40pt
+- Ganti tombol "Export" jadi DropdownMenu dengan 2 opsi:
+  - "PDF (siap print)" → exportBatchPDF — icon FileText
+  - "CSV (untuk Excel)" → exportBatchCSV — icon FileSpreadsheet
+- Diterapkan di 2 lokasi: quick action batch card & batch detail header
+- Lint: bersih tanpa error
+- Dev server: ter-compile sukses (GET / 200, compile 50ms)
+
+Stage Summary:
+- Fitur Export di-upgrade: sekarang ada 2 format — PDF (formal, siap print) & CSV (untuk Excel)
+- PDF terstruktur profesional: header berwarna, 6 section, tabel rapi dengan color-coded headers, auto-paginasi, footer page number
+- Dropdown menu memberi pilihan format yang jelas kepada user
+- CSV tetap dipertahankan untuk yang butuh olah data di spreadsheet
+- Library jspdf + jspdf-autotable client-side (tidak ada beban server)

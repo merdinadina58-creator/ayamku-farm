@@ -39,6 +39,8 @@ import {
   Download,
   Search,
   Target,
+  FileText,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -52,7 +54,10 @@ import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 // Types
 interface FeedRecord {
@@ -997,6 +1002,197 @@ export default function HomePage() {
     toast({ title: 'Laporan terunduh 📄', description: `CSV untuk ${batch.name} berhasil diunduh` })
   }
 
+  // Export a full per-batch report as a print-ready PDF (client-side).
+  // Uses jsPDF + autotable to build a structured multi-section document:
+  // header banner, batch info, summary stats, and tables for weight /
+  // mortality / feed / equipment records. Auto-paginates and adds a
+  // footer page number on every page. Triggers a browser download.
+  const exportBatchPDF = (batch: Batch) => {
+    const stats = computeBatchStats(batch)
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 40
+    const contentWidth = pageWidth - margin * 2
+
+    // --- Header banner ---
+    doc.setFillColor(16, 185, 129) // emerald-500
+    doc.rect(0, 0, pageWidth, 70, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text(appSettings.appName || 'AyamKu Farm', margin, 32)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.text('Laporan Termin Peternakan Ayam', margin, 52)
+    doc.setFontSize(9)
+    doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, pageWidth - margin, 52, { align: 'right' })
+
+    let y = 90
+
+    // Helper: section title bar
+    const sectionTitle = (title: string) => {
+      // Check space, add page if needed
+      if (y > pageHeight - 80) { doc.addPage(); y = margin + 10 }
+      doc.setFillColor(236, 253, 245) // emerald-50
+      doc.rect(margin, y - 12, contentWidth, 22, 'F')
+      doc.setTextColor(6, 95, 70) // emerald-700
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.text(title, margin + 8, y + 3)
+      y += 22
+    }
+
+    // --- Section 1: Informasi Termin ---
+    sectionTitle('Informasi Termin')
+    doc.setTextColor(31, 41, 55)
+    doc.setFontSize(9)
+    const infoRows: Array<[string, string]> = [
+      ['Nama Termin', batch.name],
+      ['Nomor Termin', `Termin #${batch.terminNumber}`],
+      ['Tanggal Tiba', formatDate(batch.arrivalDate)],
+      ['Status', batch.status === 'active' ? 'Aktif' : 'Panen'],
+      ['Jumlah Awal', `${batch.quantity.toLocaleString('id-ID')} ekor`],
+      ['Berat Awal', `${batch.initialWeight} kg/ekor`],
+      ['Catatan', batch.notes || '-'],
+    ]
+    if (batch.status === 'harvested') {
+      infoRows.push(['Tanggal Panen', batch.harvestDate ? formatDate(batch.harvestDate) : '-'])
+      infoRows.push(['Jumlah Panen', `${(batch.harvestQuantity ?? 0).toLocaleString('id-ID')} ekor`])
+      infoRows.push(['Berat Panen', `${(batch.harvestWeight ?? 0).toFixed(2)} kg/ekor`])
+      infoRows.push(['Harga Jual', formatCurrency(batch.sellingPricePerKg ?? 0) + '/kg'])
+    }
+    autoTable(doc, {
+      startY: y,
+      head: [['Atribut', 'Nilai']],
+      body: infoRows,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: [31, 41, 55] },
+      columnStyles: { 0: { cellWidth: 160, fontStyle: 'bold' }, 1: { cellWidth: contentWidth - 160 } },
+      margin: { left: margin, right: margin },
+    })
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
+
+    // --- Section 2: Ringkasan Statistik ---
+    sectionTitle('Ringkasan Statistik')
+    const statRows: Array<[string, string]> = [
+      ['Umur', `${stats.ageDays} hari`],
+      ['Ayam Hidup', `${stats.aliveCount.toLocaleString('id-ID')} ekor`],
+      ['Total Mati', `${stats.totalDead} ekor (${stats.mortalityRate.toFixed(2)}%)`],
+      ['Berat Terkini', `${(stats.latestWeight / 1000).toFixed(3)} kg (${stats.latestWeight} g)`],
+      ['Pertambahan Berat', `${Math.round(stats.weightGain)} g`],
+      ['Total Pakan', `${stats.totalFeed.toFixed(2)} kg`],
+      ['Pakan per Ekor', `${stats.feedPerEkor.toFixed(3)} kg`],
+      ['FCR', stats.fcr.toFixed(2)],
+      ['Total Biaya', formatCurrency(stats.totalCost)],
+    ]
+    if (batch.status === 'harvested') {
+      statRows.push(['Total Panen', `${stats.totalHarvestKg.toFixed(2)} kg`])
+      statRows.push(['Pendapatan', formatCurrency(stats.totalHarvestValue)])
+      statRows.push(['Laba/Rugi', formatCurrency(stats.profit)])
+    }
+    autoTable(doc, {
+      startY: y,
+      head: [['Metrik', 'Nilai']],
+      body: statRows,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: [31, 41, 55] },
+      columnStyles: { 0: { cellWidth: 160, fontStyle: 'bold' }, 1: { cellWidth: contentWidth - 160 } },
+      margin: { left: margin, right: margin },
+    })
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
+
+    // --- Section 3: Riwayat Penimbangan ---
+    if (batch.weightRecords.length > 0) {
+      sectionTitle('Riwayat Penimbangan')
+      autoTable(doc, {
+        startY: y,
+        head: [['Tanggal', 'Umur (hari)', 'Berat (g)', 'Berat (kg)', 'Sampel', 'Catatan']],
+        body: [...batch.weightRecords].sort((a, b) => a.ageDays - b.ageDays).map((w) => [
+          formatDate(w.date), String(w.ageDays), String(w.averageWeightGram),
+          (w.averageWeightGram / 1000).toFixed(3), String(w.sampleCount), w.notes || '-',
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [13, 148, 136], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // teal-600
+        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        margin: { left: margin, right: margin },
+      })
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
+    }
+
+    // --- Section 4: Riwayat Mortalitas ---
+    if (batch.mortalityRecords.length > 0) {
+      sectionTitle('Riwayat Mortalitas')
+      autoTable(doc, {
+        startY: y,
+        head: [['Tanggal', 'Jumlah (ekor)', 'Alasan', 'Catatan']],
+        body: [...batch.mortalityRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((m) => [
+          formatDate(m.date), String(m.quantity), m.reason, m.notes || '-',
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [239, 68, 68], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // red-500
+        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        margin: { left: margin, right: margin },
+      })
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
+    }
+
+    // --- Section 5: Riwayat Pakan ---
+    if (batch.feedRecords.length > 0) {
+      sectionTitle('Riwayat Pakan')
+      autoTable(doc, {
+        startY: y,
+        head: [['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg', 'Total', 'Catatan']],
+        body: [...batch.feedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((f) => [
+          formatDate(f.date), f.feedType, f.quantityKg.toFixed(2),
+          formatCurrency(f.pricePerKg), formatCurrency(Math.round(f.quantityKg * f.pricePerKg)), f.notes || '-',
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // amber-500
+        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        margin: { left: margin, right: margin },
+      })
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16
+    }
+
+    // --- Section 6: Riwayat Biaya / Peralatan ---
+    if (batch.equipment.length > 0) {
+      sectionTitle('Riwayat Biaya / Peralatan')
+      autoTable(doc, {
+        startY: y,
+        head: [['Tanggal', 'Nama', 'Kategori', 'Jml', 'Satuan', 'Harga Satuan', 'Total']],
+        body: [...batch.equipment].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()).map((e) => [
+          formatDate(e.purchaseDate), e.name, e.category, String(e.quantity), e.unit,
+          formatCurrency(e.unitPrice), formatCurrency(Math.round(e.quantity * e.unitPrice)),
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [99, 102, 241], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // indigo-500
+        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        margin: { left: margin, right: margin },
+      })
+    }
+
+    // --- Footer: page numbers on every page ---
+    const pageCount = doc.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.text(
+        `${appSettings.appName || 'AyamKu Farm'} • Laporan ${batch.name} (Termin #${batch.terminNumber})`,
+        margin, pageHeight - 16
+      )
+      doc.text(`Halaman ${i} / ${pageCount}`, pageWidth - margin, pageHeight - 16, { align: 'right' })
+    }
+
+    const safeName = batch.name.replace(/[^a-zA-Z0-9-_]/g, '_')
+    doc.save(`Laporan_${safeName}_Termin${batch.terminNumber}.pdf`)
+    toast({ title: 'PDF terunduh 📄', description: `Laporan PDF untuk ${batch.name} berhasil diunduh` })
+  }
+
   // Calendar events derived from batches
   const calendarEvents = useMemo(() => {
     const events: Record<string, CalendarEvent[]> = {}
@@ -1840,9 +2036,21 @@ export default function HomePage() {
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-cyan-300 text-cyan-700 hover:bg-cyan-50" onClick={(e) => { e.stopPropagation(); exportBatchCSV(batch) }}>
-                                      <Download className="w-3 h-3" /> Export
-                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-cyan-300 text-cyan-700 hover:bg-cyan-50" onClick={(e) => e.stopPropagation()}>
+                                          <Download className="w-3 h-3" /> Export
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenuItem onClick={() => exportBatchPDF(batch)} className="gap-2 text-xs">
+                                          <FileText className="w-3.5 h-3.5" /> PDF (siap print)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => exportBatchCSV(batch)} className="gap-2 text-xs">
+                                          <FileSpreadsheet className="w-3.5 h-3.5" /> CSV (untuk Excel)
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openHarvestDialog(batch)}>
                                       {batch.status === 'active' ? <><CheckCircle2 className="w-3 h-3" /> Panen</> : <><Pencil className="w-3 h-3" /> Edit Panen</>}
                                     </Button>
@@ -2250,9 +2458,21 @@ export default function HomePage() {
                       <Button variant="outline" className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex-1 sm:flex-none" onClick={() => openEditBatch(selectedBatch)}>
                         <Pencil className="w-4 h-4" /> Edit
                       </Button>
-                      <Button variant="outline" className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 flex-1 sm:flex-none" onClick={() => exportBatchCSV(selectedBatch)}>
-                        <Download className="w-4 h-4" /> Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 flex-1 sm:flex-none">
+                            <Download className="w-4 h-4" /> Export
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => exportBatchPDF(selectedBatch)} className="gap-2">
+                            <FileText className="w-4 h-4" /> PDF (siap print)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => exportBatchCSV(selectedBatch)} className="gap-2">
+                            <FileSpreadsheet className="w-4 h-4" /> CSV (untuk Excel)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => openHarvestDialog(selectedBatch)}>
                         {selectedBatch.status === 'active' ? (
                           <><CheckCircle2 className="w-4 h-4" /> Panen</>
