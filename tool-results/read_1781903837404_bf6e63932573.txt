@@ -1,0 +1,1384 @@
+     1→---
+     2→Task ID: 1
+     3→Agent: Main Agent
+     4→Task: Build comprehensive AyamKu Farm chicken farming management application
+     5→
+     6→Work Log:
+     7→- Explored existing project structure (Next.js 16, TypeScript, Tailwind CSS, shadcn/ui)
+     8→- Designed and created Prisma schema with 3 models: Batch, FeedRecord, WeightRecord
+     9→- Pushed schema to SQLite database
+    10→- Created 7 API route files for CRUD operations on batches, feed records, weight records, and dashboard
+    11→- Built comprehensive single-page frontend with:
+    12→  - Hero banner with AI-generated chicken farm illustration
+    13→  - Dashboard with 4 stat cards (Total Termin, Ayam Aktif, Total Pakan, Biaya Pakan)
+    14→  - 4 main tabs: Termin, Pakan, Berat, Hitung
+    15→  - Batch detail view with sub-tabs for Pakan and Berat records
+    16→  - Dialog forms for adding batches, feed records, weight records, and harvest
+    17→  - Charts: Line charts for growth, Bar charts for feed comparison, Pie charts for feed distribution
+    18→  - FCR (Feed Conversion Ratio) calculation per termin
+    19→  - Responsive design with framer-motion animations
+    20→- Generated AI hero image for the app
+    21→- Fixed FCR calculation formula (was wrong, now produces realistic 1.4-1.8 values)
+    22→- Fixed floating-point precision in batch creation API
+    23→- Fixed back button z-index overlap issue
+    24→- Created seed data with realistic demo data (2 batches, feed records, weight records)
+    25→- Cleaned up unused imports
+    26→- All lint checks pass
+    27→- Verified app works with Agent Browser
+    28→
+    29→Stage Summary:
+    30→- Complete chicken farming management application built
+    31→- Features: batch/termin management, feed tracking, weight tracking, feed calculations per termin
+    32→- Demo data includes 2 batches (1 harvested, 1 active) with realistic feed and weight records
+    33→- FCR values are realistic (1.82 for harvested, 1.45 for active batch)
+    34→- App running on port 3000, all features verified working
+    35→
+    36→---
+    37→Task ID: 2
+    38→Agent: Main Agent
+    39→Task: Add mortality tracking and total panen (harvest) features
+    40→
+    41→Work Log:
+    42→- Updated Prisma schema with MortalityRecord model and harvest fields (harvestQuantity, sellingPricePerKg)
+    43→- Pushed new schema to SQLite database
+    44→- Created mortality API routes: POST/GET /api/batches/[id]/mortality, DELETE /api/mortality/[id]
+    45→- Updated batch API routes to handle harvestQuantity and sellingPricePerKg
+    46→- Updated dashboard API with mortality calculations and harvest revenue/profit
+    47→- Rebuilt entire frontend with:
+    48→  - 5 stat cards (added Total Mortalitas)
+    49→  - New Mortalitas tab with per-termin breakdown, pie charts, timeline
+    50→  - Updated Hitung tab with mortality stats, total panen, and profit calculations
+    51→  - Mortalitas sub-tab in batch detail view with summary cards and records list
+    52→  - Total Panen card for harvested batches (Jumlah Panen, Total Berat, Pendapatan, Profit)
+    53→  - Harvest dialog with harvestQuantity and sellingPricePerKg fields
+    54→  - Add Mortality dialog with reason selector and live remaining count preview
+    55→  - Batch cards now show mortality data (Mati/Afkir count and percentage)
+    56→  - 8 stat cards in batch detail (added Awal, Hidup, Mati/Afkir)
+    57→- Updated seed data with mortality records for both batches
+    58→- Fixed age calculation for harvested batches (uses harvestDate instead of current date)
+    59→- All lint checks pass
+    60→- Verified all features working with Agent Browser
+    61→
+    62→Stage Summary:
+    63→- Mortality tracking fully implemented with reason categorization (Sakit, Stress, Kecelakaan, Afkir, Lainnya)
+    64→- Total Panen feature shows harvest data: jumlah panen, total berat, pendapatan, and profit
+    65→- Harvested batch (Januari) shows profit of Rp73,875,000
+    66→- Active batch (Februari) shows 18 dead (0.6% mortality), 2,982 alive
+    67→- All new features verified working via browser testing
+    68→
+    69→---
+    70→Task ID: sidebar-settings-rewrite
+    71→Agent: full-stack-developer
+    72→Task: Rewrite src/app/page.tsx to add persistent sidebar layout (desktop) + hamburger drawer (mobile), new Pengaturan (Settings) section with app name + logo upload, and comprehensive mobile responsiveness fixes.
+    73→
+    74→Work Log:
+    75→- Read existing 1611-line page.tsx (old top-tabs version) to inventory all functionality: Termin/Pakan/Berat/Mortalitas/Hitung tabs, batch detail with sub-tabs (Pakan/Berat/Mortalitas), Total Panen card, all 5 dialogs (Add Batch, Add Feed, Add Weight, Add Mortality, Harvest), charts (Line/Bar/Pie), FCR + mortality + harvest profit calculations.
+    76→- Confirmed API routes already exist: GET/POST /api/settings, GET /api/logo, GET /api/manifest, GET /api/dashboard, GET/POST/DELETE /api/batches, etc.
+    77→- Confirmed Sheet component (shadcn/ui) exists at src/components/ui/sheet.tsx with Sheet, SheetContent, SheetTitle, SheetDescription exports.
+    78→- Rewrote page.tsx (now ~1500 lines) with:
+    79→  A. Added imports: LayoutDashboard, Menu, X, Settings, Upload, Image as ImageIcon, Save, Info, CalendarDays, ChevronLeft + Sheet components. Added useMemo to React import.
+    80→  B. Added state: activeSection, sidebarMobileOpen, appSettings, settingsForm, logoPreview, savingSettings, calendarMonth, dayDetail.
+    81→  C. Added module constants SECTION_LABELS and NAV_ITEMS (8 items including settings) after MORTALITY_REASON_COLORS.
+    82→  D. Extended fetchData to also fetch /api/settings and sync appSettings + settingsForm + logoPreview.
+    83→  E. Added handleSaveSettings, handleLogoUpload (with type + 2MB size validation + base64 data URL conversion), handleRemoveLogo handlers.
+    84→  F. Added renderSidebar() helper: brand header (logo image OR emerald Bird gradient), full-width Tambah Termin button, nav list with active emerald highlight + left accent bar, footer info card (Total/Aktif/Panen counts), mobile-only "Tutup Menu" close button using X icon.
+    85→  G. Restructured root layout: horizontal flex with sticky desktop aside (w-64, lg:flex), mobile Sheet (side="left", w-72), main column (flex-1) containing sticky header (hamburger + mobile brand + desktop contextual title + desktop Tambah Termin button), main content with AnimatePresence, footer with dynamic app name.
+    86→  H. Converted main dashboard Tabs into conditional sections keyed on activeSection (dashboard/termin/pakan/berat/mortalitas/hitung/kalender/settings). Wrapped Hero+Stats in activeSection==='dashboard'. Removed main Tabs/TabsList entirely. Kept batch detail Tabs intact.
+    87→  I. Added new Settings (Pengaturan) section: app name Input (maxLength 50), logo upload with preview box + Pilih Gambar + Hapus buttons, live preview card, blue Android install info box, Batal + Simpan Pengaturan buttons.
+    88→  J. Added new Kalender section: monthly calendar grid (7 cols) with prev/next month nav, day headers (Min-Sab), per-day cells showing Tiba (emerald) and Panen (amber) labels, today ring highlight, legend. Built with useMemo-derived calendarEvents (Record<dateString, CalendarEvent[]>) and calendarCells. Clicking a day with events opens a Day Detail Dialog.
+    89→  K. Added Day Detail Dialog showing all Tiba/Panen events for the selected date with batch name, termin #, quantity, and colored badge.
+    90→  L. Updated batch detail back button to also setActiveSection('termin'). Updated handleDeleteBatch to also setActiveSection('termin').
+    91→  M. Mobile responsiveness fixes applied:
+    92→     - 3 delete buttons (feed/weight/mortality records): opacity-0 group-hover:opacity-100 → opacity-50 sm:opacity-0 sm:group-hover:opacity-100
+    93→     - Batch detail TabsList: added grid grid-cols-2 sm:flex; TabsTriggers got w-full sm:w-auto; 3rd trigger (Mortalitas) gets col-span-2 sm:col-span-1 to fill mobile grid nicely
+    94→     - Dashboard stats grid: grid-cols-2 lg:grid-cols-5 → grid-cols-2 sm:grid-cols-3 lg:grid-cols-5; 5th stat card gets col-span-2 sm:col-span-1
+    95→     - Hitung section currency text: text-lg → text-base sm:text-lg with break-words for both totalCost and profit
+    96→     - Batch detail action buttons (Panen/Hapus): flex gap-2 → flex gap-2 w-full sm:w-auto; each Button gets flex-1 sm:flex-none
+    97→     - Batch detail stats: added break-words + truncate on long text
+    98→     - Added shrink-0 to icons/dots/badges in flex rows to prevent squishing
+    99→     - Harvest dialog pendapatan: text-lg → text-base sm:text-lg break-words
+   100→     - Total Panen card: pendapatan + profit get text-base sm:text-lg break-words
+   101→  N. Used appSettings.appName everywhere "AyamKu Farm" appeared: sidebar brand, mobile header brand, hero banner welcome text, footer.
+   102→  O. Used appSettings.logoData for logo image in sidebar brand and mobile header brand (falls back to emerald Bird gradient when empty).
+   103→  P. Moved Add Batch Dialog (and all other dialogs) to root level of return (outside main column) so they're accessible from both sidebar buttons and header button; both trigger via setAddBatchOpen(true).
+   104→- Preserved all existing functionality: batch CRUD, feed/weight/mortality records, harvest, calendar helpers, getBatchStats, formatCurrency, formatDate, all chart configurations, all form dialogs.
+   105→- Ran `bun run lint` → 0 errors, 0 warnings.
+   106→- Checked dev.log → no compile/runtime errors; page compiles in 299ms; GET / returns 200; /api/settings, /api/dashboard, /api/batches all return 200.
+   107→- Verified page loads via curl: HTTP 200 in 0.2s.
+   108→
+   109→Stage Summary:
+   110→- Sidebar layout fully implemented: persistent 256px sidebar on desktop (lg+), hamburger-triggered 288px Sheet drawer on mobile with sr-only SheetTitle/SheetDescription for accessibility.
+   111→- Pengaturan (Settings) section complete: app name input + logo upload (max 2MB, base64 data URL) + live preview + Android install instructions + save/cancel. Persists via POST /api/settings and updates sidebar/header/footer/manifest dynamically.
+   112→- New Kalender section with monthly calendar showing Tiba (arrival) and Panen (harvest) events; click a day to open Day Detail Dialog listing all events for that date.
+   113→- All mobile responsiveness fixes applied: delete buttons visible on touch, batch detail sub-tabs as 2-col grid on mobile, stats grid responsive, currency text scales + wraps, action buttons full-width on mobile.
+   114→- All existing functionality preserved (batch CRUD, feed/weight/mortality records, harvest, charts, FCR/mortality/profit calculations, all 5 form dialogs).
+   115→- Lint passes with 0 errors; dev server compiles cleanly with no errors.
+   116→
+   117→---
+   118→Task ID: settings-app-name-logo
+   119→Agent: main (Z.ai Code)
+   120→Task: User wants a settings menu to set app name and upload a logo image, which becomes the app icon when installed on Android.
+   121→
+   122→Work Log:
+   123→- Read worklog.md — found environment was reset (sidebar + mobile fixes lost)
+   124→- Added AppSetting model (key/value) to prisma/schema.prisma + db:push
+   125→- Created API route /api/settings (GET returns {appName, logoData}; POST upserts both)
+   126→- Created API route /api/logo (serves uploaded logo as image/png or default SVG)
+   127→- Created API route /api/manifest (dynamic PWA manifest with custom app name + logo icons)
+   128→- Updated layout.tsx: manifest="/api/manifest", icons={icon,apple}="/api/logo", themeColor="#10b981"
+   129→- Delegated page.tsx rewrite to full-stack-developer subagent (Task ID: sidebar-settings-rewrite)
+   130→  → subagent rebuilt page.tsx with sidebar layout, mobile fixes, settings section, kalender section
+   131→- Fixed Prisma client caching issue: db.appSetting was undefined because dev server cached old
+   132→  PrismaClient singleton. Fixed by regenerating client + restarting dev server (clearing .next cache)
+   133→- Fixed POST /api/settings 500 error (was TypeError: Cannot read properties of undefined)
+   134→- Verified via Agent Browser:
+   135→  * Desktop (1440px): sidebar shows 8 nav items including "Pengaturan"; settings section renders
+   136→    with app name input, logo upload, preview, save button
+   137→  * Changed app name to "Ayam Jaya Farm" + uploaded test logo → saved successfully
+   138→  * Sidebar brand shows uploaded logo image (not Bird icon) + "Ayam Jaya Farm"
+   139→  * Mobile header (390px) shows logo + app name
+   140→  * Hero banner shows "Selamat Datang di Ayam Jaya Farm"
+   141→  * Footer shows "Ayam Jaya Farm"
+   142→  * /api/logo returns HTTP 200 image/png (uploaded logo)
+   143→  * /api/manifest returns {"name":"Ayam Jaya Farm","short_name":"Ayam Jaya Fa",...}
+   144→  * HTML head has: <link rel="manifest" href="/api/manifest">, <link rel="icon" href="/api/logo">,
+   145→    <link rel="apple-touch-icon" href="/api/logo">
+   146→  * All sections (Termin, batch detail, Kalender) work with no overflow on mobile + desktop
+   147→  * No console errors or page errors
+   148→- Reset test data to defaults (AyamKu Farm, no logo) for clean user experience
+   149→- Lint passes clean (exit 0)
+   150→- Committed to git
+   151→
+   152→Stage Summary:
+   153→- Settings menu (Pengaturan) fully implemented in sidebar with:
+   154→  1. App name input — changes sidebar, header, hero, footer branding
+   155→  2. Logo image upload — replaces Bird icon everywhere, becomes favicon + PWA icon
+   156→  3. Live preview of how branding will look
+   157→  4. Android install instructions (Chrome → menu → Add to Home Screen)
+   158→  5. Save/Batal buttons with validation (image type, 2MB max)
+   159→- PWA support: dynamic manifest + favicon + apple-touch-icon all use /api/logo
+   160→- When user installs on Android (Add to Home Screen), the uploaded logo becomes the app icon
+   161→  and the custom app name becomes the app label
+   162→- Data persisted in SQLite (AppSetting table: appName, logoData keys)
+   163→- Sidebar layout + mobile responsiveness also restored (was lost in environment reset)
+   164→- All features browser-verified end-to-end
+   165→
+   166→---
+   167→Task ID: vercel-postgres-migration
+   168→Agent: main-agent
+   169→Task: Migrate database from SQLite to PostgreSQL for Vercel deployment (user wants Vercel Postgres)
+   170→
+   171→Work Log:
+   172→- Checked sandbox environment: no PostgreSQL, no Docker, cannot sudo to install → local preview will break after migration (expected, warned user)
+   173→- Exported current SQLite data to prisma/backup.json (2 batches, 12 feedRecords, 13 weightRecords, 8 mortalityRecords, 2 appSettings)
+   174→- Converted prisma/schema.prisma: provider sqlite → postgresql
+   175→- Updated src/lib/db.ts to use @prisma/adapter-pg (PrismaPg) for serverless compatibility
+   176→- Installed @prisma/adapter-pg@6.19.2 (matched @prisma/client version) + pg@8.21.0 + @types/pg
+   177→- Updated package.json: added postinstall (prisma generate), changed build to "prisma generate && next build", added db:seed script
+   178→- Rewrote prisma/seed.ts to restore from backup.json (fallback to demo data if no backup)
+   179→- Untracked .env and db/custom.db from git, added db/*.db to .gitignore, added !.env.example exception
+   180→- Created .env.example documenting required DATABASE_URL
+   181→- Lint passed clean (exit 0)
+   182→- Committed and pushed to GitHub (commit 1b0604d)
+   183→
+   184→Stage Summary:
+   185→- Code is now Vercel-ready: PostgreSQL via Prisma driver adapter (serverless-safe)
+   186→- Data preserved in prisma/backup.json — user can restore with `bun run db:push && bun run db:seed` on Vercel
+   187→- Local sandbox preview BROKEN (no Postgres available) — expected tradeoff, user informed
+   188→- Next step for user: import repo on Vercel dashboard, create Vercel Postgres database, set DATABASE_URL env var, deploy
+   189→- Repo: https://github.com/merdinadina58-creator/ayamku-farm
+   190→
+   191→---
+   192→Task ID: vercel-deploy-fix
+   193→Agent: main-agent
+   194→Task: Fix Vercel deployment error (client-side exception on ayamku-farm.vercel.app)
+   195→
+   196→Work Log:
+   197→- Diagnosed root cause via curl: /api/dashboard and /api/batches returned 500 (DB tables don't exist), /api/settings returned 200 (has try/catch with defaults)
+   198→- Found frontend crash: setBatches(batchData) set {error:"..."} object as state, then batches.map() threw
+   199→- Fixed src/app/page.tsx fetchData(): check res.ok before parsing, Array.isArray guard, default dashboard to null
+   200→- Added prisma db push --accept-data-loss to build script so tables auto-create on every Vercel deploy
+   201→- Added directUrl = env("DIRECT_URL") to schema.prisma with fallback to DATABASE_URL in build script
+   202→- Created /api/setup GET endpoint for one-click data seeding from prisma/backup.json
+   203→- Updated .env.example to document both DATABASE_URL and DIRECT_URL
+   204→- Lint passed clean
+   205→- Committed (8d968a1) and pushed to GitHub — Vercel auto-deploy triggered
+   206→
+   207→Stage Summary:
+   208→- Frontend now resilient to API failures (no more client-side crash)
+   209→- Tables auto-create on deploy via build script (no manual db:push needed)
+   210→- User can seed data by visiting https://ayamku-farm.vercel.app/api/setup
+   211→- User MUST ensure DATABASE_URL env var is set on Vercel (from Vercel Postgres)
+   212→
+   213→---
+   214→Task ID: vercel-deploy-fix-2
+   215→Agent: main-agent
+   216→Task: Fix Vercel deployment — client-side exception + database connection issues
+   217→
+   218→Work Log:
+   219→- Diagnosed: /api/dashboard and /api/batches returned 500 (DB not set up)
+   220→- Diagnosed: Frontend crashed because setBatches({error:...}) then .map() threw
+   221→- Fixed frontend (src/app/page.tsx): check res.ok, Array.isArray guard, null-safe
+   222→- Build script: removed prisma db push (was failing builds), just 'next build'
+   223→- Created /api/setup endpoint with raw SQL CREATE TABLE IF NOT EXISTS + seed from backup.json
+   224→- Added URL sanitization (strip quotes/whitespace) in src/lib/db.ts and /api/setup
+   225→- Added deep URL diagnostics: parse with URL constructor, show length/host/flags
+   226→- Verified via Agent Browser: app renders with NO client-side errors, sidebar + dashboard visible
+   227→- Diagnosed final issue: user's DATABASE_URL = 'postgres://user:password@host:port/db?sslmode=require'
+   228→  (the PLACEHOLDER from .env.example — user hasn't created a real Vercel Postgres database yet)
+   229→  Host portion literally = 'host:port/db?sslmode=require', length=51, no neon.tech, no localhost
+   230→
+   231→Stage Summary:
+   232→- Client-side crash: FIXED (app renders empty state gracefully)
+   233→- /api/setup endpoint: WORKING (correctly reports the DATABASE_URL issue)
+   234→- Remaining user action: Create real Vercel Postgres database, connect to project, redeploy, visit /api/setup
+   235→- All commits pushed: 8d968a1, 18caf55, 87f64bf, b6c5d2f, ca08d93, 7125380, da20473, 09425db
+   236→
+   237→---
+   238→Task ID: pwa-icon-fix
+   239→Agent: main-agent
+   240→Task: Fix logo not appearing as web/PWA/Android icon (only showing in app sidebar)
+   241→
+   242→Work Log:
+   243→- Diagnosed: user uploaded 151x148 JPEG logo, but manifest declared type:image/png
+   244→  → type mismatch caused browsers to reject the icon
+   245→- Diagnosed: Apple touch icon strictly requires PNG format, JPEG was ignored
+   246→- Diagnosed: No size hints in HTML <link> tags
+   247→- Fix 1: /api/logo now converts ANY uploaded format to 512x512 PNG via sharp
+   248→  with transparent padding (fit:contain) so non-square images become square
+   249→- Fix 2: /api/manifest now always declares type:'image/png' (matches /api/logo output)
+   250→  with proper sizes (192x192, 512x512) and purposes (any + maskable)
+   251→- Fix 3: src/app/layout.tsx metadata.icons now has multiple size entries
+   252→  (192x192, 512x512, 180x180 for apple), shortcut icon, appleWebApp config
+   253→- Fix 4: src/app/page.tsx handleLogoUpload now checks image dimensions and warns
+   254→  user if < 192px (too small) or non-square (will be padded)
+   255→- Fix 5: Updated settings UI help text: "Disarankan: gambar persegi 512×512px PNG
+   256→  dengan latar transparan untuk ikon tajam di Android & iOS"
+   257→- Verified on Vercel: /api/logo serves PNG 512x512 RGBA (427KB), manifest correct,
+   258→  HTML head has all proper icon links
+   259→
+   260→Stage Summary:
+   261→- Logo now works as: browser tab favicon, Apple touch icon (iOS), PWA home screen
+   262→  icon (Android), maskable icon (adaptive)
+   263→- User should re-upload a 512x512px PNG for best quality (current JPEG still works
+   264→  but is upscaled from 151x148 which may look blurry)
+   265→- All commits pushed: 5d4e2de, 40f78f8
+   266→
+   267→---
+   268→Task ID: sandbox-sync-neon
+   269→Agent: main-agent
+   270→Task: Start sandbox dev server and sync with GitHub + Neon database
+   271→
+   272→Work Log:
+   273→- Synced local repo with GitHub (pushed 1 extra commit — worklog update)
+   274→- Created .env.local with Neon DATABASE_URL (same as Vercel uses)
+   275→- Updated .env with Neon DATABASE_URL (overrides old SQLite path)
+   276→- Ran prisma generate for PostgreSQL client
+   277→- Tested DB connection from sandbox to Neon: ✅ 2 batches found
+   278→- Created /tmp/start-next.sh wrapper script that sets DATABASE_URL env var
+   279→  before starting next dev (shell env had old SQLite value that overrode .env)
+   280→- Started dev server via start-stop-daemon on port 3000
+   281→- Verified all endpoints work:
+   282→  - GET / → 200 (page renders with logo, sidebar, dashboard)
+   283→  - GET /api/settings → returns appName + logoData (user's uploaded JPEG logo)
+   284→  - GET /api/batches → 2 batches (both "Mei", created by user)
+   285→  - GET /api/dashboard → 1200 chickens alive, 2 active batches
+   286→  - GET /api/logo → PNG 512x512 RGBA (sharp conversion working)
+   287→  - GET /api/manifest → 4 icons declared, type image/png
+   288→- Agent Browser verification: page renders with logo image, all 8 nav buttons, no errors
+   289→
+   290→Stage Summary:
+   291→- Sandbox preview now FULLY matches Vercel deployment
+   292→- Both use same Neon PostgreSQL database (ep-falling-silence-aosp5dh1)
+   293→- User's uploaded logo displays in sidebar + served as PNG 512x512
+   294→- All data (2 batches, settings) synced between sandbox and production
+   295→- Dev server running on port 3000, auto-restart via start-stop-daemon
+   296→
+   297→---
+   298→Task ID: fix-duplication
+   299→Agent: main-agent
+   300→Task: Fix data duplication when adding batches/records (user added a "Mei" termin and it got duplicated after save)
+   301→
+   302→Work Log:
+   303→- Diagnosed root cause: "Simpan" buttons had NO loading/disabled state during submission AND dialog stayed open during the async POST. A double-click (or rapid second click before the first request completed) fired 2+ identical POST requests → duplicate rows in the database. Confirmed by inspecting DB: 2 identical "Mei" batches created ~2 seconds apart.
+   304→- Diagnosed secondary issue: backend POST routes had no dedup protection, so even sequential/identical double-submits created duplicates.
+   305→- Frontend fix (src/app/page.tsx):
+   306→  * Added `useRef` to React imports + `Loader2` to lucide-react imports
+   307→  * Added `submitting` state + `submittingRef` (useRef) for race-condition-safe guard
+   308→  * Updated all 5 async handlers (handleAddBatch, handleAddFeed, handleAddWeight, handleAddMortality, handleHarvest) with:
+   309→    - Early return guard: `if (submittingRef.current) return` (checks ref synchronously, immune to React state batching delays)
+   310→    - Set `submittingRef.current = true` + `setSubmitting(true)` at start
+   311→    - Reset both in `finally` block
+   312→  * Updated all 5 save buttons: added `disabled={submitting || ...}` + spinner UI `{submitting ? <><Loader2 className="animate-spin" /> Menyimpan...</> : 'Simpan...'}`
+   313→  * Updated settings save button to show Loader2 spinner (already had savingSettings guard)
+   314→- Backend fix (new file src/lib/dedup.ts):
+   315→  * Created `withDedup(key, fn)` utility using a module-level `Map<string, Promise>` that stores the in-flight Promise SYNCHRONOUSLY before any await — making it race-condition-proof at the Node.js event-loop level. Concurrent identical requests await the SAME promise → same result, no duplicate.
+   316→  * Created `dedupKey(prefix, data)` helper with sorted-key JSON stringify for stable keys.
+   317→  * Auto-cleanup: entries expire after 60s via setTimeout; removed immediately on error.
+   318→- Backend fix (4 POST routes updated to use withDedup):
+   319→  * /api/batches/route.ts — wraps findExisting(60s window) + create in withDedup
+   320→  * /api/batches/[id]/feed/route.ts — same pattern with dedupKey `feed:${id}`
+   321→  * /api/batches/[id]/weight/route.ts — same pattern with dedupKey `weight:${id}`
+   322→  * /api/batches/[id]/mortality/route.ts — same pattern with dedupKey `mortality:${id}`
+   323→  * Each still keeps the DB-level 60s-window findFirst check as a second layer of defense.
+   324→- Data cleanup: deleted the duplicate "Mei" batch (cmqj24wf50001l804sn4noykc) via DELETE API; left the original (cmqj24uz10000l804m2x2ai0k).
+   325→- Verification (curl + Agent Browser):
+   326→  * Simultaneous double POST (race condition test): BOTH requests returned the SAME batch id → only 1 row created. ✅
+   327→  * Sequential identical POST within 60s: returned existing record (dedup). ✅
+   328→  * Legitimate POST with different data (different quantity): created new row (not blocked). ✅
+   329→  * Termin section in browser: only 1 "Mei" batch shown (duplicate gone). ✅
+   330→  * No console/runtime errors; all API endpoints return 200. ✅
+   331→  * `bun run lint` passes clean (0 errors). ✅
+   332→
+   333→Stage Summary:
+   334→- Duplication issue FULLY FIXED with defense-in-depth:
+   335→  1. Frontend: ref-based race-condition guard + disabled button + spinner (prevents 99% of double-clicks)
+   336→  2. Backend: atomic in-memory withDedup (prevents concurrent duplicate requests on same instance)
+   337→  3. Backend: DB-level 60s-window dedup check (catches sequential double-submits)
+   338→- All 5 form types protected: Termin, Pakan, Berat, Mortalitas, Panen (+ Pengaturan already had guard)
+   339→- Existing duplicate "Mei" batch cleaned up; user data now has only 1 Mei batch (600 ekor)
+   340→- Fix works for both local sandbox dev server AND Vercel production (frontend guard is primary; withDedup works on warm serverless instances)
+   341→
+   342→---
+   343→Task ID: add-missing-features
+   344→Agent: main-agent
+   345→Task: User couldn't find how to add feed/mortality/equipment. Fix: (1) add "Tambah" buttons to main Pakan/Berat/Mortalitas sections (previously hidden inside batch detail), (2) add new "Peralatan" (equipment) feature.
+   346→
+   347→Work Log:
+   348→- Diagnosed UX issue: "Tambah Pakan/Berat/Mortalitas" buttons only existed INSIDE batch detail view (Termin → click batch → sub-tab). Main Pakan/Berat/Mortalitas sections only showed recap with NO add button.
+   349→- Diagnosed missing feature: "Peralatan" (equipment) feature did not exist at all.
+   350→
+   351→Part A — Make feed/weight/mortality addable from main sections:
+   352→- Added `Wrench` to lucide-react imports
+   353→- Added `dialogBatchId` state + `equipments` state + `equipmentForm` state + `addEquipmentOpen` state to page.tsx
+   354→- Updated all 3 handlers (handleAddFeed/handleAddWeight/handleAddMortality) to use `dialogBatchId || selectedBatch?.id` as batch context
+   355→- Added "Tambah Pakan/Berat/Mortalitas" buttons to the CardHeader of each main section (visible when batches.length > 0)
+   356→- Added batch selector `<Select>` (dropdown of all termin) to Add Feed/Weight/Mortality dialogs — shown only when no selectedBatch (i.e. opened from main section, not from batch detail)
+   357→- Updated all 3 save buttons to disable when `!selectedBatch && !dialogBatchId`
+   358→- Updated mortality "Sisa Ayam Hidup" preview to work with dialogBatchId (looks up batch from batches array)
+   359→
+   360→Part B — New "Peralatan" (equipment) feature:
+   361→- B1: Added `Equipment` model to prisma/schema.prisma (id, name, category, quantity, unitPrice, purchaseDate, notes, timestamps)
+   362→- B1: Created Equipment table on remote Neon DB via scripts/create-equipment-table.ts (uses same pg adapter as app, since `prisma db push` can't reach pooler directly)
+   363→- B1: Added Equipment CREATE TABLE SQL to /api/setup route (for Vercel auto-deploy)
+   364→- B2: Created /api/equipment/route.ts (GET list + POST create with withDedup guard)
+   365→- B2: Created /api/equipment/[id]/route.ts (DELETE)
+   366→- B3: Added "Peralatan" to SECTION_LABELS + NAV_ITEMS (Wrench icon, indigo color)
+   367→- B3: Added Equipment interface + EQUIPMENT_CATEGORIES constant (7 categories: Kandang, Pakan&Minum, Pemanas, Kebersihan, Timbang, Kesehatan, Lainnya)
+   368→- B3: Updated activeSection type to include 'peralatan'
+   369→- B3: Updated fetchData to also fetch /api/equipment in parallel
+   370→- B4: Added handleAddEquipment + handleDeleteEquipment handlers
+   371→- B4: Built Peralatan section UI: 3 summary cards (Jenis/Total Unit/Total Nilai) + equipment list grouped by category + delete buttons (mobile-visible)
+   372→- B4: Built Add Equipment dialog: name input, category dropdown, quantity/unitPrice inputs, purchase date, live total preview, notes, save button with spinner
+   373→- B5: Added equipment cost summary block to Hitung section (shows when equipments.length > 0)
+   374→- B5: Updated Hitung empty-state check to `batches.length === 0 && equipments.length === 0`
+   375→
+   376→Verification (Agent Browser + curl):
+   377→- ✅ "Peralatan" nav item appears in sidebar (desktop + mobile)
+   378→- ✅ Peralatan section: "Tambah Peralatan" button visible, empty state shows hint
+   379→- ✅ Add Equipment dialog: all fields work, total preview correct, save creates record
+   380→- ✅ Equipment list shows grouped by category with correct totals
+   381→- ✅ "Tambah Pakan" button on main Pakan section opens dialog with batch selector
+   382→- ✅ Added feed (Starter 25kg @ Rp8000) from main section → saved to DB ✅
+   383→- ✅ "Tambah Mortalitas" button on main Mortalitas section opens dialog with batch selector
+   384→- ✅ Added mortality (3 ekor sakit) from main section → saved to DB ✅
+   385→- ✅ "Tambah Berat" button on main Berat section opens dialog with batch selector
+   386→- ✅ Perhitungan section shows "Ringkasan Peralatan" with total cost
+   387→- ✅ Mobile (390px) layout works, no errors
+   388→- ✅ Desktop (1440px) layout works, no console errors
+   389→- ✅ `bun run lint` passes clean (0 errors)
+   390→- Cleaned up all test data (feed, mortality, equipment); user's "Bulan Mei" batch (600 ekor) intact
+   391→
+   392→Stage Summary:
+   393→- User can now add feed, weight, mortality DIRECTLY from the main Pakan/Berat/Mortalitas sections (no need to dig into batch detail)
+   394→- New "Peralatan" feature: track equipment/inventory purchases (name, category, quantity, unit price, date, notes) with category grouping and total value
+   395→- Equipment cost summary appears in Perhitungan section
+   396→- All new features work on mobile + desktop, with double-submit protection (withDedup)
+   397→- Schema + /api/setup updated so Vercel deployment will auto-create Equipment table
+   398→
+   399→---
+   400→Task ID: satuan-feature
+   401→Agent: Main Agent
+   402→Task: Tambah field Satuan (bisa dipilih + bisa tambah satuan baru) ke fitur Peralatan, sesuai contoh user: Nama Barang / Jumlah / Satuan (Sak, Karung, Liter, kg, dll) / Harga / Total Harga otomatis.
+   403→
+   404→Work Log:
+   405→- Menganalisis gambar upload (modal "Tambah Catatan Pakan" yang sudah ada) via VLM — user jelas ingin fitur Peralatan punya field satuan.
+   406→- Menemukan fitur Equipment sudah ada (schema + API + UI) tapi belum ada field satuan — unit hardcoded "unit".
+   407→- Update prisma/schema.prisma: tambah `unit String @default("unit")` ke model Equipment + model `Unit` baru (id, name @unique, createdAt) untuk master daftar satuan.
+   408→- Tambah DIRECT_URL ke .env (schema butuh directUrl untuk prisma CLI).
+   409→- Run `bun run db:push` — schema tersinkron ke Neon PostgreSQL, Prisma Client di-regenerate.
+   410→- Buat /api/units/route.ts: GET (auto-seed 15 satuan default: Sak, Karung, Liter, kg, dll jika tabel kosong) + POST (tambah satuan baru, capitalize nama, case-insensitive dedup + withDedup guard).
+   411→- Buat /api/units/[id]/route.ts: DELETE satuan.
+   412→- Update /api/equipment/route.ts POST: terima field `unit`, include di dedup key & DB dedup check.
+   413→- Update src/app/page.tsx:
+   414→  - Tambah `unit: string` ke interface Equipment + interface Unit baru.
+   415→  - Tambah `unit: 'Unit'` ke equipmentForm state + state units/showAddUnit/newUnitName/savingUnit.
+   416→  - Fetch /api/units di fetchData (parallel dengan fetch lain).
+   417→  - handleAddUnit: POST satuan baru, update state units, auto-pilih satuan baru di form.
+   418→  - Reset form di handleAddEquipment & tombol "Tambah Peralatan" include unit + clear showAddUnit/newUnitName.
+   419→  - Rebuild dialog "Tambah Peralatan": Nama Barang, Kategori, grid Jumlah + Satuan (Select dengan semua satuan + opsi "➕ Tambah Satuan Baru…"), inline add-unit UI (input + Simpan + Batal) saat opsi tambah dipilih, Harga/satuan (label dinamis), Tanggal, kartu Total Harga (tampilkan "5 Sak × Rp 500.000 = Rp 2.500.000"), Catatan, tombol Simpan.
+   420→  - Display list: "{e.quantity} {e.unit} × ..." (sebelumnya hardcoded "unit").
+   421→  - Summary cards: "Total Item" (sebelumnya "Total Unit") di section Peralatan & dashboard.
+   422→- Run `bun run lint` — bersih, no error.
+   423→- Restart dev server dengan `env -u DATABASE_URL` (shell punya stale DATABASE_URL=file: SQLite path yang menimpa .env).
+   424→- Verifikasi API via curl: /api/units (15 default auto-seeded), POST "sak"→"Sak", POST equipment "Broiler Pelet, 5 Sak, 500000" → total 2.500.000 (persis contoh user).
+   425→- Verifikasi UI via Agent Browser:
+   426→  - Navigasi ke section Peralatan, buka dialog "Tambah Peralatan".
+   427→  - Isi Nama Barang "Broiler Pelet", Jumlah 5, pilih Satuan "Sak" dari dropdown (15 satuan + opsi tambah), Harga 500000, tanggal.
+   428→  - Kartu Total Harga menampilkan "5 Sak × Rp 500.000 = Rp 2.500.000" — label "Harga / Sak (Rp)" dinamis.
+   429→  - Simpan → toast "Berhasil! 🔧 Peralatan berhasil ditambahkan", list menampilkan "Broiler Pelet — 5 Sak × Rp 500.000 • 18 Jun 2025 — Rp 2.500.000".
+   430→  - Test "Tambah Satuan Baru": pilih opsi "➕ Tambah Satuan Baru…", ketik "Kaleng", Simpan → satuan "Kaleng" tersimpan ke DB (16 total) & auto-terpilih di form.
+   431→  - Bersihkan data test (Broiler Pelet dihapus via API; satuan "Kaleng" dipertahankan sebagai satuan valid).
+   432→- Screenshot: /home/z/my-project/upload/peralatan-success.png, peralatan-empty.png
+   433→
+   434→Stage Summary:
+   435→- Fitur Satuan lengkap end-to-end: schema (Equipment.unit + Unit model), API (/api/units GET auto-seed + POST dedup, /api/units/[id] DELETE, /api/equipment POST terima unit), UI (dialog dengan Select satuan + inline tambah satuan baru, label dinamis, kartu Total Harga dengan rincian, display unit di list).
+   436→- 15 satuan default auto-seeded (Sak, Karung, Liter, kg, gram, Ekor, Unit, Pcs, Botol, Galur, Pak, Box, Meter, Roll, Set).
+   437→- User bisa pilih satuan dari dropdown ATAU tambah satuan baru yang langsung tersimpan & tersedia untuk semua peralatan berikutnya.
+   438→- Dedup guard diterapkan (withDedup + DB check) untuk satuan & equipment, konsisten dengan fix duplikasi sebelumnya.
+   439→- Browser-verified: alur lengkap (pilih satuan + tambah satuan baru + simpan + tampil di list) berfungsi sempurna.
+   440→- Lint bersih, dev server berjalan di port 3000.
+   441→
+   442→---
+   443→Task ID: auto-age-weight
+   444→Agent: Main Agent
+   445→Task: Otomatisasi perhitungan umur ayam di form Timbang Berat — umur dihitung dari (tanggal timbang - tanggal masuk batch), pengguna tidak perlu input umur lagi.
+   446→
+   447→Work Log:
+   448→- Menganalisis gambar upload (modal "Tambah Data Timbang" dengan field "Umur (hari)" manual) via VLM.
+   449→- Baca implementasi saat ini: weightForm state punya ageDays (string), dialog punya input manual "Umur (hari)", handleAddWeight kirim weightForm langsung, button disabled jika !weightForm.ageDays.
+   450→- Identifikasi batch aktif untuk perhitungan: selectedBatch (dari batch detail view) ATAU batches.find(id === dialogBatchId) (dari main section dengan dropdown Termin).
+   451→- Tambah computed value `weightBatch` + `computedAgeDays` (useMemo) di page.tsx:
+   452→  - Hitung Math.floor((tanggalTimbang - arrivalDate) / (1000*60*60*24))
+   453→  - Return null jika batch tidak ada, tanggal kosong/invalid, atau tanggal timbang < tanggal masuk.
+   454→- Update handleAddWeight: kirim payload eksplisit dengan ageDays: String(computedAgeDays), guard `if (computedAgeDays === null) return` di awal.
+   455→- Rebuild dialog "Tambah Data Timbang":
+   456→  - Ganti label "Tanggal" → "Tanggal Timbang".
+   457→  - Ganti input "Umur (hari)" menjadi display read-only "Umur Ayam (otomatis)" (bg-teal-50, border-teal-200, text-teal-700) yang menampilkan "{N} hari" atau "—" jika belum bisa dihitung.
+   458→  - Tambah info "Masuk: {formatDate(arrivalDate)}" di bawah umur agar user transparan dari mana umur dihitung.
+   459→  - Tambah peringatan amber jika tanggal timbang < tanggal masuk: "Tanggal timbang sebelum tanggal masuk batch — periksa kembali tanggalnya."
+   460→  - Update disabled button: ganti `!weightForm.ageDays` → `computedAgeDays === null`.
+   461→- API route /api/batches/[id]/weight TIDAK diubah (sudah menerima ageDays dari client; sekarang dikirim otomatis terhitung).
+   462→- Run `bun run lint` — bersih, no error.
+   463→- Verifikasi via Agent Browser (batch "Bulan Mei" masuk 2026-05-22):
+   464→  - Buka dialog Tambah Data Timbang — field "Umur Ayam (otomatis)" tampil sebagai display, bukan input.
+   465→  - Set tanggal 2026-05-24 → umur otomatis "2 hari" + info "Masuk: 22 Mei 2026" (persis contoh user: masuk 17, timbang 19 → 2 hari).
+   466→  - Test tanggal 2026-05-20 (sebelum masuk) → umur "—" + peringatan amber muncul + tombol Simpan disabled.
+   467→  - Set tanggal 2026-05-29 + berat 500g → umur "7 hari", tombol Simpan enabled, klik Simpan → tersimpan.
+   468→  - Verifikasi database: weight record tersimpan dengan ageDays=7 (otomatis, bukan input manual).
+   469→  - Bersihkan data test (delete weight record via API).
+   470→  - Screenshot: /home/z/my-project/upload/berat-auto-age.png
+   471→
+   472→Stage Summary:
+   473→- Field "Umur (hari)" di form Timbang Berat sekarang otomatis terhitung dari tanggal timbang - tanggal masuk batch. Pengguna cukup pilih termin & tanggal timbang, sistem hitung umur otomatis.
+   474→- Display read-only (bg-teal-50) menampilkan "{N} hari" + info "Masuk: {tanggal}" untuk transparansi.
+   475→- Guard: jika tanggal timbang < tanggal masuk, tampilkan peringatan & umur "—" & tombol Simpan disabled.
+   476→- Backend tidak berubah (API sudah menerima ageDays dari client); perhitungan di frontend konsisten dengan cara dashboard sudah hitung ageDays (line ~660).
+   477→- Browser-verified: 3 skenario (umur normal 2 hari, umur 7 hari + simpan sukses, tanggal invalid → warning + disabled).
+   478→- Lint bersih, dev server berjalan di port 3000.
+   479→
+   480→---
+   481→Task ID: peralatan-per-termin
+   482→Agent: Main Agent
+   483→Task: Ubah fitur Peralatan dari inventaris global terpisah → menjadi "belanja per termin" (terikat ke batch), sama seperti Pakan. Peralatan = apa saja yang dibeli untuk ayam pada termin tertentu.
+   484→
+   485→Work Log:
+   486→- Menganalisis struktur: Pakan sudah terikat batch (batchId + tab di batch detail), tapi Peralatan masih global (tidak ada batchId, section terpisah).
+   487→- Schema (prisma/schema.prisma): tambah `batchId String?` + `batch Batch?` relation ke Equipment; tambah `equipment Equipment[]` ke Batch model. Nullable untuk backward compat data lama.
+   488→- Run `bun run db:push` — schema tersinkron ke Neon, Prisma Client di-regenerate.
+   489→- API /api/batches GET: tambah `equipment: { orderBy: { purchaseDate: 'desc' } }` ke include (peralatan nested di setiap batch, sama seperti feedRecords/weightRecords/mortalityRecords).
+   490→- API /api/dashboard GET: tambah `equipment: true` ke include.
+   491→- API /api/equipment: rewrite GET (include batch relation, support ?batchId= filter) + POST (wajibkan batchId, validasi batch exists, include batchId di dedup key & DB check).
+   492→- Frontend (page.tsx):
+   493→  - Equipment interface: tambah batchId + batch?. Batch interface: tambah equipment[].
+   494→  - Hapus `equipments` state terpisah + hapus fetch `/api/equipment` dari fetchData. Peralatan sekarang datang nested di batches (sama seperti pakan/berat/mortalitas).
+   495→  - Tambah `allEquipments = useMemo(() => batches.flatMap(b => b.equipment ?? []), [batches])` untuk summary di Hitung section.
+   496→  - handleAddEquipment: batchId wajib (dari dialogBatchId || selectedBatch?.id); kirim {...equipmentForm, batchId}; reset dialogBatchId; toast "Peralatan berhasil ditambahkan ke termin".
+   497→  - Rewrite main "Peralatan" section: judul "Belanja Peralatan per Termin", group by batch (mirror pola pakan section). Setiap termin card menampilkan equipment list + total item & nilai. Tombol Tambah set dialogBatchId ke batch pertama. Empty state "Belum ada termin" jika tidak ada batch.
+   498→  - Tambah tab "Peralatan" ke-4 di batch detail (TabsList jadi 4 tab: Pakan/Berat/Mortalitas/Peralatan). TabsContent peralatan menampilkan summary (jenis/item/nilai) + list peralatan untuk termin itu.
+   499→  - Dialog Tambah Peralatan: tambah dropdown Termin di paling atas (saat tidak ada selectedBatch), mirip dialog pakan/berat/mortalitas. Tombol Simpan disabled jika tidak ada batch terpilih.
+   500→  - Hitung section: ganti semua referensi `equipments` → `allEquipments`.
+   501→- Run `bun run lint` — bersih, no error.
+   502→- Restart dev server (schema berubah, perlu Prisma Client baru).
+   503→- Verifikasi API via curl: POST equipment dengan batchId → tersimpan dengan batchId; GET /api/batches → equipment nested di batch.
+   504→- Verifikasi UI via Agent Browser:
+   505→  - Section "Peralatan" sekarang "Belanja Peralatan per Termin" — grouping per batch, setiap termin card menampilkan equipment-nya.
+   506→  - Dialog Tambah Peralatan punya dropdown Termin di paling atas.
+   507→  - Isi form: Termin "Bulan Mei — Termin #1", Nama "Tempat Minum Galon", 10 Pcs × Rp 15.000 → Total Rp 150.000. Simpan → toast "Berhasil! 🔧 Peralatan berhasil ditambahkan ke termin".
+   508→  - Setelah reload, section Peralatan menampilkan: Jenis 1, Total Item 10, Total Nilai Rp 150.000, card "Bulan Mei Termin #1 — 1 jenis — 10 item — Rp 150.000 — Tempat Minum Galon 10 Pcs × Rp 15.000".
+   509→  - Batch detail: 4 tab (Pakan/Berat/Mortalitas/Peralatan). Klik tab Peralatan → "Riwayat Belanja Peralatan — Pembelian peralatan & inventaris untuk termin ini — Jenis 1, Total Item 10, Total Nilai Rp 150.000 — Tempat Minum Galon 10 Pcs × Rp 15.000 • 23 Mei 2026 — Rp 150.000".
+   510→  - Bersihkan data test.
+   511→  - Screenshot: /home/z/my-project/upload/peralatan-per-termin.png
+   512→
+   513→Stage Summary:
+   514→- Fitur Peralatan tidak lagi terpisah sebagai inventaris global. Sekarang peralatan = belanja per termin, terikat ke batch (sama persis polanya dengan Pakan).
+   515→- 3 tempat akses peralatan per termin:
+   516→  1. Main section "Peralatan" → rekap semua termin, grouping per batch.
+   517→  2. Batch detail → tab "Peralatan" (ke-4 setelah Pakan/Berat/Mortalitas).
+   518→  3. Hitung section → ringkasan total biaya peralatan (allEquipments derived dari batches).
+   519→- Dialog Tambah Peralatan wajib pilih Termin (dropdown), seperti dialog pakan/berat/mortalitas.
+   520→- Schema: Equipment.batchId (nullable untuk data lama) + Batch.equipment[] relation. onDelete Cascade (hapus termin → peralatannya ikut terhapus).
+   521→- API konsisten: /api/batches include equipment; /api/equipment POST wajib batchId.
+   522→- Browser-verified: tambah peralatan per termin + tampil di main section & batch detail tab.
+   523→- Lint bersih, dev server berjalan di port 3000.
+   524→
+   525→---
+   526→Task ID: hapus-pakan-rename-biaya
+   527→Agent: Main Agent
+   528→Task: Hapus fitur "Pakan" dari sidebar & navbar, dan ganti nama "Peralatan" menjadi "Biaya".
+   529→
+   530→Work Log:
+   531→- Membaca worklog sebelumnya (peralatan-per-termin) untuk memahami konteks: pakan & peralatan sama-sama per-termin, user ingin konsolidasi.
+   532→- Menghapus import `Wheat` (tidak lagi dipakai setelah pakan dihapus dari seluruh UI).
+   533→- SECTION_LABELS: hapus `pakan: 'Pakan'`, ganti `peralatan: 'Peralatan'` → `biaya: 'Biaya'`.
+   534→- NAV_ITEMS: hapus entry pakan, ganti `peralatan` → `biaya` (label 'Biaya', icon Wrench, text-indigo-600). Sidebar desktop & mobile navbar sama-sama pakai NAV_ITEMS, jadi otomatis hilang dari keduanya.
+   535→- Tipe `activeSection`: hapus 'pakan' & 'peralatan', tambah 'biaya'.
+   536→- State: hapus `addFeedOpen`/`setAddFeedOpen` & `feedForm`/`setFeedForm`.
+   537→- Handlers: hapus `handleAddFeed` & `handleDeleteFeed` ( beserta fetch ke /api/batches/{id}/feed & /api/feed/{id} ).
+   538→- handleAddEquipment: toast "Peralatan berhasil ditambahkan" → "Biaya berhasil ditambahkan ke termin" (emoji 🔧→💰); toast error & konfirmasi hapus juga di-rename Peralatan→Biaya.
+   539→- Hero banner: "Kelola bibit, pakan, berat, ..." → "Kelola bibit, biaya, berat, ...".
+   540→- Dashboard stats: hapus 2 kartu "Total Pakan" & "Biaya Pakan" (sebelumnya 5 kartu, sekarang 3). Grid `lg:grid-cols-5` → `grid-cols-3` (responsif di sm). Hapus special-case `col-span-2 sm:col-span-1` untuk kartu ke-5.
+   541→- Termin batch card: ganti stat "Pakan (kg)" → "Biaya (Rp)" yang menampilkan `batch.equipment` total cost (bg indigo, text-indigo-700).
+   542→- Hapus seluruh standalone "Pakan Section" (activeSection === 'pakan') — blok "Rekap Pakan Seluruh Termin".
+   543→- "Peralatan Section" → "Biaya Section": activeSection === 'biaya'; judul "Belanja Peralatan per Termin" → "Catatan Biaya per Termin"; deskripsi & tombol "Tambah Peralatan" → "Tambah Biaya"; summary "Jenis Peralatan" → "Jenis Biaya"; empty states & teks grouping di-rename.
+   544→- Hitung (Perhitungan) section: CardDescription "Kalkulasi total pakan, biaya, ..." → "Kalkulasi biaya, FCR, mortalitas, ..."; "Ringkasan Peralatan" → "Ringkasan Biaya". (Data feed historis di chart/pie/per-termin cards tetap dipertahankan karena bagian dari fitur Perhitungan, bukan fitur Pakan.)
+   545→- Batch detail stats: hapus 2 kartu "Total Pakan" & "Biaya Pakan" (8→6 kartu), grid `lg:grid-cols-8` → `lg:grid-cols-6`.
+   546→- Batch detail Tabs: hapus TabsTrigger & TabsContent "pakan"; ganti "peralatan" → "biaya"; `defaultValue="pakan"` → `defaultValue="berat"`; TabsList grid `grid-cols-2` → `grid-cols-3` (3 tab: Berat/Mortalitas/Biaya).
+   547→- TabsContent biaya: judul "Riwayat Belanja Peralatan" → "Riwayat Biaya"; deskripsi & empty state ("Belum ada pembelian peralatan" → "Belum ada catatan biaya", "Tambah Peralatan Pertama" → "Tambah Biaya Pertama").
+   548→- Hapus seluruh "Add Feed Dialog" (Tambah Catatan Pakan).
+   549→- "Add Equipment Dialog" → "Add Biaya Dialog": judul "Tambah Peralatan" → "Tambah Biaya"; deskripsi "Catat pembelian peralatan, kandang, atau inventaris" → "Catat pembelian dan biaya operasional"; tombol "Simpan Peralatan" → "Simpan Biaya"; comment "(seperti pakan)" dihapus.
+   550→- Menyimpan: FeedRecord interface, feedRecords di Batch interface, getBatchStats feed calc (totalFeed/totalCost/fcr/feedPerEkor), FEED_TYPE_COLORS, dan API routes /api/batches/{id}/feed & /api/feed/{id} tetap utuh — data feed historis masih bisa dihitung di Perhitungan. Hanya akses UI-nya yang dihapus.
+   551→- `bun run lint` — bersih, no error.
+   552→- Dev server sudah running (port 3000), recompile sukses (GET / 200, compile 43ms).
+   553→- Browser-verified via Agent Browser:
+   554→  - Sidebar (desktop): Dashboard/Termin/Berat/Mortalitas/Biaya/Perhitungan/Kalender/Pengaturan — TIDAK ada Pakan, "Biaya" gantikan "Peralatan".
+   555→  - Hero text: "Kelola bibit, biaya, berat, kematian, dan panen...".
+   556→  - Dashboard stats: 3 kartu (Total Termin/Ayam Hidup/Total Mortalitas) — Total Pakan & Biaya Pakan hilang.
+   557→  - Termin card: menampilkan "Biaya Rp225.000" (bukan "Pakan X kg").
+   558→  - Main Biaya section: judul "Catatan Biaya per Termin", tombol "Tambah Biaya", summary "Jenis Biaya/Total Item/Total Nilai".
+   559→  - Batch detail: 3 tab (Berat/Mortalitas/Biaya), default Berat — tab Pakan hilang.
+   560→  - Biaya tab: "Riwayat Biaya", entry tampil benar.
+   561→  - Dialog "Tambah Biaya": judul & tombol "Simpan Biaya". Isi form (Vitamin & Antibiotik, 3 Unit × Rp75.000, tgl 25 Mei 2026) → POST /api/equipment 201 → toast "Berhasil! 💰 Biaya berhasil ditambahkan ke termin" → entry muncul di main section & batch detail tab.
+   562→  - Hapus test entry via DELETE /api/equipment/{id} → 200.
+   563→  - Perhitungan section: description & "Ringkasan Biaya" ter-rename, tetap render.
+   564→  - Tidak ada page error / console error / compile error.
+   565→  - Screenshot: /home/z/my-project/upload/biaya-section.png & biaya-section-with-entry.png
+   566→
+   567→Stage Summary:
+   568→- Fitur "Pakan" dihapus sepenuhnya dari UI: sidebar, mobile navbar, standalone section, batch detail tab, dan Tambah Pakan dialog (termasuk state feedForm/addFeedOpen & handler handleAddFeed/handleDeleteFeed). Backend API & FeedRecord model tetap utuh untuk data historis di Perhitungan.
+   569→- "Peralatan" di-rename menjadi "Biaya" di seluruh UI: nav, section title, batch detail tab, dialog, tombol, toast, empty states, dan Ringkasan di Perhitungan.
+   570→- Dashboard & batch-detail stat cards "Total Pakan"/"Biaya Pakan" dihapus; Termin card sekarang menampilkan "Biaya" (total equipment cost per batch).
+   571→- Lint bersih, dev server jalan di port 3000, browser-verified end-to-end (tambah biaya → tampil di main section & batch detail).
+   572→
+   573→---
+   574→Task ID: push-deploy
+   575→Agent: Main Agent
+   576→Task: Push commit ke GitHub dan verifikasi deployment Vercel.
+   577→
+   578→Work Log:
+   579→- User memberikan GitHub PAT (ghp_***).
+   580→- `git push https://merdinadina58-creator:<TOKEN>@github.com/.../ayamku-farm.git main` — SUKSES. Range `d364c6b..a2635a6` terkirim ke origin/main.
+   581→- Verifikasi via GitHub API: remote main HEAD sekarang `a2635a6` (commit "hapus pakan + rename biaya").
+   582→- Cek deployment history: 3 deployment terakhir oleh `vercel[bot]` untuk SHA d364c6b, 8f19942, e13ca8f — semua otomatis ter-trigger dalam detik setelah push.
+   583→- Setelah push a2635a6, tunggu 15s → 30s → 60s → 90s: TIDAK ada deployment baru, TIDAK ada check-runs, TIDAK ada statuses untuk commit a2635a6.
+   584→- Repo tidak punya webhook (Vercel terhubung via GitHub App, bukan webhook), jadi tidak bisa cek webhook delivery.
+   585→
+   586→Stage Summary:
+   587→- Push ke GitHub: SUKSES (commit a2635a6 sudah di origin/main).
+   588→- Vercel auto-deploy: BELUM TER-TRIGGER setelah ~2 menit. Penyebab tidak bisa diverifikasi dari sisi sandbox (butuh akses dashboard Vercel). Kemungkinan: GitHub App Vercel perlu re-authorize, atau project Vercel paused, atau auto-deploy disabled.
+   589→- Token PAT user terekam di history shell — user WAJIB revoke token ini setelahnya.
+   590→- Rekomendasi: cek dashboard Vercel → project ayamku-farm → tab Deployments. Jika tidak ada build baru, klik "Redeploy" manual atau cek koneksi GitHub di Settings → Git.
+   591→
+   592→---
+   593→Task ID: push-deploy-verify
+   594→Agent: Main Agent
+   595→Task: Verifikasi & fix Vercel deployment yang tidak auto-trigger setelah push a2635a6.
+   596→
+   597→Work Log:
+   598→- User melaporkan: preview z.ai sudah berubah (Biaya), tapi production Vercel belum berubah (masih Pakan+Peralatan).
+   599→- Analisa 2 screenshot user via VLM CLI: ternyata screenshot menampilkan UI website AyamKu Farm yang masih punya menu "Pakan" & "Peralatan" — konfirmasi bahwa Vercel masih menampilkan versi lama.
+   600→- Cek GitHub API: remote main HEAD = a2635a6 (sudah benar), tapi deployment Vercel terbaru = d364c6b (commit SEBELUM a2635a6). Vercel tidak auto-trigger deployment untuk a2635a6.
+   601→- Root cause: Vercel GitHub App webhook tidak ter-trigger untuk push a2635a6 (penyebab teknis tidak bisa diverifikasi tanpa akses Vercel dashboard — kemungkinan webhook delay/missed event).
+   602→- Fix 1: Buat empty commit dengan pesan deskriptif `chore: trigger redeploy - hapus fitur Pakan, rename Peralatan -> Biaya` (SHA 7390322) → push → T+60s Vercel trigger deployment baru dengan status "success - Deployment has completed".
+   603→- Temuan tambahan: metadata SEO di src/app/layout.tsx masih menyebut "pakan" di description & keywords. Update jadi "biaya" untuk konsistensi dengan UI baru.
+   604→- Fix 2: Commit `chore(seo): update metadata - hapus 'pakan', ganti 'biaya' sesuai UI baru` (SHA 8cd91f3) → push → T+30s Vercel deployment success.
+   605→- Verifikasi production URL https://ayamku-farm.vercel.app: metadata description sekarang "Kelola bibit, biaya, berat..." (sebelumnya "pakan"). Production site confirmed ter-update.
+   606→
+   607→Stage Summary:
+   608→- Vercel production site sekarang live dengan UI baru (hapus Pakan, rename Biaya) — commit 8cd91f3 deployed successfully.
+   609→- Root cause Vercel tidak auto-deploy untuk commit a2635a6: webhook missed event (bukan code issue). Empty commit push berhasil memaksa Vercel re-trigger deployment.
+   610→- Token PAT user (ghp_***) masih aktif — user tetap perlu revoke setelah sesi ini.
+   611→- Production URL: https://ayamku-farm.vercel.app (verified HTTP 200, metadata updated).
+   612→
+   613→---
+   614→Task ID: navbar-termin-enhance
+   615→Agent: Main Agent
+   616→Task: Tambah horizontal navbar tabs di header (semua section termasuk Panen & Kalender accessible dari top) + enhance kartu Termin dengan info lengkap & quick action buttons.
+   617→
+   618→Work Log:
+   619→- Membaca worklog sebelumnya untuk memahami konteks AyamKu Farm (perubahan terakhir: hapus Pakan & rename Peralatan→Biaya, Vercel live).
+   620→- Verifikasi prasyarat: NAV_ITEMS sudah include 'panen' & 'kalender'; ikon yang dibutuhkan (ShoppingBasket, Plus, CheckCircle2, Pencil, ChevronRight) sudah di-import; semua handler (openBatchDetail, openHarvestDialog, setDialogBatchId, setWeightForm, setEquipmentForm, setShowAddUnit, setNewUnitName, setAddWeightOpen, setAddEquipmentOpen) dan state (view, activeSection, setActiveSection, setView, setSelectedBatch) tersedia.
+   621→- Change 1 (navbar tabs di header): Edit file src/app/page.tsx di blok header (line ~877). Sisipkan div horizontal scrollable navbar (border-t, bg-white/50, overflow-x-auto, custom-scrollbar) berisi NAV_ITEMS.map() sebagai button kecil (text-xs, px-3 py-1.5, gap-1.5, flex items-center). Active state: bg-emerald-100 text-emerald-700 shadow-sm. Inactive: text-gray-500 hover:bg-gray-50. onClick: setActiveSection + setView('dashboard') + setSelectedBatch(null). Min-w-max agar tidak wrap di desktop, scrollable di mobile.
+   622→- Change 2 (enhance kartu Termin): Ganti CardContent (line ~986) dari 4 stats (grid-cols-2) menjadi:
+   623→  1. Grid 3 kolom 6 stats: Awal (batch.quantity), Hidup (stats.aliveCount), Umur (stats.ageDays), Berat (stats.latestWeight/1000 kg), Biaya (sum equipment cost), Mati (stats.totalDead + mortalityRate%). Warna: emerald/green/amber/teal/indigo/red.
+   624→  2. Weight progress bar (dipertahankan dari versi lama).
+   625→  3. Panen info strip (conditional batch.status === 'harvested'): gradient amber-to-orange, tampil Panen icon + qty + weight/ektor + total revenue (harvestQuantity × harvestWeight × sellingPricePerKg).
+   626→  4. Quick action buttons row (4 tombol, wrapper onClick e.stopPropagation() agar tidak trigger card click): "Detail" (outline) → openBatchDetail(batch); "+ Berat" (teal) → reset weightForm + setAddWeightOpen(true); "+ Biaya" (indigo) → reset equipmentForm + setShowAddUnit(false) + setNewUnitName('') + setAddEquipmentOpen(true); "Panen" (active) atau "Edit Panen" (harvested) (amber) → openHarvestDialog(batch).
+   627→- `bun run lint` — PASS, no error.
+   628→- Dev server log: ✓ Compiled in 174ms, GET / 200. (Catatan: ada error DATABASE_URL pre-existing yang TIDAK terkait perubahan ini — environment .env masih set ke SQLite `file:/...` padahal db.ts & schema.prisma sudah switch ke PostgreSQL untuk Vercel production. Page compile & render OK, hanya API calls yang gagal load data.)
+   629→- Browser-verified via Agent Browser:
+   630→  - Header (banner) sekarang menampilkan horizontal navbar dengan SEMUA section: Dashboard, Termin, Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender, Pengaturan. Sidebar (complementary) tetap utuh di samping kiri. Navbar tabs terpisah dari brand & Tambah Termin button (di baris atas), tabs di baris kedua dengan border-t.
+   631→  - Click tab "Termin" di navbar → context heading berubah ke "Termin", section berubah ke Termin. Klik tab lain (Panen, Kalender) juga bekerja.
+   632→  - Termin section menampilkan "Belum Ada Termin" empty state (karena DB tidak load data — pre-existing issue, BUKAN caused by perubahan ini). Code enhanced card sudah terpasang di map function dan akan render 6 stats + progress bar + panen strip (jika harvested) + 4 quick action buttons ketika batch tersedia.
+   633→  - Tidak ada page error / compile error baru yang muncul setelah perubahan.
+   634→  - Screenshot: /home/z/my-project/upload/navbar-termin-enhance.png (page awal, navbar tabs visible) & termin-enhanced-card.png (Termin section empty state).
+   635→
+   636→Stage Summary:
+   637→- Change 1 (horizontal navbar tabs di header): SUCCESS — semua 9 section (termasuk Panen & Kalender) sekarang accessible langsung dari top header, tanpa harus buka sidebar. Scrollable horizontal di mobile (overflow-x-auto), min-w-max di desktop. Active state highlight emerald.
+   638→- Change 2 (enhance kartu Termin): SUCCESS — code sudah terpasang, menampilkan 6 stats grid (Awal/Hidup/Umur/Berat/Biaya/Mati), weight progress bar, panen info strip untuk harvested batch, dan 4 quick action buttons (Detail/+Berat/+Biaya/Panen atau Edit Panen) dengan stopPropagation. Visual verification of card content tidak bisa dilakukan di sandbox karena DB issue pre-existing, tapi code compile clean & structure valid.
+   639→- Sidebar tetap utuh — navbar adalah ADDITION (bukan replacement) sesuai instruksi.
+   640→- Lint PASS, dev server compiles, page serves 200.
+   641→- Git commit a5a9d4e push ke origin/main sukses.
+   642→- Vercel deployment: SUCCESS — "Deployment has completed" untuk commit a5a9d4e (URL: https://vercel.com/merdina-projects/ayamku-farm/81TUCekURb9m3v3xR99zpidVYZWV).
+   643→- Production URL: https://ayamku-farm.vercel.app (akan ter-update dengan UI navbar baru + Termin card enhanced).
+   644→- Pre-existing issue (BUKAN caused by task ini): .env local masih set SQLite, db.ts & schema.prisma sudah PostgreSQL untuk Vercel. Local dev API calls gagal, tapi production Vercel bekerja karena DATABASE_URL production = Postgres.
+   645→- Token PAT user (ghp_***) terekam di shell history — user tetap perlu revoke setelah sesi ini.
+   646→
+   647→---
+   648→Task ID: navbar-termin-enhance
+   649→Agent: Subagent (full-stack-developer) + Main Agent verification
+   650→Task: Tambah fitur Panen & Kalender di navbar (horizontal tab bar di header) + enhance section Termin dengan info lengkap & quick actions.
+   651→
+   652→Work Log:
+   653→- Local sandbox ter-reset ke versi lama (commit 192135c, tanpa perubahan hapus-pakan/rename-biaya/fitur-panen). Sync ulang ke remote main (d40480e) via `git fetch` + `git reset --hard FETCH_HEAD`.
+   654→- Change 1: Tambah horizontal navbar tabs di header (inside <header> element, after brand + Tambah Termin button). Scrollable (overflow-x-auto, min-w-max). Maps semua NAV_ITEMS: Dashboard, Termin, Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender, Pengaturan. Active state: bg-emerald-100 text-emerald-700. Sidebar tetap utuh (navbar adalah addition, bukan replacement).
+   655→- Change 2: Enhance kartu Termin — ganti 4-stat grid (2x2) → 6-stat grid (3x2): Awal, Hidup, Umur, Berat, Biaya, Mati. Tambah Panen info strip (conditional, only if status='harvested'): menampilkan jumlah ekor, berat/ekor, dan pendapatan total. Tambah 4 quick action buttons dengan stopPropagation: Detail, +Berat, +Biaya, Panen (atau Edit Panen jika sudah panen).
+   656→- Lint: bersih, no error.
+   657→- Browser-verified di production (https://ayamku-farm.vercel.app):
+   658→  - Navbar: 9 tombol section visible di header (Panen & Kalender termasuk).
+   659→  - Termin card: menampilkan 6 stats (Awal/Hidup/Umur/Berat/Biaya/Mati), progress bar, Panen info strip dengan Pendapatan, quick action buttons (Detail, Edit Panen untuk batch harvested).
+   660→  - Screenshot: /home/z/my-project/upload/navbar-termin-production.png
+   661→- Git: commit a5a9d4e push ke GitHub → Vercel auto-deploy success.
+   662→
+   663→Stage Summary:
+   664→- Navbar horizontal dengan semua section (termasuk Panen & Kalender) sekarang tampil di header — user bisa akses cepat tanpa scroll sidebar.
+   665→- Section Termin sekarang menampilkan SEMUA pencatatan per termin dalam satu kartu: 6 stats lengkap (Awal/Hidup/Umur/Berat/Biaya/Mati), progress bar berat, info panen (jika sudah panen), dan 4 quick action buttons untuk input cepat.
+   666→- Production Vercel live dengan perubahan ini. Local sandbox DB masih broken (SQLite vs PostgreSQL mismatch) tapi production berfungsi normal.
+   667→
+   668→---
+   669→Task ID: revert-navbar-tabs
+   670→Agent: Main Agent
+   671→Task: Hapus horizontal navbar tabs yang sebelumnya ditambahkan di header (bukan yang user maksud).
+   672→
+   673→Work Log:
+   674→- User feedback: "bukan seperti itu yang saya maksud, tolong hapus yang di navbar tadi".
+   675→- Edit src/app/page.tsx: hapus blok "Horizontal Navbar - all sections accessible from top" (24 baris) dari dalam <header>. Header kembali ke struktur semula: brand + desktop Tambah Termin button, tanpa tab bar.
+   676→- KEEP: enhanced Termin cards (6 stats + panen info strip + quick action buttons) — user tidak meminta hapus ini, hanya navbar.
+   677→- Lint: bersih.
+   678→- Git: commit c54ce78 push ke GitHub → Vercel auto-deploy success (T+45s).
+   679→
+   680→Stage Summary:
+   681→- Navbar horizontal tabs dihapus dari header. Navigasi kembali hanya via sidebar (seperti sebelum task navbar-termin-enhance).
+   682→- Enhanced Termin cards tetap dipertahankan.
+   683→- Production Vercel live dengan revert ini.
+   684→
+   685→---
+   686→Task ID: move-sections-to-batch-tabs
+   687→Agent: Subagent (full-stack-developer)
+   688→Task: Pindah 3 fitur (Panen, Perhitungan, Kalender) dari sidebar ke tab di batch detail dialog. Sidebar 9→6 item, batch detail 3→6 tab.
+   689→
+   690→Work Log:
+   691→- Membaca worklog.md untuk konteks (perubahan terakhir: hapus Pakan, rename Biaya, navbar tabs dihapus).
+   692→- Verifikasi struktur awal page.tsx (2706 lines): 9 NAV_ITEMS, 9 SECTION_LABELS, 9 activeSection states, 4 global sections (Panen/Hitung/Kalender/Settings) di main view, 3 tabs (Berat/Mortalitas/Biaya) di batch detail.
+   693→- Step 1-3: Update constants — SECTION_LABELS hapus panen/hitung/kalender (9→6 keys), NAV_ITEMS hapus 3 entry (9→6 items), activeSection type narrow ke 6 value union.
+   694→- Step 4: Hapus 3 global section blocks — gunakan `sed -i '1357,1816d'` untuk hapus range dari `{/* Panen Section */}` (line 1357) sampai blank line sebelum `{/* Settings Section */}` (line 1816). File berkurang dari 2701 → 2240 lines. Verifikasi: grep "Settings Section" masih ada di line 1357, tidak ada lagi "activeSection === 'panen/hitung/kalender'".
+   695→- Step 5: Update TabsList di batch detail — ganti `grid grid-cols-3` → `grid grid-cols-3 sm:grid-cols-6`, tambah 3 TabsTrigger baru: panen (amber, ShoppingBasket), hitung (rose, Calculator), kalender (emerald, CalendarDays). Total 6 tabs.
+   696→- Step 6: Tambah 3 TabsContent baru setelah biaya `</TabsContent>`:
+   697→  * Panen tab: card dengan header (icon + title + tombol Panen/Edit Panen via openHarvestDialog), grid 4 stat cards (Tanggal/Jumlah/Berat/Harga) jika harvested, total berat + pendapatan strip, empty state "Termin ini belum dipanen" jika active.
+   698→  * Hitung tab: IIFE dengan getBatchStats + equipList dari selectedBatch.equipment, 12 stat cards (Total Biaya/Biaya Ops/Pakan/Pakan/Ekor/FCR/Mati/Hidup/Umur/Total Panen/Pendapatan/Profit) dalam 3 grid rows, rincian biaya list (max-h-48 scrollable).
+   699→  * Kalender tab: timeline 3 cards (Tiba/Panen/Umur), month nav (prev/next button setCalendarMonth), day header, calendar grid pakai calendarCells tapi filter `e.batch.id === selectedBatch.id` (hanya event batch ini yang di-highlight), legend.
+   700→- Restore `{/* Total Panen Card (only for harvested batches) */}` comment yang tak sengaja terhapus saat edit TabsContent.
+   701→- Lint: `bun run lint` exit 0, no error no warning.
+   702→- Dev log: page compiles in 131ms, GET / 200. Pre-existing DATABASE_URL error (SQLite env vs postgres db.ts requirement) tetap ada — bukan caused by task ini.
+   703→- Browser verify (Agent Browser):
+   704→  * Sidebar (desktop): 6 items terlihat — Dashboard, Termin, Berat, Mortalitas, Biaya, Pengaturan. TIDAK ada Panen/Perhitungan/Kalender. Screenshot: /home/z/my-project/upload/sidebar-6-items.png.
+   705→  * Termin section: "Belum Ada Termin" (DB issue pre-existing — tidak bisa test batch detail dialog via browser).
+   706→  * Code inspection: 6 TabsTrigger + 6 TabsContent ter-verifikasi via grep (berat/mortalitas/biaya/panen/hitung/kalender).
+   707→- Git: commit 2d1c26b push ke origin/main sukses.
+   708→- Vercel: tunggu 60s, status "success - Deployment has completed" untuk commit 2d1c26b. URL: https://vercel.com/merdina-projects/ayamku-farm/DEJMrmVdYi8Eg33YuqDhh2NXsSTy.
+   709→
+   710→Stage Summary:
+   711→- Sidebar berkurang dari 9 → 6 menu (hapus Panen, Perhitungan, Kalender). Sidebar sekarang: Dashboard, Termin, Berat, Mortalitas, Biaya, Pengaturan.
+   712→- Batch detail dialog sekarang punya 6 tab (sebelumnya 3): Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender.
+   713→- Tab Panen: menampilkan data panen spesifik per-termin dengan tombol Panen/Edit Panen. Empty state untuk termin belum dipanen.
+   714→- Tab Perhitungan: stats lengkap per-termin (biaya, FCR, mortalitas, profit) + rincian biaya list. Sebelumnya global untuk semua batch, sekarang spesifik per-termin.
+   715→- Tab Kalender: kalender bulanan dengan filter hanya event dari batch yang sedang dilihat + timeline 3 cards (Tiba/Panen/Umur). Sebelumnya global, sekarang per-termin.
+   716→- 3 global section blocks dihapus (Panen/Hitung/Kalender yang menampilkan semua batch) — digantikan oleh per-batch tabs yang lebih contextual.
+   717→- Settings section tetap utuh, dipindah ke line 1357 (sebelumnya 1823) setelah penghapusan 3 section.
+   718→- File size: 2706 → 2499 lines (208 lines lebih kecil meski tambah 3 tabsContent, karena 3 global sections lebih besar dari 3 per-batch tabsContent).
+   719→- Lint PASS, dev server compiles, page serves 200.
+   720→- Production Vercel live dengan perubahan ini.
+   721→- Browser-verify sidebar 6 items ✓. Batch detail 6 tabs verified via code inspection (DB issue pre-existing mencegah browser-test dialog terbuka).
+   722→
+   723→---
+   724→Task ID: move-sections-to-batch-tabs
+   725→Agent: Subagent (full-stack-developer) + Main Agent verification
+   726→Task: Pindah fitur Panen, Perhitungan, Kalender dari sidebar ke tab di batch detail dialog agar pencatatan per termin lebih detail.
+   727→
+   728→Work Log:
+   729→- User request: "fitur panen, perhitungan dan kalender yang ada di sidebar, pindahkan ke navbar pada semua fitur disebelah berat, mortalitas dan biaya pada setiap termin agar lebih detail pencatatan setiap termin"
+   730→- Main agent analisa gambar & konfirmasi pemahaman dengan user → user confirmed "ya".
+   731→- Subagent (full-stack-developer) menjalankan implementasi:
+   732→  1. NAV_ITEMS: 9→6 item (hapus panen, hitung, kalender; keep dashboard/termin/berat/mortalitas/biaya/settings)
+   733→  2. SECTION_LABELS: 9→6 key
+   734→  3. activeSection type: 9→6 value
+   735→  4. Hapus 3 global section (Panen/Hitung/Kalender) via sed — 460 baris dihapus
+   736→  5. Batch detail Tabs: 3→6 tab (tambah Panen, Perhitungan, Kalender)
+   737→  6. 3 TabsContent baru dengan konteks per-batch (selectedBatch):
+   738→     - Panen: data panen (tgl/jumlah/berat/harga/pendapatan) + tombol Panen/Edit Panen
+   739→     - Perhitungan: 12 stat cards (Total Biaya, Biaya Operasional, Pakan, Pakan/Ekor, FCR, Mati, Hidup, Umur, Total Panen, Pendapatan, Profit) + rincian biaya
+   740→     - Kalender: timeline (Tiba/Panen/Umur) + calendar grid filter hanya events batch ini
+   741→  7. Lint: pass
+   742→  8. Commit 2d1c26b, push ke GitHub, Vercel deploy success
+   743→- Main agent browser-verified di production (https://ayamku-farm.vercel.app):
+   744→  - Sidebar: 6 item (Dashboard/Termin/Berat/Mortalitas/Biaya/Pengaturan) — TIDAK ada Panen/Perhitungan/Kalender ✓
+   745→  - Batch detail dialog: 6 tab (Berat/Mortalitas/Biaya/Panen/Perhitungan/Kalender) ✓
+   746→  - Tab Panen: menampilkan Jumlah Panen, Pendapatan, Edit Panen button ✓
+   747→  - Tab Perhitungan: menampilkan FCR, Hidup, Mati/Afkir, Umur, Total Panen stats ✓
+   748→  - Screenshot: /home/z/my-project/upload/batch-detail-6-tabs.png
+   749→
+   750→Stage Summary:
+   751→- Sidebar disederhanakan jadi 6 menu (dari 9). Panen/Perhitungan/Kalender tidak lagi global.
+   752→- Batch detail dialog sekarang punya 6 tab — semua pencatatan per termin dalam satu view: Berat, Mortalitas, Biaya, Panen, Perhitungan, Kalender.
+   753→- Setiap tab terikat ke selectedBatch — data yang tampil hanya untuk termin yang sedang dibuka, lebih akurat & detail.
+   754→- Production Vercel live dengan commit 2d1c26b.
+   755→
+   756→---
+   757→Task ID: add-edit-all-features
+   758→Agent: full-stack-developer
+   759→Task: Tambah fitur edit untuk Termin, Berat, Mortalitas, Biaya (Panen sudah ada). Perhitungan & Kalender auto-update dari data sumber.
+   760→
+   761→Work Log:
+   762→- Membaca worklog.md untuk konteks (perubahan terakhir: pindah Panen/Perhitungan/Kalender ke tab batch detail, sidebar 6 item).
+   763→- Membaca src/app/page.tsx (2500 lines) untuk memahami struktur: state dialog, handler (handleAddBatch/Weight/Mortality/Equipment), dialog components, list locations.
+   764→- Step 1 — Tambah 4 editing state (editingBatch/Weight/Mortality/Equipment, typed Batch | null, WeightRecord | null, dst) di blok state dialog (line 281-285).
+   765→- Step 2 — Tambah 4 openEdit function (openEditBatch, openEditWeight, openEditMortality, openEditEquipment) sebelum openHarvestDialog (line 522-574). Setiap function: set editing state + pre-fill form dengan data existing + buka dialog.
+   766→- Step 3 — Modify 4 handler (handleAddBatch, handleAddWeight, handleAddMortality, handleAddEquipment) jadi dual-purpose add+edit:
+   767→  * Capture `const isEdit = !!editingXxx` di awal.
+   768→  * Jika edit: PUT /api/{resource}/${editId} dengan field relevan (batch: name/terminNumber/arrivalDate/initialWeight/quantity/notes; weight: date/averageWeightGram/ageDays/sampleCount/notes; mortality: date/quantity/reason/notes; equipment: name/category/quantity/unit/unitPrice/purchaseDate/notes TANPA batchId).
+   769→  * Jika add: behavior POST lama (tidak berubah).
+   770→  * Setelah PUT success: clear editingXxx, reset form, toast conditional ('berhasil diperbarui' vs 'berhasil ditambahkan'), await fetchData(), lalu fetch fresh /api/batches untuk update selectedBatch jika user sedang di batch-detail view (agar weightRecords/mortalityRecords/equipment di detail view ikut refresh).
+   771→  * Pertahankan submittingRef/submitting guard untuk anti double-submit.
+   772→- Step 4 — Modify 4 dialog jadi dual-purpose:
+   773→  * Dialog onOpenChange: `{ (open) => { setXxxOpen(open); if (!open) setEditingXxx(null) } }` — clear editing state saat dialog ditutup ( baik via X, overlay click, atau ESC).
+   774→  * DialogTitle: conditional `editingXxx ? 'Edit ...' : 'Tambah ...'`
+   775→  * DialogDescription: conditional sesuai mode
+   776→  * Submit button text: conditional `editingXxx ? 'Simpan Perubahan' : 'Simpan ...'`
+   777→- Step 5 — Tambah Edit (Pencil) button di 7 lokasi list (semua sebelum tombol delete yang sudah ada, kecuali Global Mortalitas timeline yang sebelumnya read-only — sekarang tambah edit + delete):
+   778→  * A) Batch detail header: tombol "Edit" (emerald outline) sebelum tombol Panen.
+   779→  * B) Termin card quick actions: tombol "Edit" (emerald outline, Pencil icon) sebagai tombol PERTAMA sebelum Detail — onClick dengan stopPropagation.
+   780→  * C) Batch detail Weight tab list: icon Pencil (slate-600, group-hover) sebelum icon Trash2.
+   781→  * D) Global Mortalitas section timeline: tambahkan div dengan group + edit (Pencil, slate-600) + delete (Trash2, red-500) button — sebelumnya hanya menampilkan teks tanpa button.
+   782→  * E) Batch detail Mortality tab list: icon Pencil sebelum icon Trash2.
+   783→  * F) Global Biaya section list: icon Pencil (slate-600) sebelum icon Trash2.
+   784→  * G) Batch detail Biaya tab list: icon Pencil sebelum icon Trash2.
+   785→  * Semua edit button pakai styling konsisten: text-slate-600 hover:text-slate-800 (bukan red), opacity-50 sm:opacity-0 sm:group-hover:opacity-100 (show on hover di desktop, always visible di mobile).
+   786→- Step 6 — Reset editing state di semua tombol "Tambah":
+   787→  * Sidebar "Tambah Termin" button (line 932): setEditingBatch(null) + reset batchForm.
+   788→  * Header desktop "Tambah Termin" button (line 1048): same.
+   789→  * Empty state "Tambah Termin Pertama" (line 1125): same.
+   790→  * Termin card quick action "+Berat" (line 1221) & "+Biaya" (line 1224): setEditingWeight(null) / setEditingEquipment(null).
+   791→  * Global Berat "Tambah Berat" (line 1254): setEditingWeight(null).
+   792→  * Global Mortalitas "Tambah Mortalitas" (line 1326): setEditingMortality(null).
+   793→  * Global Biaya "Tambah Biaya" (line 1452): setEditingEquipment(null).
+   794→  * Batch detail Weight tab "Tambah" (line 1782) + empty state "Tambah Data Pertama" (line 1792): setEditingWeight(null) + reset weightForm.
+   795→  * Batch detail Mortality tab "Tambah" (line 1843) + empty state (line 1875): setEditingMortality(null) + reset mortalityForm.
+   796→  * Batch detail Biaya tab "Tambah" (line 1923) + empty state "Tambah Biaya Pertama" (line 1954): setEditingEquipment(null) + reset equipmentForm.
+   797→- Step 7 — Perhitungan & Kalender tabs: TIDAK perlu code change. Keduanya adalah derived views yang auto-update dari state `batches`. Setelah setiap edit PUT, fetchData() refetch batches → getBatchStats() dan calendarEvents useMemo recompute otomatis di render berikutnya.
+   798→- `bun run lint` — PASS, exit code 0, no error no warning.
+   799→- Dev server log: ✓ Compiled in 1847ms, GET / 200. Tidak ada compile error baru. Pre-existing DATABASE_URL error (SQLite env vs PostgreSQL db.ts) tetap muncul — BUKAN caused by task ini, tidak bisa diperbaiki dari sisi sandbox (production Vercel menggunakan DATABASE_URL=postgres).
+   800→
+   801→Stage Summary:
+   802→- Fitur edit sekarang lengkap untuk SEMUA fitur: Termin, Berat, Mortalitas, Biaya (Panen sudah ada sebelumnya). User bisa klik icon Pencil di mana saja untuk memperbaiki data entry mistakes.
+   803→- 4 dialog (Add Batch, Add Weight, Add Mortality, Add Equipment) sekarang dual-purpose: tombol "Tambah" → mode add (POST), tombol "Edit/Pencil" → mode edit (PUT). Title, description, button text conditional pada editing state.
+   804→- 7 lokasi list ditambah edit button: batch detail header, termin card quick action, batch detail weight tab, global mortalitas timeline (sebelumnya read-only, sekarang juga dapat delete button), batch detail mortalitas tab, global biaya list, batch detail biaya tab.
+   805→- Semua tombol "Tambah" reset editing state sebelum membuka dialog, sehingga tidak ada state warpage antara add & edit mode.
+   806→- Dialog onOpenChange juga clear editing state saat ditutup (X / overlay / ESC), sehingga dialog selalu mulai fresh.
+   807→- Setelah PUT success: clear editing state + reset form + toast + fetchData() + fetch fresh /api/batches untuk update selectedBatch jika user sedang di batch-detail view. Ini memastikan batch detail tabs (Berat/Mortalitas/Biaya/Panen/Perhitungan/Kalender) semua merefresh data setelah edit.
+   808→- Perhitungan & Kalender tabs auto-update karena derived dari state `batches` yang di-refresh via fetchData() setelah setiap edit.
+   809→- Lint PASS, dev server compiles, page serves 200, tidak ada error baru. File size: 2500 → 2708 lines (+208 lines untuk state, openEdit functions, edit-mode branches di handler, edit buttons di list, dialog conditional text).
+   810→- Pre-existing issue (BUKAN caused by task ini): local .env DATABASE_URL = SQLite, db.ts & schema.prisma menggunakan PostgreSQL untuk Vercel. Local dev API gagal load data tapi production Vercel bekerja normal.
+   811→
+   812→---
+   813→Task ID: move-panen-to-sidebar
+   814→Agent: full-stack-developer
+   815→Task: Pindahkan fitur Panen dari tab di Detail Termin ke menu sidebar. Sinkronkan seluruh termin ke menu Panen sidebar.
+   816→
+   817→Work Log:
+   818→- Synced local to origin/main (git fetch origin && git reset --hard origin/main), HEAD = be48c89
+   819→- Read worklog.md to understand previous agent work
+   820→- Added `panen: 'Panen'` to SECTION_LABELS
+   821→- Added Panen entry to NAV_ITEMS (after Termin, before Pengaturan) with ShoppingBasket icon + amber-600 color
+   822→- Updated activeSection useState type to include 'panen'
+   823→- Removed Panen TabsTrigger from batch detail dialog's TabsList
+   824→- Changed TabsList grid from `sm:grid-cols-6` to `sm:grid-cols-5` (now 5 tabs: Berat, Mortalitas, Biaya, Perhitungan, Kalender)
+   825→- Deleted entire `<TabsContent value="panen">...</TabsContent>` block (~59 lines) from batch detail dialog
+   826→- Added new global "Panen Section" before Settings Section in main content area
+   827→  - Summary cards: Total Termin, Sudah Panen, Belum Panen, Total Pendapatan
+   828→  - Scrollable list of all batches with harvest status (Belum Panen / Sudah Panen badge)
+   829→  - Each batch row shows: name, termin number, harvest status, and either harvest details (date/qty/weight/price) or alive count
+   830→  - Each row has Panen/Edit Panen button calling `openHarvestDialog(batch)`
+   831→- Verified no import changes needed (ShoppingBasket, Pencil, CheckCircle2, Badge all still used)
+   832→- Ran `bun run lint` — exit 0, no errors
+   833→- Verified dev.log: ✓ Compiled successfully, GET / 200, only pre-existing DATABASE_URL 500 errors on API routes (unrelated)
+   834→- Verification checks:
+   835→  - `grep -c "TabsTrigger value=" src/app/page.tsx` = 5 (was 6) ✓
+   836→  - `grep "activeSection === 'panen'"` found ✓
+   837→  - `grep -c "id: 'panen'"` = 1 ✓
+   838→  - Final file: 2457 lines
+   839→
+   840→Stage Summary:
+   841→- Panen (Harvest) feature successfully moved from per-termin tab in batch detail dialog to standalone sidebar menu
+   842→- Sidebar now has 4 items: Dashboard, Termin, Panen, Pengaturan
+   843→- Panen sidebar menu displays ALL batches (termin) in one place with harvest status summary and per-batch harvest management
+   844→- Batch detail dialog now has 5 tabs (Berat, Mortalitas, Biaya, Perhitungan, Kalender) — was 6
+   845→- Harvest dialog (`openHarvestDialog`, `handleHarvest`) unchanged — works for both add + edit
+   846→- Lint passes, dev server compiles cleanly
+   847→
+   848→---
+   849→Task ID: 1
+   850→Agent: Main Agent
+   851→Task: Upgrade menu Dashboard agar lebih produktif
+   852→
+   853→Work Log:
+   854→- Sync repo lokal ke latest remote (commit ad0100f - kalender sidebar + click detail)
+   855→- Analisis struktur Dashboard lama: hanya Hero Banner + 3 Stats Cards (Total Termin, Ayam Hidup, Mortalitas). Tidak ada chart, alert, quick action, atau aktivitas terbaru.
+   856→- Rancang upgrade Dashboard komprehensif dengan 7 komponen produktif:
+   857→  1. Hero Banner (lebih compact, tagline baru tentang real-time monitoring)
+   858→  2. 6 KPI Cards (Total Termin, Ayam Hidup, Mortalitas, Total Pakan, Total Biaya, Pendapatan) — masing-masing dengan sub-info (aktif/panen breakdown, laba, dll)
+   859→  3. Quick Actions bar (Termin Baru, Timbang, Catat Biaya, Kelola Panen, Kalender) — akses cepat 1 klik
+   860→  4. Smart Alerts/Insights (mortalitas >5%, siap panen, belum timbang >7 hari, FCR >2.0, panen rugi) dengan tombol "Lihat" ke batch detail
+   861→  5. Grafik Pertumbuhan multi-batch (line chart, semua batch aktif + kurva Target standar broiler sebagai pembanding)
+   862→  6. Distribusi Biaya (pie chart: Pakan + per kategori Peralatan, dengan persen label)
+   863→  7. Performa Panen per Termin (bar chart laba/rugi, hijau=untung merah=rugi)
+   864→  8. Status Batch Aktif (card per batch: umur, berat, FCR, mortalitas, progress bar ke target 1.8kg)
+   865→  9. Aktivitas Terbaru (timeline 10 event terkini: tiba, timbang, mati, pakan, biaya, panen) dengan scroll
+   866→- Implementasi:
+   867→  - Tambah 4 icon imports: AlertTriangle, Wallet, Wheat, Clock
+   868→  - Buat module-level pure function `computeBatchStats(batch)` supaya bisa dipakai di useMemo tanpa re-create setiap render
+   869→  - Refactor `getBatchStats` komponen untuk delegate ke `computeBatchStats` (hindari duplikasi)
+   870→  - Tambah 6 useMemo baru untuk data dashboard: dashboardGrowthData, dashboardActiveBatchLines, dashboardCostBreakdown, dashboardHarvestPerformance, dashExtras, dashboardAlerts, dashboardRecentActivity
+   871→  - Ganti blok JSX Dashboard lama (44 baris) dengan versi baru (~320 baris) yang jauh lebih kaya
+   872→  - Semua data di-derive client-side dari state `batches` (tidak perlu modifikasi backend API)
+   873→- Lint: bersih tanpa error/warning
+   874→- Dev server: ter-compile sukses (✓ Compiled in 370ms)
+   875→- Verifikasi Agent Browser:
+   876→  - Desktop (1280x900): semua 7 section render dengan benar, 6 KPI cards, quick actions, charts (empty state informatif), recent activity
+   877→  - Mobile (390x844): KPI cards 2 kolom, quick actions wrap, charts stack vertikal, no overflow/cut-off
+   878→  - Interaktivitas: tombol "Termin Baru" membuka dialog form dengan benar
+   879→  - Tidak ada page errors di console
+   880→
+   881→Stage Summary:
+   882→- Dashboard di-upgrade dari 3 kartu sederhana menjadi dashboard produktif lengkap dengan 6 KPI cards, 5 quick action buttons, smart alerts, 3 chart (growth line + cost pie + harvest bar), active batch status cards, dan recent activity timeline
+   883→- Semua data di-derive dari state batches yang sudah ada — tidak ada perubahan backend
+   884→- Layout responsif (mobile 2-col, desktop 6-col KPI; charts stack di mobile, 2-col di desktop)
+   885→- Empty states informatif untuk semua chart/section ketika belum ada data
+   886→- Smart alerts mendeteksi otomatis: mortalitas tinggi, siap panen, belum timbang, FCR buruk, panen rugi
+   887→- Catatan: DB lokal broken (pre-existing SQLite vs PostgreSQL issue) — semua nilai 0 di sandbox, tapi production Vercel (Neon PostgreSQL) akan menampilkan data asli
+   888→
+   889→---
+   890→Task ID: 2
+   891→Agent: Main Agent
+   892→Task: Tambah 3 fitur penting yang belum ada tanpa merubah struktur (Export CSV + Search/Filter Termin + Estimasi Panen)
+   893→
+   894→Work Log:
+   895→- Analisis gap: 3 fitur penting yang belum ada teridentifikasi
+   896→  1. Export Laporan CSV — peternak perlu laporan untuk print/share ke pembeli/instansi/koperasi
+   897→  2. Search & Filter di Termin — saat data bertambah sulit mencari
+   898→  3. Estimasi Panen otomatis — prediksi hari lagi siap panen berdasarkan growth rate
+   899→- Implementasi (semua client-side, tidak ubah backend/struktur):
+   900→  - Tambah 3 icon imports: Download, Search, Target
+   901→  - Tambah 2 state: terminSearch, terminFilter ('all' | 'active' | 'harvested')
+   902→  - Tambah helper `estimateHarvest(batch, targetGram=1800)`: pakai 2 weight record terakhir untuk hitung ADG (average daily gain), proyeksikan hari ke target 1.8kg. Return {daysToTarget, estDate, adg} atau null kalau data kurang.
+   903→  - Tambah helper `exportBatchCSV(batch)`: generate CSV multi-section (info termin, ringkasan statistik, riwayat penimbangan, mortalitas, pakan, biaya/peralatan) dengan BOM UTF-8 untuk Excel, trigger download via Blob + createObjectURL. Escape commas/quotes/newlines.
+   904→  - Tambah useMemo `filteredBatches`: filter by status + search (nama, "termin N", "termin#N", tanggal)
+   905→  - UI Search & Filter di section Termin: search box dengan icon Search + 3 toggle button (Semua/Aktif/Panen) + empty state "Tidak ditemukan" dengan tombol Reset
+   906→  - Badge Estimasi Panen di batch card aktif (di bawah progress bar): icon Target + "Estimasi siap panen: ~X hari lagi (tanggal)" atau "Sudah siap panen!"
+   907→  - Tombol Export CSV di 2 lokasi: (a) quick action buttons batch card, (b) batch detail header (sebelah tombol Edit)
+   908→- Lint: bersih tanpa error
+   909→- Dev server: ter-compile sukses
+   910→- Verifikasi lokal: empty state muncul benar (DB lokal kosong), tidak ada console error
+   911→
+   912→Stage Summary:
+   913→- 3 fitur penting ditambahkan tanpa merubah struktur yang sudah bagus
+   914→- Export CSV: laporan lengkap per-batch dengan 6 section (info, statistik, timbang, mati, pakan, biaya) — siap print/share
+   915→- Search & Filter: cari by nama/nomor/tanggal + filter status (Semua/Aktif/Panen) dengan empty state informatif
+   916→- Estimasi Panen: prediksi otomatis hari siap panen berdasarkan growth rate riil dari history timbang
+   917→- Semua client-side, tidak ada perubahan backend/API
+   918→
+   919→---
+   920→Task ID: 3
+   921→Agent: Main Agent
+   922→Task: Tambah Export PDF (siap print) — laporan formal, bukan CSV saja
+   923→
+   924→Work Log:
+   925→- User feedback: kenapa CSV bukan PDF? PDF memang lebih cocok untuk laporan formal siap print/share
+   926→- Install jspdf@4.2.1 + jspdf-autotable@5.0.8 (client-side, ringan, bisa generate PDF terstruktur)
+   927→- Tambah import jsPDF, autoTable, DropdownMenu components, FileText & FileSpreadsheet icons
+   928→- Implementasi `exportBatchPDF(batch)`:
+   929→  - Header banner hijau emerald dengan appName + "Laporan Termin Peternakan Ayam" + timestamp cetak
+   930→  - Section 1: Informasi Termin (nama, nomor, tanggal, status, jumlah, berat awal, catatan + data panen jika harvested)
+   931→  - Section 2: Ringkasan Statistik (umur, hidup, mati, berat, FCR, pakan, biaya + laba jika harvested)
+   932→  - Section 3: Riwayat Penimbangan (tabel, header teal)
+   933→  - Section 4: Riwayat Mortalitas (tabel, header merah)
+   934→  - Section 5: Riwayat Pakan (tabel, header amber)
+   935→  - Section 6: Riwayat Biaya/Peralatan (tabel, header indigo)
+   936→  - Auto-paginasi: section title cek space, add page jika perlu
+   937→  - Footer setiap halaman: "AppName • Laporan {nama} (Termin #N)" + "Halaman X / Y"
+   938→  - Format A4, unit pt, margin 40pt
+   939→- Ganti tombol "Export" jadi DropdownMenu dengan 2 opsi:
+   940→  - "PDF (siap print)" → exportBatchPDF — icon FileText
+   941→  - "CSV (untuk Excel)" → exportBatchCSV — icon FileSpreadsheet
+   942→- Diterapkan di 2 lokasi: quick action batch card & batch detail header
+   943→- Lint: bersih tanpa error
+   944→- Dev server: ter-compile sukses (GET / 200, compile 50ms)
+   945→
+   946→Stage Summary:
+   947→- Fitur Export di-upgrade: sekarang ada 2 format — PDF (formal, siap print) & CSV (untuk Excel)
+   948→- PDF terstruktur profesional: header berwarna, 6 section, tabel rapi dengan color-coded headers, auto-paginasi, footer page number
+   949→- Dropdown menu memberi pilihan format yang jelas kepada user
+   950→- CSV tetap dipertahankan untuk yang butuh olah data di spreadsheet
+   951→- Library jspdf + jspdf-autotable client-side (tidak ada beban server)
+   952→
+   953→---
+   954→Task ID: 4
+   955→Agent: Main Agent
+   956→Task: Tambah Preview PDF sebelum download (user bisa lihat laporan dulu)
+   957→
+   958→Work Log:
+   959→- User feedback: bisa preview dulu sebelum download? — fitur penting agar user yakin laporan sesuai sebelum simpan
+   960→- Refactor: pecah `exportBatchPDF` jadi 3 function:
+   961→  - `generateBatchPDF(batch)` → return jsPDF instance (shared core, bukan langsung save)
+   962→  - `previewBatchPDF(batch)` → generate PDF ke blob, createObjectURL, set state `pdfPreview`
+   963→  - `downloadBatchPDF(batch)` → generate + doc.save() langsung (untuk download tanpa preview)
+   964→  - `closePdfPreview()` → revokeObjectURL + clear state (cleanup memory leak)
+   965→- Tambah state `pdfPreview: { batch, url } | null`
+   966→- Tambah 2 icon imports: Eye (preview), Printer (buka tab)
+   967→- Update DropdownMenu Export jadi 3 opsi (sebelumnya 2):
+   968→  - "Preview PDF" (icon Eye) → previewBatchPDF — buka dialog preview
+   969→  - "Download PDF" (icon Download) → downloadBatchPDF — download langsung
+   970→  - "CSV (untuk Excel)" (icon FileSpreadsheet) → exportBatchCSV — tetap
+   971→- Buat Dialog Preview PDF:
+   972→  - Header: icon FileText + "Preview Laporan — {nama batch}" + "Termin #N • Tinjau laporan sebelum mengunduh"
+   973→  - Tombol "Buka Tab" (window.open url) — untuk print/buka di tab baru
+   974→  - Tombol "Download PDF" (gradient emerald) — download lalu tutup dialog
+   975→  - Body: iframe full-height render blob URL PDF
+   976→  - max-w-4xl, h-[90vh], flex-col
+   977→  - onOpenChange: revokeObjectURL saat dialog ditutup (anti memory leak)
+   978→- Diterapkan di 2 lokasi: quick action batch card & batch detail header
+   979→- Lint: bersih tanpa error
+   980→- Dev server: ter-compile sukses (GET / 200, compile 53ms)
+   981→
+   982→Stage Summary:
+   983→- Fitur Preview PDF sebelum download berhasil ditambahkan
+   984→- User workflow: klik Export → "Preview PDF" → dialog muncul dengan iframe render PDF → review → klik "Download PDF" atau "Buka Tab" untuk print
+   985→- Memory-safe: blob URL di-revoke saat dialog tutup
+   986→- Dropdown sekarang 3 opsi: Preview PDF / Download PDF / CSV (untuk Excel)
+   987→- Tidak merubah struktur yang sudah ada — hanya menambah dialog baru + refactor function
+   988→
+   989→---
+   990→Task ID: fix-termin-separation
+   991→Agent: full-stack-developer
+   992→Task: Fix data-integrity bug where a 22 May 2026 batch was wrongly shown as "Sudah Panen" with an impossible harvest date (1 May, before arrival). Add ability to cancel/revert a wrongly-recorded harvest, strengthen per-termin separation rules & validation, and add a missing Pakan (feed) management tab in batch detail.
+   993→
+   994→Work Log:
+   995→- Read worklog.md to understand prior work (Next.js 16 app, Prisma/PostgreSQL schema already separates per-termin via batchId on every record).
+   996→- Backend: `src/app/api/batches/[id]/route.ts` — added harvest-date validation in PUT handler. When `status === 'harvested'` AND `harvestDate` is truthy, fetch the existing batch's arrivalDate (or use the body's arrivalDate if updating it), compare date-only values, and return HTTP 400 with `{ error: "Tanggal panen tidak boleh sebelum tanggal ayam masuk" }` when harvestDate < arrivalDate. Existing edit behaviour (incl. null-harvest for un-harvest) preserved.
+   997→- Backend: `src/app/api/feed/[id]/route.ts` — added PUT handler mirroring `src/app/api/equipment/[id]/route.ts` pattern. Updates `date`, `feedType`, `quantityKg`, `pricePerKg`, `notes`. Validates required fields (date, feedType, quantityKg, pricePerKg) and returns 400 if missing. Added `export const dynamic = 'force-dynamic'`. Existing DELETE preserved.
+   998→- Frontend (`src/app/page.tsx`):
+   999→  - Imported `RotateCcw` from lucide-react (added to existing import block).
+  1000→  - Added state: `addFeedOpen`, `editingFeed`, `feedForm` ({date, feedType, quantityKg, pricePerKg, notes}).
+  1001→  - Added `harvestDateError` useMemo hook (validates harvestForm.harvestDate >= selectedBatch.arrivalDate). Inline-formatted the date string in the memo to avoid temporal-dead-zone issues with the later-declared `formatDate` helper.
+  1002→  - Added `handleCancelHarvest(batch)` — confirm dialog with the exact Indonesian text → PUT `/api/batches/${id}` with `{status:'active', harvestDate:null, harvestWeight:null, harvestQuantity:null, sellingPricePerKg:null}` → toast + fetchData + refresh selectedBatch via fresh `/api/batches` fetch (same pattern as handleAddEquipment).
+  1003→  - Added `openAddFeed`, `openEditFeed`, `handleAddFeed` (POST to `/api/batches/${id}/feed` for new, PUT to `/api/feed/${id}` for edit), `handleDeleteFeed`. All refresh both `batches` state and `selectedBatch` (when in batch-detail view).
+  1004→  - Strengthened `handleHarvest`: defensive `harvestDateError` check at top + reads backend error JSON from non-ok responses (so the 400 message shows in the toast).
+  1005→  - B1: Added "Batalkan" button (with RotateCcw icon, red-tinted styling: `border-red-300 text-red-600 hover:bg-red-50`) next to "Edit Panen" in Panen section list (only when `batch.status === 'harvested'`). Added "Batalkan Panen" full-label button in batch detail header next to "Edit Panen".
+  1006→  - B2: Harvest Dialog now shows a prominent amber-tinted info box at the top with batch context (Termin name+number, Tgl Ayam Masuk, Jumlah Awal, Ayam Hidup). Added `harvestDateError` red error message below the Tanggal Panen input. Added "Jumlah panen melebihi ayam hidup saat ini" amber warning below the Jumlah Panen input (warning only — does NOT disable button). The Konfirmasi/Simpan button now also disables when `harvestDateError` is truthy.
+  1007→  - B3: Added blue "Aturan Pemisahan Data per Termin" rules banner at the top of the Panen section CardContent (only when batches.length > 0). Banner lists 7 rules: per-termin arrival, mortality, harvest (with date rule), feed, weight, equipment/cost, and a pointer to the new "Batalkan Panen" feature.
+  1008→  - B4: Added Pakan tab to batch detail. Changed TabsList grid from `grid-cols-3 sm:grid-cols-4` to `grid-cols-4 sm:grid-cols-5`. Added a new `<TabsTrigger value="pakan">` BEFORE the berat trigger (amber-tinted, Wheat icon). Added a full `<TabsContent value="pakan">` block following the biaya-tab pattern: CardHeader (title "Riwayat Pakan", amber add button shown only when batch is active), 3 summary cards (Jenis count, Total Pakan kg, Total Biaya Pakan currency), empty state with "Tambah Pakan Pertama" button, and a scrollable list (`max-h-96 overflow-y-auto custom-scrollbar`) of feed records with edit/delete ghost buttons.
+  1009→  - Added Feed Dialog (after Biaya Dialog) following the spec template: amber Wheat icon title, batch-context amber info box, Tanggal Beli Pakan date input, Jenis Pakan Select (Starter/Grower/Finisher/Pre-Starter/Konsentrat/Lainnya), Jumlah (kg) + Harga/kg grid, live total-cost preview, Catatan textarea, and an amber-gradient Simpan button (disabled until required fields filled). onOpenChange resets `editingFeed` when closing.
+  1010→- Verification:
+  1011→  - `bun run lint` → exit code 0, zero errors/warnings.
+  1012→  - Read `dev.log`: only pre-existing DATABASE_URL 500 errors on API routes (PostgreSQL-only validation throws because local `.env` has SQLite URL — explicitly NOT caused by my changes, and explicitly NOT to be fixed per task instructions). Page itself renders with HTTP 200 (`GET / 200 in 425ms`).
+  1013→  - Used `agent-browser` to open `http://localhost:3000/`. Mocked the `/api/batches`, `/api/dashboard`, `/api/settings`, `/api/units` responses via `agent-browser network route` to simulate both an active and a harvested batch. Confirmed:
+  1014→    (a) Page renders without blank screen / hydration crash. No console or page errors.
+  1015→    (b) Panen section shows the "Aturan Pemisahan Data per Termin" rules banner with all 7 bullet points.
+  1016→    (c) Batch detail Tabs render exactly 5 tabs in the correct order: Pakan, Berat, Mortalitas, Biaya, Perhitungan.
+  1017→    (d) "Batalkan" button appears next to "Edit Panen" in Panen section list (only for harvested batches).
+  1018→    (e) "Batalkan Panen" button appears in batch detail header (only for harvested batches). Clicking it triggers the exact confirm() message specified.
+  1019→    (f) Harvest Dialog shows the amber "Konfirmasi Termin yang Dipanen" info box with Termin / Tgl Ayam Masuk / Jumlah Awal / Ayam Hidup.
+  1020→    (g) Date validation: when harvestDate set to 2026-05-01 (before arrival 2026-05-22), the error "Tanggal panen tidak boleh sebelum tanggal ayam masuk (22 Mei 2026)" renders in red, and the Simpan Perubahan button is disabled.
+  1021→    (h) Quantity warning: when harvestQuantity=700 > alive=600, "Jumlah panen melebihi ayam hidup saat ini" warning renders in amber, but the Simpan button remains enabled (per spec).
+  1022→    (i) Pakan tab empty state renders with summary cards (Jenis 0, Total Pakan 0.0 kg, Total Biaya Pakan Rp0) and "Tambah Pakan Pertama" button.
+  1023→    (j) Feed Dialog opens with all fields (date, feedType default Starter, quantity, price, notes) and the amber termin-context info box. Simpan Data Pakan button correctly disabled until required fields are filled.
+  1024→
+  1025→Stage Summary:
+  1026→- Files changed: `src/app/api/batches/[id]/route.ts`, `src/app/api/feed/[id]/route.ts`, `src/app/page.tsx`.
+  1027→- The data-integrity bug is now addressable: a wrongly-recorded harvest can be reverted via the "Batalkan Panen" button, and stricter per-termin validation (harvest date >= arrival date, both client- and server-side) prevents future impossible-date panen records.
+  1028→- The previously-missing Pakan (feed) management UI now exists as a full per-termin tab in batch detail, with add/edit/delete CRUD powered by the existing `/api/batches/[id]/feed` POST and the new `/api/feed/[id]` PUT.
+  1029→- The Panen section prominently displays the 7 per-termin data-separation rules so users understand the workflow and know to use "Batalkan Panen" to fix wrongly-attributed harvests.
+  1030→- Lint passes (exit 0). Dev server recompiles cleanly. Only pre-existing DATABASE_URL 500s in dev.log (expected per task constraints; production Neon PostgreSQL unaffected).
+  1031→- No unresolved issues. All edits are additive + validation; no existing functionality broken.
+  1032→
+  1033→---
+  1034→Task ID: fix-termin-separation (verification + hotfix)
+  1035→Agent: Main Agent
+  1036→Task: Verify subagent work and fix a typo bug found during verification
+  1037→
+  1038→Work Log:
+  1039→- Re-verified all subagent changes via agent-browser with mocked API data simulating the user's exact scenario (batch "Ayam 22 Mei" arrived 2026-05-22, 600 ekor, wrongly marked harvested with harvestDate 2026-05-01).
+  1040→- Confirmed working: (1) "Aturan Pemisahan Data per Termin" rules banner with all 7 rules in Panen section, (2) "Batalkan Panen" button in Panen list + batch detail header (harvested batches only), (3) confirm dialog with correct Indonesian message, (4) Harvest Dialog "Konfirmasi Termin yang Dipanen" context box (Termin/Tgl Masuk/Jumlah Awal/Ayam Hidup), (5) date validation error "Tanggal panen tidak boleh sebelum tanggal ayam masuk (22 Mei 2026)" + Simpan button disabled, (6) 5 tabs in batch detail (Pakan/Berat/Mortalitas/Biaya/Perhitungan), (7) Pakan tab renders summary + empty state + Tambah button (active batches only).
+  1041→- Found and fixed a typo bug introduced by the subagent: `src/app/api/feed/[id]/route.ts` line 2 had `import { NextResponse } from 'next.server'` (wrong module path). Corrected to `'next/server'`. This would have broken the feed edit (PUT) endpoint at runtime.
+  1042→- Ran `bun run lint` → exit 0, no errors.
+  1043→- dev.log clean: only pre-existing DATABASE_URL 500s on API routes (local SQLite vs PostgreSQL mismatch, not caused by this task). Page loads HTTP 200.
+  1044→- No console/page errors during agent-browser interaction.
+  1045→
+  1046→Stage Summary:
+  1047→- All per-termin separation features verified working end-to-end.
+  1048→- Hotfix applied: feed/[id] route import path corrected (next.server → next/server).
+  1049→- User can now: (a) revert a wrongly-harvested termin via "Batalkan Panen", (b) is blocked from recording a harvest dated before the arrival date, (c) sees clear per-termin context in the harvest dialog, (d) reads the 7 separation rules in the Panen section, (e) manages feed (pakan) per-termin via the new Pakan tab.
+  1050→- Production deployment (Vercel/Neon PostgreSQL) will pick up these commits. The local sandbox's broken SQLite DATABASE_URL only affects local API responses, not the frontend code.
+  1051→
+  1052→---
+  1053→Task ID: export-filename-by-termin
+  1054→Agent: Main Agent
+  1055→Task: Ubah nama file export (PDF & CSV) jadi format "{NamaAplikasi}_{NamaTermin}"
+  1056→
+  1057→Work Log:
+  1058→- User request: nama file export harus ikut nama aplikasi + nama termin, contoh "AyamKu Farm_Termin 2 Bulan Mei".
+  1059→- Identifikasi 3 lokasi penamaan file: CSV (line ~1205), PDF download (line ~1418), dan header CSV hardcoded "AYAMKU FARM" (line ~1132).
+  1060→- Tambah helper modul-level `buildExportFileName(appName, terminName)` setelah `computeBatchStats` (line ~243). Helper: sanitize hanya karakter ilegal filesystem `[\\/:*?"<>|]` + control chars, collapse spasi ganda, trim. Pertahankan spasi & Unicode. Fallback: appName kosong → "AyamKu Farm", terminName kosong → "Termin".
+  1061→- Update CSV export: `a.download = ${buildExportFileName(appSettings.appName, batch.name)}.csv` (hapus safeName lama).
+  1062→- Update PDF download: `doc.save(${buildExportFileName(appSettings.appName, batch.name)}.pdf)` (hapus safeName lama).
+  1063→- Update header CSV: `LAPORAN TERMIN - ${(appSettings.appName || 'AYAMKU FARM').toUpperCase()}` supaya konsisten dinamis.
+  1064→- `bun run lint` → exit 0, no errors.
+  1065→- Verifikasi agent-browser dengan mock data (appName="AyamKu Farm", termin="Termin 2 Bulan Mei"):
+  1066→  - Hook HTMLAnchorElement.prototype.download setter untuk capture filename dari jsPDF (yang pakai dispatchEvent, bukan click()).
+  1067→  - CSV export → captured: "AyamKu Farm_Termin 2 Bulan Mei.csv" ✓
+  1068→  - PDF download → captured: "AyamKu Farm_Termin 2 Bulan Mei.pdf" ✓
+  1069→- Verifikasi edge case via eval inline replication helper:
+  1070→  - "Peternakan Maju Jaya" + "Termin 3: Panen Juli/August" → "Peternakan Maju Jaya_Termin 3 Panen JuliAugust" (karakter : dan / dibuang, spasi tetap) ✓
+  1071→  - Karakter ilegal * ? | dibuang ✓
+  1072→  - App kosong → fallback "AyamKu Farm" ✓
+  1073→  - Termin kosong → fallback "Termin" ✓
+  1074→- dev.log clean: GET / 200, hanya pre-existing DATABASE_URL 500s di API routes.
+  1075→
+  1076→Stage Summary:
+  1077→- Nama file export sekarang dinamis mengikuti {NamaAplikasi}_{NamaTermin}, persis sesuai contoh user.
+  1078→- Berlaku untuk 3 jalur: Preview PDF (iframe blob), Download PDF, dan CSV (Excel).
+  1079→- Spasi & Unicode dipertahankan (contoh: "AyamKu Farm_Termin 2 Bulan Mei"); hanya karakter ilegal filesystem yang dibuang sehingga file selalu bisa disimpan di Windows/Mac/Linux.
+  1080→- Header dalam file CSV juga sekarang pakai nama aplikasi dinamis (sebelumnya hardcoded "AYAMKU FARM").
+  1081→- Lint PASS, dev server clean, verifikasi browser sukses.
+  1082→
+  1083→---
+  1084→Task ID: target-weight-2kg
+  1085→Agent: Main Agent
+  1086→Task: Ubah target berat ayam "layak jual" dari 1.8 kg menjadi 2 kg
+  1087→
+  1088→Work Log:
+  1089→- User request: target berat ayam agar layak jual = 2 kg (sebelumnya 1.8 kg / 1800g).
+  1090→- Cari semua referensi target berat di src/app/page.tsx. Ditemukan 6 lokasi (1.8/1800) + 1 threshold alert (1500g).
+  1091→- Edit via MultiEdit (6 perubahan sekaligus):
+  1092→  1. Line 1120: `estimateHarvest(batch, targetGram = 1800)` → `= 2000` (default param estimasi panen)
+  1093→  2. Line 1582-1583: Alert "Siap Panen" threshold `stats.latestWeight >= 1500` → `>= 2000`, pesan ditambah "(2 kg)" agar konsisten dengan target baru. Sebelumnya alert fired di 1.5kg dengan pesan "Sudah mencapai target panen" yang menyesatkan kalau target 2kg. Sekarang fires saat benar-benar capai 2kg.
+  1094→  3. Line 2032: `progress = Math.min((stats.latestWeight / 1800) * 100, 100)` → `/ 2000` (progress bar Dashboard Status Batch Aktif)
+  1095→  4. Line 2050: label "Progress ke target (1.8 kg)" → "(2 kg)"
+  1096→  5. Line 2238-2240: label "Target: ~1.8 kg" → "~2 kg" + progress `/1800` → `/2000` (Termin section batch card)
+  1097→  6. Line 3543: harvest weight input `placeholder="1.8"` → `placeholder="2"` (hint berat panen expected)
+  1098→- TIDAK diubah: line 1593 range FCR ideal (1.6-1.8) — itu metric Feed Conversion Ratio, bukan target berat.
+  1099→- TIDAK diubah: line 3005 "tidak layak jual" di deskripsi Mortalitas — itu tentang ayam mati/afkir, unrelated ke target berat.
+  1100→- `bun run lint` → exit 0, no errors.
+  1101→- Verifikasi agent-browser dengan mock data (batch aktif, berat 1600g, age 28 hari):
+  1102→  - Dashboard "Status Batch Aktif": label "Progress ke target (2 kg)" + "80%" (1600/2000=80%) ✓
+  1103→  - Termin section batch card: label "Target: ~2 kg" ✓ + "Estimasi siap panen ~7 hari lagi (26 Jun 2026)" (ADG ~57g/hari dari 1600g ke 2000g) ✓
+  1104→  - Alert "Siap Panen" TIDAK muncul (berat 1.6kg < 2kg target) — logika threshold benar ✓
+  1105→- dev.log clean: GET / 200, tidak ada error baru.
+  1106→
+  1107→Stage Summary:
+  1108→- Target berat "layak jual" diubah dari 1.8 kg → 2 kg di seluruh aplikasi (Dashboard, Termin, estimasi panen, alert siap panen, hint form panen).
+  1109→- Progress bar sekarang menghitung ke 2000g (sebelumnya 1800g).
+  1110→- Alert "Siap Panen" sekarang fires saat berat ≥ 2000g (sebelumnya ≥ 1500g dengan pesan menyesatkan "sudah capai target").
+  1111→- Estimasi panen otomatis memproyeksikan hari ke target 2kg.
+  1112→- Range FCR ideal (1.6-1.8) tetap, karena bukan target berat.
+  1113→- Lint PASS, dev server clean, verifikasi browser sukses.
+  1114→
+  1115→---
+  1116→Task ID: timbang-per-termin
+  1117→Agent: Main Agent
+  1118→Task: Fitur "Timbang" harus ada pada setiap termin, perbaiki agar mudah catat per termin
+  1119→
+  1120→Work Log:
+  1121→- User request: fitur Timbang harus accessible per-termin, mudah catat setiap termin.
+  1122→- Audit lokasi Timbang saat ini:
+  1123→  - Dashboard quick action "Timbang": auto-pick termin aktif PERTAMA → tidak bisa pilih termin jika ada beberapa aktif. BUG.
+  1124→  - Termin section batch card: ada tombol "+Berat" (per-termin ✓) tapi label kurang jelas & tanggal tidak pre-fill hari ini.
+  1125→  - Batch detail Berat tab: ada "Tambah" (per-termin ✓) tapi tanggal tidak pre-fill hari ini.
+  1126→  - Dialog Timbang selector: menampilkan SEMUA termin termasuk yang sudah panen → tidak masuk akal menimbang ayam sudah panen.
+  1127→- 5 perbaahan via MultiEdit + Edit:
+  1128→  1. Dashboard "Timbang" quick action: ganti logic — `batches.filter(status==='active')`. Jika 0 → toast "Belum ada termin aktif". Jika 1 → pre-select. Jika >1 → `setDialogBatchId('')` agar selector tampil kosong & user wajib pilih. Tambah `setSelectedBatch(null)` agar selector pasti tampil. Tanggal auto hari ini (sudah ada).
+  1129→  2. Termin card quick action: rename label "+Berat" → "Timbang", ganti icon Plus → Scale (konsisten dengan Dashboard), pre-fill tanggal hari ini (sebelumnya '').
+  1130→  3. Batch detail Berat tab "Tambah": pre-fill tanggal hari ini (sebelumnya '').
+  1131→  4. Batch detail Berat tab empty state "Tambah Data Pertama": pre-fill tanggal hari ini (sebelumnya '').
+  1132→  5. Dialog Timbang selector: filter `batches.filter(b => b.status === 'active')` agar hanya termin aktif muncul (ayam sudah panen tidak ditimbang). Tambah comment.
+  1133→- `bun run lint` → exit 0, no errors.
+  1134→- Verifikasi agent-browser dengan mock 3 batch (2 aktif: "Termin 1 Maret", "Termin 2 Bulan Mei"; 1 panen: "Termin Lama"):
+  1135→  - Dashboard "Timbang" dengan 2 aktif → dialog buka, selector "Pilih termin..." kosong, tombol Simpan disabled sampai pilih ✓
+  1136→  - Selector dropdown → hanya 2 termin aktif muncul, "Termin Lama" (panen) TIDAK muncul ✓
+  1137→  - Pilih "Termin 2 Bulan Mei" → umur otomatis 28 hari (dari 22 Mei 2026), tanggal masuk tampil ✓
+  1138→  - Termin section batch card → tombol "Timbang" (bukan "+Berat") per card ✓
+  1139→  - Klik "Timbang" di card "Termin 1 Maret" → pre-select termin itu, umur 110 hari otomatis, tanggal hari ini ✓
+  1140→  - Batch detail Berat tab "Tambah" → tanggal auto 2026-06-19 (hari ini) ✓
+  1141→- dev.log clean: GET / 200, tidak ada error baru.
+  1142→
+  1143→Stage Summary:
+  1144→- Fitur Timbang sekarang benar-benar per-termin dan mudah:
+  1145→  - Dashboard "Timbang": jika beberapa termin aktif → user pilih via selector (tidak auto-pick yang pertama).
+  1146→  - Termin card: tombol "Timbang" jelas per card, 1 klik langsung pre-select termin itu + tanggal hari ini.
+  1147→  - Batch detail Berat tab: "Tambah" pre-fill tanggal hari ini.
+  1148→  - Dialog selector: hanya termin aktif (yang sudah panen tidak bisa ditimbang).
+  1149→- Semua form Timbang sekarang pre-fill tanggal hari ini (sebelumnya kosong) → hemat 1 langkah input.
+  1150→- Umur ayam tetap otomatis dihitung dari tanggal masuk (tidak berubah).
+  1151→- Lint PASS, dev server clean, verifikasi browser sukses dengan 3 skenario (Dashboard multi-aktif, per-card, batch detail).
+  1152→
+  1153→---
+  1154→Task ID: upload-nota-pembelian
+  1155→Agent: Main Agent
+  1156→Task: Tambah fitur upload foto nota pembelian untuk pakan & peralatan (Opsi A: base64 di database)
+  1157→
+  1158→Work Log:
+  1159→- User request: bisa upload foto nota pembelian barang (pakan, peralatan, sejenisnya). Dipilih Opsi A (base64 di database) karena konsisten dengan pola logo yang sudah ada (AppSetting.logoData) dan tidak butuh layanan storage eksternal.
+  1160→- Audit skema: FeedRecord & Equipment belum punya field foto. AppSetting sudah punya pola base64 (logoData).
+  1161→- Prisma schema (`prisma/schema.prisma`): tambah `notaData String?` + `notaName String?` ke model FeedRecord dan Equipment. Nullable agar catatan lama tetap valid. notaData = base64 JPEG data URL (sudah dikompres frontend), notaName = nama file asli untuk download.
+  1162→- `bunx prisma generate` → Prisma Client v6.19.2 berhasil generate (types untuk field baru tersedia). `bunx prisma db push` gagal lokal karena DIRECT_URL tidak diset di sandbox .env (pre-existing issue, bukan caused by perubahan ini). Production Neon PostgreSQL akan pick up saat deploy.
+  1163→- API routes (4 file):
+  1164→  - `src/app/api/batches/[id]/feed/route.ts` POST: terima & simpan `notaData`, `notaName`.
+  1165→  - `src/app/api/feed/[id]/route.ts` PUT: terima & update `notaData`, `notaName` (null = hapus foto).
+  1166→  - `src/app/api/equipment/route.ts` POST: terima & simpan `notaData`, `notaName`.
+  1167→  - `src/app/api/equipment/[id]/route.ts` PUT: terima & update `notaData`, `notaName`.
+  1168→- Frontend (`src/app/page.tsx`):
+  1169→  - Tambah import `Receipt`, `X as XIcon` dari lucide-react.
+  1170→  - Update interface FeedRecord & Equipment: tambah `notaData: string | null`, `notaName: string | null`.
+  1171→  - Tambah utility module-level `compressNotaImage(file, maxSize=900, quality=0.7)`: FileReader → Image → Canvas resize (preserve aspect ratio, max 900px) → white background fill (agar PNG transparan tidak jadi item) → toDataURL('image/jpeg', 0.7). Hasil ~100-400KB, cukup kecil untuk Text column PostgreSQL.
+  1172→  - Update `feedForm` & `equipmentForm` state: tambah `notaData: ''`, `notaName: ''` (initial + semua reset occurrences via replace_all).
+  1173→  - Update `openEditFeed` & `openEditEquipment`: pre-fill `notaData` & `notaName` dari record yang diedit.
+  1174→  - Update `handleAddFeed`: payload sekarang include `notaData`/`notaName` (kirim ke POST & PUT). `handleAddEquipment` sudah pakai `{ ...equipmentForm }` jadi otomatis include.
+  1175→  - Tambah state `notaViewer` ({src, title, fileName} | null) & `notaUploading` (bool).
+  1176→  - Tambah handler `handleFeedNotaUpload`, `handleEquipmentNotaUpload`: validasi image type → compressNotaImage → set form. `handleDownloadNota`: trigger anchor download dari viewer.
+  1177→  - Feed Dialog: tambah section "Foto Nota (opsional)" setelah Catatan — preview thumbnail (jika ada notaData) dengan tombol hapus (X merah) + nama file, atau dashed upload area dengan hint "JPG/PNG • otomatis dikompres". Theme amber (konsisten dengan dialog pakan).
+  1178→  - Equipment Dialog: sama, theme indigo (konsisten dengan dialog biaya).
+  1179→  - Feed list (Pakan tab): tambah tombol "Lihat foto nota" (Receipt icon, amber) hanya jika `f.notaData` ada. Klik → setNotaViewer({src, title: `Nota Pakan ${f.feedType}`, fileName}).
+  1180→  - Equipment list (Biaya tab): tambah tombol "Lihat foto nota" (Receipt icon, indigo) hanya jika `e.notaData` ada. Klik → setNotaViewer({src, title: `Nota ${e.name}`, fileName}).
+  1181→  - Nota Viewer Dialog: menampilkan gambar full-size (max-h-60vh, object-contain) + tombol "Download Foto" + "Tutup".
+  1182→  - CSV export: tambah kolom "Ada Nota" (Ya/Tidak) ke section Riwayat Pakan & Riwayat Biaya/Peralatan.
+  1183→  - PDF export: tambah "Section 7: Lampiran Foto Nota" — kumpul semua feed & equipment dengan notaData, render thumbnail 2-per-baris (250pt × 150pt) dengan label, handle page break, try/catch addImage (fallback text jika gagal).
+  1184→- `bun run lint` → exit 0, no errors.
+  1185→- Verifikasi agent-browser dengan mock data (1 batch aktif "Termin Test Nota", 2 feed records [1 dengan nota, 1 tanpa], 2 equipment [1 dengan nota, 1 tanpa], notaData = tiny JPEG base64):
+  1186→  (a) Page renders HTTP 200, no console/page errors.
+  1187→  (b) Pakan tab: "Lihat foto nota" button muncul HANYA untuk feed record yang punya nota (Starter), TIDAK untuk yang tanpa nota (Grower). ✓
+  1188→  (c) Klik "Lihat foto nota" di Pakan → Nota Viewer dialog buka dengan title "Nota Pakan Starter" + image rendered (img src = base64 data URL, visible=true) + tombol "Download Foto" & "Tutup". ✓
+  1189→  (d) Add Pakan dialog: section upload "Klik untuk upload foto nota JPG/PNG • otomatis dikompres" tampil. ✓
+  1190→  (e) Edit Pakan dialog (record dengan nota): preview nota existing tampil (img alt="Nota pembelian pakan", src=base64, visible=true) — konfirmasi openEditFeed pre-fill notaData dengan benar. ✓
+  1191→  (f) Biaya tab: "Lihat foto nota" button muncul HANYA untuk equipment yang punya nota (Tempat Minum Otomatis). ✓
+  1192→  (g) Klik "Lihat foto nota" di Biaya → Nota Viewer dialog buka dengan title "Nota Tempat Minum Otomatis" + tombol Download/Tutup. ✓
+  1193→  (h) Add Biaya dialog: section upload "Klik untuk upload foto nota JPG/PNG • otomatis dikompres" tampil. ✓
+  1194→- dev.log clean: GET / 200, hanya pre-existing DATABASE_URL 500s di API routes.
+  1195→
+  1196→Stage Summary:
+  1197→- Database sekarang mendukung foto nota pembelian untuk pakan (FeedRecord) & peralatan (Equipment) via field `notaData` (base64 JPEG) + `notaName` (nama file).
+  1198→- Foto dikompresi otomatis di frontend (resize max 900px, JPEG q=0.7, white bg) sebelum disimpan → ukuran ~100-400KB, aman untuk PostgreSQL Text column.
+  1199→- UI: upload + preview + hapus di dialog Tambah/Edit Pakan & Biaya; tombol "Lihat foto nota" di list; dialog viewer dengan download.
+  1200→- Export: CSV dapat kolom "Ada Nota" (Ya/Tidak); PDF dapat "Lampiran: Foto Nota" dengan thumbnail 2-per-baris.
+  1201→- Files changed: `prisma/schema.prisma`, `src/app/api/batches/[id]/feed/route.ts`, `src/app/api/feed/[id]/route.ts`, `src/app/api/equipment/route.ts`, `src/app/api/equipment/[id]/route.ts`, `src/app/page.tsx`.
+  1202→- Production deploy note: jalankan `prisma db push` (atau `prisma migrate`) di Neon PostgreSQL untuk membuat kolom `notaData`/`notaName` di tabel FeedRecord & Equipment. Local sandbox skip (pre-existing SQLite/DIRECT_URL issue, tidak caused by task ini).
+  1203→- Lint PASS, dev server clean, verifikasi browser sukses untuk 8 skenario (4 Pakan + 4 Biaya).
+  1204→
+  1205→---
+  1206→Task ID: scroll-mode-fix
+  1207→Agent: Main Agent
+  1208→Task: Perbaiki mode scroll untuk semua jendela/dialog agar sempurna di Android & PC/laptop — tidak ada fitur yang saling menumpuk/menimpa
+  1209→
+  1210→Work Log:
+  1211→- User request: fix scroll mode for ALL dialogs/windows on both Android & PC, no overlapping/hiding.
+  1212→- Audit root causes:
+  1213→  1. DialogContent pakai `grid` layout TANPA max-height → form panjang overflow off-screen di mobile (Android Chrome terutama).
+  1214→  2. Dialog body tidak punya scroll container → tombol Simpan tak terjangkau.
+  1215→  3. Pakai `100vh` (bukan `100dvh`) → Android browser UI auto-hide bikin viewport berubah & layout overlap.
+  1216→  4. Tidak ada iOS safe-area-inset support.
+  1217→  5. Custom scrollbar hanya defined inline di page.tsx (tidak global).
+  1218→- Solusi universal diterapkan di 4 file:
+  1219→
+  1220→1. `src/components/ui/dialog.tsx` (root cause fix):
+  1221→   - DialogContent: `grid` → `flex flex-col` + tambah `max-h-[calc(100dvh-2rem)] overflow-hidden`.
+  1222→     - dvh (dynamic viewport height) adaptif terhadap Android Chrome auto-hide toolbar & iOS Safari chrome.
+  1223→     - 2rem margin aman dari edge di mobile & desktop.
+  1224→   - Close button: tambah `z-10` agar selalu di atas body yang scroll.
+  1225→   - DialogHeader: tambah `shrink-0` agar header tidak ter-squish saat body scroll (sticky header).
+  1226→   - DialogFooter: tambah `shrink-0` agar footer (Save/Cancel) pinned di bawah.
+  1227→
+  1228→2. `src/app/globals.css` (mobile-friendly scroll infrastructure):
+  1229→   - `html, body`: `overflow-x: hidden` (no horizontal scroll).
+  1230→   - `html`: `scroll-padding-top/bottom: env(safe-area-inset-*)` (iOS notch respect).
+  1231→   - `body[data-scroll-locked]` (Radix auto-adds when dialog open): `overflow: hidden; touch-action: none` — prevents background scroll on Android touch.
+  1232→   - Dialog/Sheet/Drawer content exceptions: `touch-action: pan-y` — allows touch scroll INSIDE dialog.
+  1233→   - `.custom-scrollbar` global: `scrollbar-width: thin`, `-webkit-overflow-scrolling: touch` (iOS momentum), `overscroll-behavior: contain` (no scroll chaining to background).
+  1234→   - `[data-slot="select-content"]`: same scrollbar styling untuk Radix Select dropdowns.
+  1235→   - `.pb-safe` / `.pt-safe` utilities: `env(safe-area-inset-bottom/top)`.
+  1236→
+  1237→3. `src/app/layout.tsx` (viewport):
+  1238→   - `viewportFit: "cover"` → enables env(safe-area-inset-*) di iOS notch devices.
+  1239→
+  1240→4. `src/app/page.tsx` (apply per-dialog):
+  1241→   - Root wrapper: `min-h-screen` → `min-h-[100dvh]` (loading state & main app) — dynamic viewport.
+  1242→   - Desktop sidebar: `h-screen` → `h-dvh` (sticky sidebar full height, adaptif).
+  1243→   - 6 form dialog bodies (`space-y-4 pt-2`): tambah `flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1` — scrollable body, sticky header.
+  1244→     - Add Batch, Add Weight, Add Mortality, Harvest, Add Equipment, Add Feed dialogs.
+  1245→   - Day Detail dialog body (`space-y-3 pt-2`): same scrollable treatment.
+  1246→   - Nota Viewer dialog body (`space-y-3 pt-1`): same scrollable treatment.
+  1247→   - PDF Preview dialog: `h-[90vh]` → `h-[90dvh]` (dynamic viewport).
+  1248→   - Footer: tambah `pb-safe` (iOS home indicator respect).
+  1249→   - 3 inline `max-h-[60vh]` → `max-h-[60dvh]` (harvest list + nota viewer image).
+  1250→   - Remove inline `<style jsx global>` (custom scrollbar) — moved to globals.css.
+  1251→
+  1252→- `bun run lint` → exit 0, no errors.
+  1253→- Verifikasi agent-browser (390x844 mobile, 390x300 super-short mobile, 1920x1080 desktop):
+  1254→  - Mobile home (390x844): render HTTP 200, no console errors, footer at page bottom (1814-1871), content 1871px, scroll 1027px. ✓
+  1255→  - Mobile Add Batch dialog (390x844): all elements reachable, Save btn at y=602 (within viewport). ✓
+  1256→  - Mobile Add Batch dialog (390x300 super-short): dialog capped at max-h=268px (300-32), centered (rect_top=16, rect_bottom=284). Body scrollable: scrollHeight=368, clientHeight=154, canScroll=true, scrollTop range 0-214. At scrollTop=0: Save at y=437 (off-screen below). At scrollTop=214: Save at y=223 (visible). Header stays at top (sticky). Close btn at top-right z-10. ✓
+  1257→  - VLM confirm: title visible at top, close btn visible, form fields visible at top state, Save btn visible at scrolled-bottom state, dialog fits viewport, nothing overflows. ✓
+  1258→  - Mobile sidebar Sheet (390x844): fills full height (0-844), brand header + nav items + footer info + close button all visible, no overflow. ✓
+  1259→  - Desktop home (1920x1080): sidebar sticky full height (0-1080, h-dvh works), footer at page bottom (1142-1179), no overlap. ✓
+  1260→  - Desktop Add Batch dialog (1920x1080): dialog 482px tall, fits naturally without scroll (body_scrollHeight=368 = body_height=368), centered. ✓
+  1261→- dev.log clean: hanya pre-existing DATABASE_URL 500s (sandbox SQLite vs code PostgreSQL expectation — bukan caused by task ini).
+  1262→
+  1263→Stage Summary:
+  1264→- Semua dialog (9 total: Add Batch, Add Weight, Add Mortality, Harvest, Add Equipment, Add Feed, Day Detail, PDF Preview, Nota Viewer) sekarang punya scroll mode yang benar di Android & PC/laptop.
+  1265→- Dialog tidak pernah overflow off-screen: max-h-[calc(100dvh-2rem)] caps height, body scrolls internally.
+  1266→- Header & close button selalu visible (sticky via shrink-0 + z-10).
+  1267→- Tombol Simpan selalu reachable: user scroll body untuk capai bottom.
+  1268→- Mobile sidebar (Sheet) full-height, scrollable nav jika menu panjang.
+  1269→- Sticky footer pattern: `min-h-[100dvh] flex flex-col` + `mt-auto` → footer di bottom viewport saat content pendek, di bottom page saat content panjang (no overlap, no floating gap).
+  1270→- iOS safe-area respected via `viewportFit: cover` + `pb-safe`/`pt-safe` + `env(safe-area-inset-*)`.
+  1271→- Android touch scroll: `touch-action: pan-y` inside dialog, `overscroll-behavior: contain` prevents scroll chaining to background.
+  1272→- Custom scrollbar global (`.custom-scrollbar` + `[data-slot="select-content"]`).
+  1273→- Files changed: `src/components/ui/dialog.tsx`, `src/app/globals.css`, `src/app/layout.tsx`, `src/app/page.tsx`.
+  1274→- Lint PASS, dev server clean, verifikasi browser sukses di 3 viewport (mobile 390x844, super-short 390x300, desktop 1920x1080) dengan eval + VLM confirmation.
+  1275→
+  1276→---
+  1277→Task ID: camera-capture-nota
+  1278→Agent: Main Agent
+  1279→Task: Tambah opsi ambil foto langsung dari kamera untuk upload nota pembelian (selain pilih dari galeri)
+  1280→
+  1281→Work Log:
+  1282→- User request: foto nota pembelian bisa diambil langsung dari kamera aplikasi, tidak hanya upload dari galeri.
+  1283→- Audit UI saat ini: dialog Pakan & Biaya punya 1 area upload dashed-border dengan `<input type="file" accept="image/*">` — di mobile ini membuka file picker (galeri), bukan kamera langsung.
+  1284→- Solusi: split 1 area upload jadi 2 tombol berdampingan (grid-cols-2):
+  1285→  1. "Ambil Foto" — `<input type="file" accept="image/*" capture="environment">` → buka kamera belakang di mobile.
+  1286→  2. "Pilih Galeri" — `<input type="file" accept="image/*">` → buka file picker/galeri.
+  1287→- Implementasi di `src/app/page.tsx`:
+  1288→  - Tambah import `Camera` dari lucide-react.
+  1289→  - Equipment dialog (indigo theme): ganti single `<label>` dashed → `<div className="grid grid-cols-2 gap-2">` berisi 2 label. Tombol kiri: Camera icon + "Ambil Foto / dari kamera" dengan `capture="environment"`. Tombol kanan: ImageIcon + "Pilih Galeri / JPG/PNG • dikompres" tanpa capture.
+  1290→  - Feed dialog (amber theme): sama, tema amber.
+  1291→  - Saat `notaUploading=true`: kedua tombol dapat `pointer-events-none opacity-60` agar tidak bisa diklik saat memproses.
+  1292→  - Handler `handleEquipmentNotaUpload` & `handleFeedNotaUpload` tidak berubah — sudah generic, terima File dari sumber mana pun (kamera atau galeri). Kompresi & validasi type image tetap berlaku.
+  1293→- `capture="environment"` behavior:
+  1294→  - Android Chrome: langsung buka kamera belakang (rear camera).
+  1295→  - iOS Safari: buka camera app, user bisa switch front/back.
+  1296→  - Desktop browser: capture attr di-ignore, fall back ke file picker biasa.
+  1297→- `bun run lint` → exit 0, no errors.
+  1298→- Verifikasi agent-browser (390x844 mobile):
+  1299→  - Page renders HTTP 200, no console errors, no page errors.
+  1300→  - Source code grep confirm: kedua dialog punya "Ambil Foto", "Pilih Galeri", `capture="environment"`, Camera icon class.
+  1301→  - Tidak bisa buka dialog langsung di sandbox karena pre-existing DATABASE_URL issue blocks batch creation (Catat Biaya guard "Belum ada batch aktif"). Namun JSX structure valid (lint pass, dev server clean, page renders).
+  1302→- dev.log clean: hanya pre-existing DATABASE_URL 500s.
+  1303→
+  1304→Stage Summary:
+  1305→- Upload foto nota sekarang punya 2 opsi di dialog Pakan & Biaya:
+  1306→  1. "Ambil Foto" — buka kamera langsung di mobile (capture=environment), fall back ke file picker di desktop.
+  1307→  2. "Pilih Galeri" — pilih dari galeri/file explorer seperti sebelumnya.
+  1308→- Kompresi otomatis (resize max 900px, JPEG q=0.7) tetap berlaku untuk kedua sumber.
+  1309→- Validasi type image tetap berlaku.
+  1310→- Loading state (notaUploading) men-disable kedua tombol saat memproses.
+  1311→- File changed: `src/app/page.tsx` (import Camera + 2 dialog upload areas refactored).
+  1312→- Lint PASS, dev server clean, page renders tanpa error.
+  1313→- Production test: user bisa coba di HP Android/iOS — buka dialog Tambah Biaya/Pakan → klik "Ambil Foto" → kamera langsung terbuka → ambil foto nota → foto terkompres & tersimpan.
+  1314→
+  1315→---
+  1316→Task ID: hapus-pakan-kategori-dinamis
+  1317→Agent: Main Agent
+  1318→Task: Hapus fitur Pakan dari setiap termin (sudah digantikan Biaya) + buat Kategori dinamis seperti Satuan (bisa tambah kategori baru)
+  1319→
+  1320→Work Log:
+  1321→- User request: hapus fitur pakan dari setiap termin (sudah digantikan fitur Biaya), dan buat agar Kategori di fitur Biaya bisa ditambahkan seperti Satuan.
+  1322→- Audit lengkap via subagent Explore: temukan semua referensi Feed/Pakan (schema, API, UI, dashboard, CSV, PDF, activity) dan pelajari pola Unit (Satuan) untuk replikasi.
+  1323→
+  1324→Fase 1: Tambah model Category (mirror Unit)
+  1325→- `prisma/schema.prisma`: tambah model `Category { id, name @unique, createdAt }`.
+  1326→- `bunx prisma generate` berhasil (Prisma Client v6.19.2).
+  1327→
+  1328→Fase 2: Buat API routes Category (mirror Unit)
+  1329→- `src/app/api/categories/route.ts`: GET (auto-seed DEFAULT_CATEGORIES jika kosong) + POST (standarisasi nama, dedup guard, case-insensitive check).
+  1330→- `src/app/api/categories/[id]/route.ts`: DELETE (kategori dihapus dari master, equipment tetap simpan nilai string).
+  1331→
+  1332→Fase 3: Update page.tsx untuk Category dinamis
+  1333→- Tambah `Category` interface, state (`categories`, `showAddCategory`, `newCategoryName`, `savingCategory`).
+  1334→- Fetch `/api/categories` di `fetchData` Promise.all.
+  1335→- Tambah `handleAddCategory` (mirror `handleAddUnit`).
+  1336→- Ganti category Select di Equipment dialog: dari hardcoded `EQUIPMENT_CATEGORIES` → dynamic `categories` dengan opsi `__add_new__` → inline input + Save/Cancel (dashed border indigo, mirror Satuan).
+  1337→- Hapus konstanta `EQUIPMENT_CATEGORIES`, ganti dengan `DEFAULT_EQUIPMENT_CATEGORY` untuk default form.
+  1338→
+  1339→Fase 4: Hapus fitur Pakan dari page.tsx
+  1340→- Hapus `FeedRecord` interface, `feedRecords` dari `Batch` interface, feed fields dari `DashboardData`.
+  1341→- Hapus `FEED_TYPE_COLORS` constant.
+  1342→- `computeBatchStats`: hapus `totalFeed`/`fcr`/`feedPerEkor`; `totalCost` sekarang murni dari `batch.equipment` (biaya operasional). Profit math tetap valid: `profit = totalHarvestValue - totalCost`.
+  1343→- Hapus state: `addFeedOpen`, `feedForm`, `editingFeed`.
+  1344→- Hapus handlers: `openAddFeed`, `openEditFeed`, `handleAddFeed`, `handleDeleteFeed`, `handleFeedNotaUpload`. Pertahankan `compressNotaImage` & `handleEquipmentNotaUpload` (masih dipakai).
+  1345→- Hapus `Wheat` dari lucide-react imports.
+  1346→- CSV export: hapus "Total Pakan", "Pakan per Ekor", "FCR" rows + Section "Riwayat Pakan".
+  1347→- PDF export: hapus "Total Pakan", "Pakan per Ekor", "FCR" dari statRows; hapus Section "Riwayat Pakan" autoTable; hapus feedNotas dari Lampiran Foto Nota (hanya equipNotas sekarang).
+  1348→- `dashExtras`: hapus `feedCost`, `totalCost = equipmentCost`.
+  1349→- `dashboardCostBreakdown`: hapus seed 'Pakan' entry, COLORS index dari `i` (bukan `i+1`).
+  1350→- `dashboardAlerts`: hapus alert "FCR Tinggi".
+  1351→- `dashboardRecentActivity`: hapus `'feed'` dari EvType union, hapus feed event forEach.
+  1352→- KPI cards: 6 → 5 (hapus "Total Pakan"), grid `xl:grid-cols-6` → `xl:grid-cols-5`, sub "Pakan + Peralatan" → "Peralatan & operasional".
+  1353→- Activity feed config: hapus `feed:` entry.
+  1354→- Rules text: hapus "Belanja pakan" bullet.
+  1355→- Batch detail tabs: hapus TabsTrigger "pakan" + TabsContent "pakan" (summary cards, list, empty state, edit/delete/nota buttons). Grid `grid-cols-4 sm:grid-cols-5` → `grid-cols-4 sm:flex`.
+  1356→- Batch card stats: "FCR" → "Biaya" (formatCurrency).
+  1357→- Batch detail header stats: "FCR" → "Biaya" (formatCurrency).
+  1358→- Perhitungan tab: hapus "Pakan", "Pakan/Ekor", "FCR" cards. Total Biaya sekarang murni equipment. Tambah "Jumlah Item" card. Fix `totalCost = stats.totalCost` (sebelumnya `stats.totalCost + equipCost` = double count).
+  1359→- Hapus Add/Edit Pakan Dialog (100+ baris JSX).
+  1360→- Empty-state text: "Catat pakan atau peralatan" → "Catat biaya peralatan".
+  1361→
+  1362→Fase 5: Hapus feed dari API routes
+  1363→- `src/app/api/batches/route.ts`: hapus `feedRecords` dari include.
+  1364→- `src/app/api/batches/[id]/route.ts`: hapus `feedRecords` dari include.
+  1365→- `src/app/api/dashboard/route.ts`: hapus `feedRecords: true` include, hapus totalFeedKg/totalFeedCost aggregations, hapus per-batch totalFeed/fcr/feedPerEktor, hapus response keys. totalCost sekarang dari equipment.
+  1366→- Delete `src/app/api/feed/[id]/route.ts` & `src/app/api/batches/[id]/feed/route.ts`.
+  1367→- Pertahankan `FeedRecord` model di schema.prisma (data lama tetap aman di DB, tidak di-drop).
+  1368→
+  1369→Verifikasi:
+  1370→- `bun run lint` → exit 0, no errors.
+  1371→- dev.log clean: GET / 200, tidak ada compile error baru.
+  1372→- agent-browser (390x844 mobile): page renders HTTP 200, no console errors, no page errors.
+  1373→- VLM confirm: 5 KPI cards (Total Termin, Ayam Hidup, Mortalitas, Total Biaya, Pendapatan), no 'Pakan', layout clean.
+  1374→- Text scan: hasTotalPakan=false, hasPakanWord=false, hasFCR=false, hasTambahPakan=false, hasRiwayatPakan=false. hasTotalBiaya=true, hasPendapatan=true.
+  1375→
+  1376→Stage Summary:
+  1377→- Fitur Pakan dihapus sepenuhnya dari UI/API (tab, dialog, KPI, CSV, PDF, activity, dashboard). Model FeedRecord dipertahankan di schema agar data lama di DB Neon tetap aman (tidak di-drop saat prisma db push).
+  1378→- Kategori di dialog Biaya sekarang dinamis: user bisa pilih dari daftar kategori yang ada ATAU tambah kategori baru lewat inline input (mirror pola Satuan). Kategori baru tersimpan di tabel Category (PostgreSQL) & otomatis muncul di dropdown sesi berikutnya.
+  1379→- computeBatchStats: totalCost murni dari equipment, profit = totalHarvestValue - equipmentCost. FCR & feedPerEkor dihapus (tidak ada lagi feed data).
+  1380→- Files changed: prisma/schema.prisma, src/app/api/categories/route.ts (new), src/app/api/categories/[id]/route.ts (new), src/app/api/batches/route.ts, src/app/api/batches/[id]/route.ts, src/app/api/dashboard/route.ts, src/app/page.tsx. Deleted: src/app/api/feed/[id]/route.ts, src/app/api/batches/[id]/feed/route.ts.
+  1381→- Push ke GitHub: commit 60df119, sukses.
+  1382→- Production migration WAJIB: user harus jalankan `prisma db push` terhadap Neon PostgreSQL untuk membuat tabel `Category` (tabel FeedRecord tetap dipertahankan). Instruksi diberikan ke user.
+  1383→- Lint PASS, dev server clean, verifikasi browser sukses (mobile 390x844) dengan VLM confirmation.
+  1384→

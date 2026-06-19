@@ -59,6 +59,7 @@ import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts'
 import { jsPDF } from 'jspdf'
@@ -166,6 +167,21 @@ interface Unit {
 interface Category {
   id: string
   name: string
+}
+
+// Item dalam mode multi-item form. Field shared (tanggal beli, foto nota)
+// tetap disimpan di `equipmentForm`; field per-item disimpan di sini.
+// `newUnitName` & `newCategoryName` dipakai untuk inline "tambah baru" per item.
+interface EquipmentFormItem {
+  id: string
+  name: string
+  category: string
+  quantity: string
+  unit: string
+  unitPrice: string
+  notes: string
+  newUnitName: string
+  newCategoryName: string
 }
 
 // Kategori default — juga dipakai API untuk auto-seed tabel Category saat kosong.
@@ -349,6 +365,12 @@ export default function HomePage() {
   const [equipmentForm, setEquipmentForm] = useState({
     name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '',
   })
+  // Multi-item mode: catat beberapa item dalam 1 nota sekaligus.
+  // Field shared (purchaseDate, notaData, notaName) tetap di `equipmentForm`;
+  // field per-item (name, category, quantity, unit, unitPrice, notes) di `equipmentItems`.
+  // Hanya aktif saat menambah (bukan edit) — toggle disembunyikan saat editingEquipment.
+  const [multiItemMode, setMultiItemMode] = useState(false)
+  const [equipmentItems, setEquipmentItems] = useState<EquipmentFormItem[]>([])
   // Master daftar satuan (Sak, Karung, Liter, kg, dll) + state untuk tambah satuan baru
   const [units, setUnits] = useState<Unit[]>([])
   const [showAddUnit, setShowAddUnit] = useState(false)
@@ -693,6 +715,9 @@ export default function HomePage() {
     })
     setShowAddUnit(false)
     setNewUnitName('')
+    // Edit selalu pakai single-item form — pastikan mode multi-item mati.
+    setMultiItemMode(false)
+    setEquipmentItems([])
     setAddEquipmentOpen(true)
   }
 
@@ -794,6 +819,95 @@ export default function HomePage() {
     setView('batch-detail')
   }
 
+  // ============================================================
+  // Multi-item mode helpers
+  // ============================================================
+
+  // Factory item kosong siap diisi. id dipakai sebagai React key.
+  const createEmptyEquipmentItem = (): EquipmentFormItem => ({
+    id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: '',
+    category: DEFAULT_EQUIPMENT_CATEGORY,
+    quantity: '',
+    unit: 'Unit',
+    unitPrice: '',
+    notes: '',
+    newUnitName: '',
+    newCategoryName: '',
+  })
+
+  // Toggle mode multi-item. Saat ON: pindahkan data form single ke item pertama
+  // (agar tidak hilang). Saat OFF: ambil item pertama kembali ke form single;
+  // jika ada >1 item, minta konfirmasi dulu (item lain akan dibuang).
+  const handleToggleMultiItem = (checked: boolean) => {
+    if (checked) {
+      const firstItem: EquipmentFormItem = {
+        id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: equipmentForm.name,
+        category: equipmentForm.category || DEFAULT_EQUIPMENT_CATEGORY,
+        quantity: equipmentForm.quantity,
+        unit: equipmentForm.unit || 'Unit',
+        unitPrice: equipmentForm.unitPrice,
+        notes: equipmentForm.notes,
+        newUnitName: '',
+        newCategoryName: '',
+      }
+      setEquipmentItems([firstItem])
+      setMultiItemMode(true)
+    } else {
+      if (equipmentItems.length > 1) {
+        if (!confirm(
+          `Anda memiliki ${equipmentItems.length} item. Beralih ke mode single ` +
+          `akan menghapus ${equipmentItems.length - 1} item lain. Lanjutkan?`
+        )) {
+          return
+        }
+      }
+      const first = equipmentItems[0]
+      if (first) {
+        setEquipmentForm((prev) => ({
+          ...prev,
+          name: first.name,
+          category: first.category && first.category !== '__add_new__' ? first.category : DEFAULT_EQUIPMENT_CATEGORY,
+          quantity: first.quantity,
+          unit: first.unit && first.unit !== '__add_new__' ? first.unit : 'Unit',
+          unitPrice: first.unitPrice,
+          notes: first.notes,
+        }))
+      }
+      setMultiItemMode(false)
+      setEquipmentItems([])
+    }
+  }
+
+  // Update satu field pada item tertentu (immutably).
+  const updateEquipmentItem = (itemId: string, patch: Partial<EquipmentFormItem>) => {
+    setEquipmentItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, ...patch } : it)))
+  }
+
+  // Tambah baris item kosong baru. Diblokir jika ada item yang sedang dalam
+  // mode "tambah kategori/satuan baru" (kategori/unit === '__add_new__') agar
+  // user menyelesaikan input kategori/satuan dulu sebelum menambah item lain.
+  const addEquipmentItem = () => {
+    const hasPendingNew = equipmentItems.some(
+      (it) => it.category === '__add_new__' || it.unit === '__add_new__'
+    )
+    if (hasPendingNew) {
+      toast({
+        title: 'Selesaikan dulu',
+        description: 'Selesaikan input kategori/satuan baru pada item sebelum menambah item lain',
+        variant: 'destructive',
+      })
+      return
+    }
+    setEquipmentItems((prev) => [...prev, createEmptyEquipmentItem()])
+  }
+
+  // Hapus item berdasarkan id. Tidak boleh menghapus item terakhir.
+  const removeEquipmentItem = (itemId: string) => {
+    setEquipmentItems((prev) => (prev.length <= 1 ? prev : prev.filter((it) => it.id !== itemId)))
+  }
+
   const handleAddEquipment = async () => {
     // Biaya wajib terikat ke sebuah termin (batch).
     const batchId = dialogBatchId || selectedBatch?.id
@@ -821,6 +935,86 @@ export default function HomePage() {
         setNewUnitName('')
         setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
         toast({ title: 'Berhasil! ✏️', description: 'Biaya berhasil diperbarui' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id === batchId) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === batchId)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else if (multiItemMode) {
+        // ============================================================
+        // Mode multi-item: POST setiap item valid secara sequential dengan
+        // shared purchaseDate, notaData, notaName, batchId. Item yang tidak
+        // valid (name/qty/price kosong) di-skip. Jika ada error di tengah,
+        // lanjutkan item berikutnya lalu laporkan count di akhir.
+        // ============================================================
+        const validItems = equipmentItems.filter(
+          (it) =>
+            it.name.trim() &&
+            parseFloat(it.quantity) > 0 &&
+            parseFloat(it.unitPrice) > 0 &&
+            it.category !== '__add_new__' &&
+            it.unit !== '__add_new__'
+        )
+        if (validItems.length === 0) {
+          toast({
+            title: 'Tidak ada item valid',
+            description: 'Isi minimal 1 item dengan nama, jumlah, dan harga yang valid',
+            variant: 'destructive',
+          })
+          return
+        }
+        if (!equipmentForm.purchaseDate) {
+          toast({ title: 'Tanggal Beli wajib', description: 'Pilih tanggal beli untuk nota ini', variant: 'destructive' })
+          return
+        }
+        let successCount = 0
+        let failCount = 0
+        for (const item of validItems) {
+          try {
+            const res = await fetch('/api/equipment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: item.name,
+                category: item.category,
+                quantity: item.quantity,
+                unit: item.unit,
+                unitPrice: item.unitPrice,
+                purchaseDate: equipmentForm.purchaseDate,
+                notes: item.notes,
+                notaData: equipmentForm.notaData,
+                notaName: equipmentForm.notaName,
+                batchId,
+              }),
+            })
+            if (!res.ok) throw new Error()
+            successCount++
+          } catch {
+            failCount++
+          }
+        }
+        const totalAttempted = successCount + failCount
+        // Reset state & tutup dialog.
+        setAddEquipmentOpen(false)
+        setDialogBatchId('')
+        setMultiItemMode(false)
+        setEquipmentItems([])
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
+        if (failCount === 0) {
+          toast({ title: 'Berhasil! 💰', description: `${successCount} item berhasil ditambahkan ke termin` })
+        } else {
+          toast({
+            title: failCount === totalAttempted ? 'Gagal' : 'Sebagian berhasil',
+            description: `${successCount} dari ${totalAttempted} item berhasil ditambahkan`,
+            variant: failCount === totalAttempted ? 'destructive' : 'default',
+          })
+        }
         await fetchData()
         if (view === 'batch-detail' && selectedBatch?.id === batchId) {
           try {
@@ -1021,6 +1215,79 @@ export default function HomePage() {
       setEquipmentForm((prev) => ({ ...prev, category: created.name }))
       setNewCategoryName('')
       setShowAddCategory(false)
+      toast({ title: 'Kategori ditambahkan ✅', description: `Kategori "${created.name}" siap dipakai` })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menambah kategori', variant: 'destructive' })
+    } finally {
+      setSavingCategory(false)
+    }
+  }
+
+  // ============================================================
+  // Tambah satuan / kategori baru dari dalam mode multi-item.
+  // Sama seperti handleAddUnit/handleAddCategory, tapi target update adalah
+  // item spesifik di `equipmentItems` (bukan `equipmentForm`).
+  // ============================================================
+  const handleAddUnitForItem = async (itemId: string) => {
+    const item = equipmentItems.find((it) => it.id === itemId)
+    if (!item) return
+    const name = item.newUnitName.trim()
+    if (!name) {
+      toast({ title: 'Oops', description: 'Nama satuan tidak boleh kosong', variant: 'destructive' })
+      return
+    }
+    if (savingUnit) return
+    setSavingUnit(true)
+    try {
+      const res = await fetch('/api/units', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error()
+      const created: Unit = await res.json()
+      setUnits((prev) =>
+        prev.some((u) => u.name.toLowerCase() === created.name.toLowerCase())
+          ? prev
+          : [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setEquipmentItems((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, unit: created.name, newUnitName: '' } : it))
+      )
+      toast({ title: 'Satuan ditambahkan ✅', description: `Satuan "${created.name}" siap dipakai` })
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menambah satuan', variant: 'destructive' })
+    } finally {
+      setSavingUnit(false)
+    }
+  }
+
+  const handleAddCategoryForItem = async (itemId: string) => {
+    const item = equipmentItems.find((it) => it.id === itemId)
+    if (!item) return
+    const name = item.newCategoryName.trim()
+    if (!name) {
+      toast({ title: 'Oops', description: 'Nama kategori tidak boleh kosong', variant: 'destructive' })
+      return
+    }
+    if (savingCategory) return
+    setSavingCategory(true)
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error()
+      const created: Category = await res.json()
+      setCategories((prev) =>
+        prev.some((c) => c.name.toLowerCase() === created.name.toLowerCase())
+          ? prev
+          : [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setEquipmentItems((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, category: created.name, newCategoryName: '' } : it))
+      )
       toast({ title: 'Kategori ditambahkan ✅', description: `Kategori "${created.name}" siap dipakai` })
     } catch {
       toast({ title: 'Error', description: 'Gagal menambah kategori', variant: 'destructive' })
@@ -3454,13 +3721,25 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Biaya Dialog */}
-      <Dialog open={addEquipmentOpen} onOpenChange={(open) => { setAddEquipmentOpen(open); if (!open) setEditingEquipment(null) }}>
-        <DialogContent className="sm:max-w-md">
+      {/* Add Biaya Dialog — mendukung 2 mode:
+          • Single (default): 1 item per submit, behavior seperti sedia kala.
+          • Multi-item: beberapa item dalam 1 nota (shared tanggal beli & foto
+            nota), POST sequential per item. Toggle hanya tampil saat menambah
+            (bukan edit). Edit mode selalu single-item. */}
+      <Dialog open={addEquipmentOpen} onOpenChange={(open) => {
+        setAddEquipmentOpen(open)
+        if (!open) {
+          setEditingEquipment(null)
+          // Reset mode multi-item saat dialog ditutup agar selalu mulai fresh.
+          setMultiItemMode(false)
+          setEquipmentItems([])
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-indigo-600" />
-              {editingEquipment ? 'Edit Biaya' : 'Tambah Biaya'}
+              {editingEquipment ? 'Edit Biaya' : (multiItemMode ? 'Tambah Beberapa Biaya' : 'Tambah Biaya')}
             </DialogTitle>
             <DialogDescription>{editingEquipment ? 'Perbarui catatan biaya' : `Catat pembelian dan biaya operasional${selectedBatch ? ` untuk ${selectedBatch.name}` : ''}`}</DialogDescription>
           </DialogHeader>
@@ -3479,162 +3758,384 @@ export default function HomePage() {
                 </Select>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Nama Barang</Label>
-              <Input placeholder="mis. Broiler Pelet, Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Kategori</Label>
-              <Select
-                value={showAddCategory ? '__add_new__' : equipmentForm.category}
-                onValueChange={(v) => {
-                  if (v === '__add_new__') {
-                    setShowAddCategory(true)
-                  } else {
-                    setShowAddCategory(false)
-                    setEquipmentForm({ ...equipmentForm, category: v })
-                  }
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                  ))}
-                  <SelectItem value="__add_new__">➕ Tambah Kategori Baru…</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {showAddCategory && (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
-                <Input
-                  placeholder="Kategori baru, mis. Obat & Vitamin, Listrik…"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory() } }}
-                  autoFocus
-                />
-                <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddCategory} disabled={savingCategory || !newCategoryName.trim()}>
-                  {savingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddCategory(false); setNewCategoryName('') }}>
-                  Batal
-                </Button>
-              </div>
+
+            {/* Toggle multi-item — hanya saat menambah (bukan edit). */}
+            {!editingEquipment && (
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-2.5 cursor-pointer">
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-indigo-800">Catat beberapa item dalam 1 nota</span>
+                  <span className="text-[11px] text-muted-foreground leading-tight">Tanggal beli & foto nota dipakai bersama untuk semua item</span>
+                </span>
+                <Switch checked={multiItemMode} onCheckedChange={handleToggleMultiItem} aria-label="Catat beberapa item dalam 1 nota" />
+              </label>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Jumlah</Label>
-                <Input type="number" min="1" placeholder="5" value={equipmentForm.quantity} onChange={(e) => setEquipmentForm({ ...equipmentForm, quantity: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Satuan</Label>
-                <Select
-                  value={showAddUnit ? '__add_new__' : equipmentForm.unit}
-                  onValueChange={(v) => {
-                    if (v === '__add_new__') {
-                      setShowAddUnit(true)
-                    } else {
-                      setShowAddUnit(false)
-                      setEquipmentForm({ ...equipmentForm, unit: v })
-                    }
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih satuan" /></SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
-                    ))}
-                    <SelectItem value="__add_new__">➕ Tambah Satuan Baru…</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {showAddUnit && (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
-                <Input
-                  placeholder="Satuan baru, mis. Sak, Karung, Liter…"
-                  value={newUnitName}
-                  onChange={(e) => setNewUnitName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit() } }}
-                  autoFocus
-                />
-                <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddUnit} disabled={savingUnit || !newUnitName.trim()}>
-                  {savingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddUnit(false); setNewUnitName('') }}>
-                  Batal
-                </Button>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Harga / {equipmentForm.unit || 'satuan'} (Rp)</Label>
-              <Input type="number" step="100" min="0" placeholder="500000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Tanggal Beli</Label>
-              <Input type="date" value={equipmentForm.purchaseDate} onChange={(e) => setEquipmentForm({ ...equipmentForm, purchaseDate: e.target.value })} />
-            </div>
-            {equipmentForm.quantity && equipmentForm.unitPrice && (
-              <div className="bg-indigo-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-muted-foreground">Total Harga</p>
-                <p className="text-lg font-bold text-indigo-700">{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {equipmentForm.quantity || 0} {equipmentForm.unit || 'satuan'} × {formatCurrency(parseFloat(equipmentForm.unitPrice) || 0)}
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Catatan</Label>
-              <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
-            </div>
-            {/* Foto nota pembelian peralatan — upload, preview, & hapus */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
-              {equipmentForm.notaData ? (
-                <div className="relative rounded-lg overflow-hidden border border-indigo-200 group">
-                  <img src={equipmentForm.notaData} alt="Nota pembelian" className="w-full max-h-48 object-contain bg-slate-50" />
-                  <button
-                    type="button"
-                    onClick={() => setEquipmentForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
-                    aria-label="Hapus foto nota"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </button>
-                  {equipmentForm.notaName && (
-                    <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{equipmentForm.notaName}</p>
+
+            {multiItemMode && !editingEquipment ? (
+              <>
+                {/* ===== Shared fields (dipakai semua item) ===== */}
+                <div className="space-y-2">
+                  <Label>Tanggal Beli <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={equipmentForm.purchaseDate} onChange={(e) => setEquipmentForm({ ...equipmentForm, purchaseDate: e.target.value })} />
+                </div>
+                {/* Foto nota shared — pakai UI upload yang sama (kamera + galeri). */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional, dipakai semua item)</Label>
+                  {equipmentForm.notaData ? (
+                    <div className="relative rounded-lg overflow-hidden border border-indigo-200 group">
+                      <img src={equipmentForm.notaData} alt="Nota pembelian" className="w-full max-h-48 object-contain bg-slate-50" />
+                      <button
+                        type="button"
+                        onClick={() => setEquipmentForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                        aria-label="Hapus foto nota"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                      {equipmentForm.notaName && (
+                        <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{equipmentForm.notaName}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        {notaUploading ? (
+                          <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                        ) : (
+                          <><Camera className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
+                        )}
+                        <input type="file" accept="image/*" capture="environment" onChange={handleEquipmentNotaUpload} className="hidden" />
+                      </label>
+                      <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        {notaUploading ? (
+                          <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                        ) : (
+                          <><ImageIcon className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
+                        )}
+                        <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
+                      </label>
+                    </div>
                   )}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Ambil Foto langsung dari kamera.
-                      `capture="environment"` membuka kamera belakang di mobile
-                      (Android Chrome & iOS Safari). Di desktop, browser akan
-                      fall back ke file picker biasa. */}
-                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                    {notaUploading ? (
-                      <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
-                    ) : (
-                      <><Camera className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
-                    )}
-                    <input type="file" accept="image/*" capture="environment" onChange={handleEquipmentNotaUpload} className="hidden" />
-                  </label>
-                  {/* Pilih dari galeri / file explorer. */}
-                  <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                    {notaUploading ? (
-                      <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
-                    ) : (
-                      <><ImageIcon className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
-                    )}
-                    <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
-                  </label>
+
+                {/* ===== List items (scrollable) ===== */}
+                <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                  {equipmentItems.map((item, idx) => (
+                    <div key={item.id} className="rounded-lg border border-indigo-200 bg-white p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-indigo-700">Item {idx + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
+                          disabled={equipmentItems.length === 1}
+                          onClick={() => removeEquipmentItem(item.id)}
+                          aria-label={`Hapus item ${idx + 1}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {/* Nama Barang */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Nama Barang <span className="text-destructive">*</span></Label>
+                        <Input placeholder="mis. Broiler Pelet, Tempat Minum" value={item.name} onChange={(e) => updateEquipmentItem(item.id, { name: e.target.value })} />
+                      </div>
+                      {/* Kategori */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Kategori</Label>
+                        <Select
+                          value={item.category === '__add_new__' ? '__add_new__' : item.category}
+                          onValueChange={(v) => updateEquipmentItem(item.id, { category: v })}
+                        >
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                          <SelectContent>
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                            ))}
+                            <SelectItem value="__add_new__">➕ Tambah Kategori Baru…</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {item.category === '__add_new__' && (
+                        <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                          <Input
+                            placeholder="Kategori baru, mis. Obat & Vitamin…"
+                            value={item.newCategoryName}
+                            onChange={(e) => updateEquipmentItem(item.id, { newCategoryName: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategoryForItem(item.id) } }}
+                            autoFocus
+                          />
+                          <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleAddCategoryForItem(item.id)} disabled={savingCategory || !item.newCategoryName.trim()}>
+                            {savingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => updateEquipmentItem(item.id, { category: DEFAULT_EQUIPMENT_CATEGORY, newCategoryName: '' })}>
+                            Batal
+                          </Button>
+                        </div>
+                      )}
+                      {/* Jumlah + Satuan */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Jumlah <span className="text-destructive">*</span></Label>
+                          <Input type="number" min="1" placeholder="5" value={item.quantity} onChange={(e) => updateEquipmentItem(item.id, { quantity: e.target.value })} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Satuan</Label>
+                          <Select
+                            value={item.unit === '__add_new__' ? '__add_new__' : item.unit}
+                            onValueChange={(v) => updateEquipmentItem(item.id, { unit: v })}
+                          >
+                            <SelectTrigger className="h-9"><SelectValue placeholder="Pilih satuan" /></SelectTrigger>
+                            <SelectContent>
+                              {units.map((u) => (
+                                <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                              ))}
+                              <SelectItem value="__add_new__">➕ Tambah Satuan Baru…</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {item.unit === '__add_new__' && (
+                        <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                          <Input
+                            placeholder="Satuan baru, mis. Sak, Karung…"
+                            value={item.newUnitName}
+                            onChange={(e) => updateEquipmentItem(item.id, { newUnitName: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnitForItem(item.id) } }}
+                            autoFocus
+                          />
+                          <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={() => handleAddUnitForItem(item.id)} disabled={savingUnit || !item.newUnitName.trim()}>
+                            {savingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => updateEquipmentItem(item.id, { unit: 'Unit', newUnitName: '' })}>
+                            Batal
+                          </Button>
+                        </div>
+                      )}
+                      {/* Harga / satuan */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Harga / {item.unit && item.unit !== '__add_new__' ? item.unit : 'satuan'} (Rp) <span className="text-destructive">*</span></Label>
+                        <Input type="number" step="100" min="0" placeholder="500000" value={item.unitPrice} onChange={(e) => updateEquipmentItem(item.id, { unitPrice: e.target.value })} />
+                      </div>
+                      {/* Catatan per item */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Catatan</Label>
+                        <Textarea placeholder="Catatan opsional..." value={item.notes} onChange={(e) => updateEquipmentItem(item.id, { notes: e.target.value })} className="min-h-[56px] text-sm" />
+                      </div>
+                      {/* Subtotal per item */}
+                      {item.quantity && item.unitPrice && parseFloat(item.quantity) > 0 && parseFloat(item.unitPrice) > 0 && (
+                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
+                          <p className="text-[10px] text-muted-foreground">Subtotal</p>
+                          <p className="text-sm font-bold text-indigo-700">{formatCurrency(parseFloat(item.quantity) * parseFloat(item.unitPrice))}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-            <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
-            </Button>
+
+                {/* + Tambah Item — diblokir jika ada item sedang input kategori/satuan baru. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  onClick={addEquipmentItem}
+                  disabled={equipmentItems.some((it) => it.category === '__add_new__' || it.unit === '__add_new__')}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> Tambah Item
+                </Button>
+
+                {/* Total keseluruhan */}
+                {(() => {
+                  const validItems = equipmentItems.filter(
+                    (it) => it.name.trim() && parseFloat(it.quantity) > 0 && parseFloat(it.unitPrice) > 0 && it.category !== '__add_new__' && it.unit !== '__add_new__'
+                  )
+                  if (validItems.length === 0) return null
+                  const total = validItems.reduce((sum, it) => sum + parseFloat(it.quantity) * parseFloat(it.unitPrice), 0)
+                  return (
+                    <div className="bg-indigo-50 rounded-lg p-3 text-center border border-indigo-200">
+                      <p className="text-xs text-muted-foreground">Total Keseluruhan ({validItems.length} item)</p>
+                      <p className="text-xl font-bold text-indigo-700">{formatCurrency(total)}</p>
+                    </div>
+                  )
+                })()}
+
+                {/* Tombol Simpan Semua Item */}
+                <Button
+                  onClick={handleAddEquipment}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700"
+                  disabled={
+                    submitting ||
+                    (!selectedBatch && !dialogBatchId) ||
+                    !equipmentForm.purchaseDate ||
+                    equipmentItems.length === 0 ||
+                    equipmentItems.every((it) => !it.name.trim() || !(parseFloat(it.quantity) > 0) || !(parseFloat(it.unitPrice) > 0)) ||
+                    equipmentItems.some((it) => it.category === '__add_new__' || it.unit === '__add_new__')
+                  }
+                >
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Semua Item'}
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* ===== Single-item mode (default & edit) — behavior tidak berubah ===== */}
+                <div className="space-y-2">
+                  <Label>Nama Barang</Label>
+                  <Input placeholder="mis. Broiler Pelet, Tempat Minum Otomatis" value={equipmentForm.name} onChange={(e) => setEquipmentForm({ ...equipmentForm, name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Kategori</Label>
+                  <Select
+                    value={showAddCategory ? '__add_new__' : equipmentForm.category}
+                    onValueChange={(v) => {
+                      if (v === '__add_new__') {
+                        setShowAddCategory(true)
+                      } else {
+                        setShowAddCategory(false)
+                        setEquipmentForm({ ...equipmentForm, category: v })
+                      }
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                      ))}
+                      <SelectItem value="__add_new__">➕ Tambah Kategori Baru…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {showAddCategory && (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                    <Input
+                      placeholder="Kategori baru, mis. Obat & Vitamin, Listrik…"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory() } }}
+                      autoFocus
+                    />
+                    <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddCategory} disabled={savingCategory || !newCategoryName.trim()}>
+                      {savingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddCategory(false); setNewCategoryName('') }}>
+                      Batal
+                    </Button>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Jumlah</Label>
+                    <Input type="number" min="1" placeholder="5" value={equipmentForm.quantity} onChange={(e) => setEquipmentForm({ ...equipmentForm, quantity: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Satuan</Label>
+                    <Select
+                      value={showAddUnit ? '__add_new__' : equipmentForm.unit}
+                      onValueChange={(v) => {
+                        if (v === '__add_new__') {
+                          setShowAddUnit(true)
+                        } else {
+                          setShowAddUnit(false)
+                          setEquipmentForm({ ...equipmentForm, unit: v })
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Pilih satuan" /></SelectTrigger>
+                      <SelectContent>
+                        {units.map((u) => (
+                          <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                        ))}
+                        <SelectItem value="__add_new__">➕ Tambah Satuan Baru…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {showAddUnit && (
+                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 p-2">
+                    <Input
+                      placeholder="Satuan baru, mis. Sak, Karung, Liter…"
+                      value={newUnitName}
+                      onChange={(e) => setNewUnitName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit() } }}
+                      autoFocus
+                    />
+                    <Button type="button" size="sm" className="shrink-0 bg-indigo-600 hover:bg-indigo-700" onClick={handleAddUnit} disabled={savingUnit || !newUnitName.trim()}>
+                      {savingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => { setShowAddUnit(false); setNewUnitName('') }}>
+                      Batal
+                    </Button>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Harga / {equipmentForm.unit || 'satuan'} (Rp)</Label>
+                  <Input type="number" step="100" min="0" placeholder="500000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tanggal Beli</Label>
+                  <Input type="date" value={equipmentForm.purchaseDate} onChange={(e) => setEquipmentForm({ ...equipmentForm, purchaseDate: e.target.value })} />
+                </div>
+                {equipmentForm.quantity && equipmentForm.unitPrice && (
+                  <div className="bg-indigo-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Total Harga</p>
+                    <p className="text-lg font-bold text-indigo-700">{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {equipmentForm.quantity || 0} {equipmentForm.unit || 'satuan'} × {formatCurrency(parseFloat(equipmentForm.unitPrice) || 0)}
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Catatan</Label>
+                  <Textarea placeholder="Catatan opsional..." value={equipmentForm.notes} onChange={(e) => setEquipmentForm({ ...equipmentForm, notes: e.target.value })} />
+                </div>
+                {/* Foto nota pembelian peralatan — upload, preview, & hapus */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5" /> Foto Nota (opsional)</Label>
+                  {equipmentForm.notaData ? (
+                    <div className="relative rounded-lg overflow-hidden border border-indigo-200 group">
+                      <img src={equipmentForm.notaData} alt="Nota pembelian" className="w-full max-h-48 object-contain bg-slate-50" />
+                      <button
+                        type="button"
+                        onClick={() => setEquipmentForm((prev) => ({ ...prev, notaData: '', notaName: '' }))}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                        aria-label="Hapus foto nota"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                      {equipmentForm.notaName && (
+                        <p className="text-xs text-muted-foreground truncate px-2 py-1 bg-white border-t">{equipmentForm.notaName}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Ambil Foto langsung dari kamera.
+                          `capture="environment"` membuka kamera belakang di mobile
+                          (Android Chrome & iOS Safari). Di desktop, browser akan
+                          fall back ke file picker biasa. */}
+                      <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        {notaUploading ? (
+                          <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                        ) : (
+                          <><Camera className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Ambil Foto<br /><span className="text-[9px] text-muted-foreground font-normal">dari kamera</span></span></>
+                        )}
+                        <input type="file" accept="image/*" capture="environment" onChange={handleEquipmentNotaUpload} className="hidden" />
+                      </label>
+                      {/* Pilih dari galeri / file explorer. */}
+                      <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed border-indigo-300 rounded-lg p-3 cursor-pointer hover:bg-indigo-50/50 transition-colors ${notaUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        {notaUploading ? (
+                          <><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /><span className="text-[11px] text-muted-foreground">Memproses...</span></>
+                        ) : (
+                          <><ImageIcon className="w-5 h-5 text-indigo-500" /><span className="text-[11px] font-medium text-indigo-700 text-center leading-tight">Pilih Galeri<br /><span className="text-[9px] text-muted-foreground font-normal">JPG/PNG • dikompres</span></span></>
+                        )}
+                        <input type="file" accept="image/*" onChange={handleEquipmentNotaUpload} className="hidden" />
+                      </label>
+                    </div>
+                  )}
+                </div>
+                <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

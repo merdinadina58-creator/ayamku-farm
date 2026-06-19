@@ -1381,3 +1381,31 @@ Stage Summary:
 - Push ke GitHub: commit 60df119, sukses.
 - Production migration WAJIB: user harus jalankan `prisma db push` terhadap Neon PostgreSQL untuk membuat tabel `Category` (tabel FeedRecord tetap dipertahankan). Instruksi diberikan ke user.
 - Lint PASS, dev server clean, verifikasi browser sukses (mobile 390x844) dengan VLM confirmation.
+
+---
+Task ID: 1
+Agent: full-stack-developer
+Task: Implement multi-item expense form (catat beberapa item dalam 1 nota)
+
+Work Log:
+- Baca worklog.md & section kunci page.tsx (imports, Equipment type, equipmentForm state, handleAddEquipment, dialog UI, openEditEquipment, handleAddUnit/Category, handleEquipmentNotaUpload).
+- Tambah import `Switch` dari '@/components/ui/switch'.
+- Tambah type `EquipmentFormItem` (id, name, category, quantity, unit, unitPrice, notes, newUnitName, newCategoryName) setelah interface Category.
+- Tambah state baru: `multiItemMode` (boolean, default false) & `equipmentItems` (EquipmentFormItem[]).
+- Tambah helper: `createEmptyEquipmentItem()`, `handleToggleMultiItem(checked)` (OFF→ON pindah data single form ke item[0]; ON→OFF ambil item[0] kembali ke single form, dengan confirm jika >1 item), `updateEquipmentItem(id, patch)`, `addEquipmentItem()` (diblokir jika ada item sedang '__add_new__'), `removeEquipmentItem(id)` (disabled jika hanya 1 item).
+- Tambah `handleAddUnitForItem(itemId)` & `handleAddCategoryForItem(itemId)` — mirror handleAddUnit/handleAddCategory tapi update item spesifik di equipmentItems (bukan equipmentForm).
+- Update `handleAddEquipment`: branch baru `else if (multiItemMode)` — filter item valid (name trim, qty>0, price>0, category/unit !== '__add_new__'), validasi purchaseDate, loop POST sequential per item ke /api/equipment dengan shared batchId/purchaseDate/notaData/notaName. Hitung successCount/failCount. Reset state (multiItemMode=false, equipmentItems=[], equipmentForm kosong), tutup dialog, toast "X item berhasil ditambahkan" (sukses penuh) atau "X dari Y item berhasil ditambahkan" (parsial), fetchData() + refresh selectedBatch jika di view batch-detail. Branch single & edit TIDAK berubah.
+- Update `openEditEquipment`: set multiItemMode=false & equipmentItems=[] (edit selalu single-item).
+- Update Dialog onOpenChange: saat close, reset multiItemMode=false & equipmentItems=[] agar selalu mulai fresh.
+- Update Dialog UI: DialogContent sm:max-w-md → sm:max-w-lg. Tambah toggle Switch "Catat beberapa item dalam 1 nota" (hanya saat !editingEquipment). Conditional render: multi-item mode (shared Tanggal Beli + Foto Nota, list items scrollable max-h-96 custom-scrollbar, tombol "+ Tambah Item" variant outline, total keseluruhan bg-indigo-50 border-indigo-200, tombol "Simpan Semua Item") vs single-item mode (UI lama persis tidak berubah). Setiap item card: border+rounded+p-3, label "Item N", tombol trash (disabled jika 1 item), fields Nama Barang/Kategori(dengan inline add-new)/Jumlah+Satuan grid (dengan inline add-new)/Harga/Catatan/Subtotal bg-indigo-50. Validasi: tombol Tambah Item & Simpan diblokir jika ada item dengan category/unit==='__add_new__'.
+- Pertahankan styling indigo (sesuai pattern existing), responsif, accessibility (Label, aria-label, keyboard Enter-to-save di inline add-new).
+
+Files changed: src/app/page.tsx (hanya file ini). Tidak ada perubahan API endpoint, database schema, atau package baru.
+
+Stage Summary:
+- Mode multi-item berfungsi: toggle ON → input beberapa item (pakan/minum/peralatan) dalam 1 nota dengan tanggal beli & foto nota shared.
+- Mode single-item & edit TIDAK berubah (behavior tetap seperti sebelumnya).
+- Submit multi-item: POST sequential per item ke /api/equipment (endpoint tetap 1 item per request, loop di frontend), toast "X item berhasil ditambahkan" / "X dari Y item berhasil ditambahkan".
+- Toggle OFF→ON menjaga data (dipindah ke item[0]); ON→OFF minta konfirmasi jika >1 item.
+- Edit mode selalu single-item (toggle disembunyikan, state di-reset).
+- Lint PASS (clean, no errors). Dev server compiled successfully (no errors in dev.log). Hot-reload bekerja.
