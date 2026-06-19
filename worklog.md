@@ -949,3 +949,39 @@ Stage Summary:
 - Dropdown menu memberi pilihan format yang jelas kepada user
 - CSV tetap dipertahankan untuk yang butuh olah data di spreadsheet
 - Library jspdf + jspdf-autotable client-side (tidak ada beban server)
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Tambah Preview PDF sebelum download (user bisa lihat laporan dulu)
+
+Work Log:
+- User feedback: bisa preview dulu sebelum download? — fitur penting agar user yakin laporan sesuai sebelum simpan
+- Refactor: pecah `exportBatchPDF` jadi 3 function:
+  - `generateBatchPDF(batch)` → return jsPDF instance (shared core, bukan langsung save)
+  - `previewBatchPDF(batch)` → generate PDF ke blob, createObjectURL, set state `pdfPreview`
+  - `downloadBatchPDF(batch)` → generate + doc.save() langsung (untuk download tanpa preview)
+  - `closePdfPreview()` → revokeObjectURL + clear state (cleanup memory leak)
+- Tambah state `pdfPreview: { batch, url } | null`
+- Tambah 2 icon imports: Eye (preview), Printer (buka tab)
+- Update DropdownMenu Export jadi 3 opsi (sebelumnya 2):
+  - "Preview PDF" (icon Eye) → previewBatchPDF — buka dialog preview
+  - "Download PDF" (icon Download) → downloadBatchPDF — download langsung
+  - "CSV (untuk Excel)" (icon FileSpreadsheet) → exportBatchCSV — tetap
+- Buat Dialog Preview PDF:
+  - Header: icon FileText + "Preview Laporan — {nama batch}" + "Termin #N • Tinjau laporan sebelum mengunduh"
+  - Tombol "Buka Tab" (window.open url) — untuk print/buka di tab baru
+  - Tombol "Download PDF" (gradient emerald) — download lalu tutup dialog
+  - Body: iframe full-height render blob URL PDF
+  - max-w-4xl, h-[90vh], flex-col
+  - onOpenChange: revokeObjectURL saat dialog ditutup (anti memory leak)
+- Diterapkan di 2 lokasi: quick action batch card & batch detail header
+- Lint: bersih tanpa error
+- Dev server: ter-compile sukses (GET / 200, compile 53ms)
+
+Stage Summary:
+- Fitur Preview PDF sebelum download berhasil ditambahkan
+- User workflow: klik Export → "Preview PDF" → dialog muncul dengan iframe render PDF → review → klik "Download PDF" atau "Buka Tab" untuk print
+- Memory-safe: blob URL di-revoke saat dialog tutup
+- Dropdown sekarang 3 opsi: Preview PDF / Download PDF / CSV (untuk Excel)
+- Tidak merubah struktur yang sudah ada — hanya menambah dialog baru + refactor function

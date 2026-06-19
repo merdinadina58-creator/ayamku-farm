@@ -41,6 +41,8 @@ import {
   Target,
   FileText,
   FileSpreadsheet,
+  Eye,
+  Printer,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -281,6 +283,10 @@ export default function HomePage() {
   // Termin search & filter state
   const [terminSearch, setTerminSearch] = useState('')
   const [terminFilter, setTerminFilter] = useState<'all' | 'active' | 'harvested'>('all')
+
+  // PDF preview state: holds the batch being previewed + the blob URL of the
+  // generated PDF so it can be rendered in an iframe inside a dialog.
+  const [pdfPreview, setPdfPreview] = useState<{ batch: Batch; url: string } | null>(null)
 
   // Dialog states
   const [addBatchOpen, setAddBatchOpen] = useState(false)
@@ -1002,12 +1008,10 @@ export default function HomePage() {
     toast({ title: 'Laporan terunduh 📄', description: `CSV untuk ${batch.name} berhasil diunduh` })
   }
 
-  // Export a full per-batch report as a print-ready PDF (client-side).
-  // Uses jsPDF + autotable to build a structured multi-section document:
-  // header banner, batch info, summary stats, and tables for weight /
-  // mortality / feed / equipment records. Auto-paginates and adds a
-  // footer page number on every page. Triggers a browser download.
-  const exportBatchPDF = (batch: Batch) => {
+  // Build a full per-batch report as a jsPDF document (client-side).
+  // Returns the jsPDF instance so callers can either preview it (via blob
+  // URL in an iframe) or save it directly. Shared by preview & download flows.
+  const generateBatchPDF = (batch: Batch) => {
     const stats = computeBatchStats(batch)
     const doc = new jsPDF({ unit: 'pt', format: 'a4' })
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -1188,9 +1192,35 @@ export default function HomePage() {
       doc.text(`Halaman ${i} / ${pageCount}`, pageWidth - margin, pageHeight - 16, { align: 'right' })
     }
 
+    return doc
+  }
+
+  // Open a preview dialog showing the generated PDF (rendered in an iframe
+  // via a blob URL). The user can review the report before deciding to
+  // download or close. The blob URL is revoked when the dialog closes.
+  const previewBatchPDF = (batch: Batch) => {
+    try {
+      const doc = generateBatchPDF(batch)
+      const blob = doc.output('blob')
+      const url = URL.createObjectURL(blob)
+      setPdfPreview({ batch, url })
+    } catch {
+      toast({ title: 'Gagal', description: 'Gagal membuat preview PDF', variant: 'destructive' })
+    }
+  }
+
+  // Save the PDF directly to the user's device (no preview).
+  const downloadBatchPDF = (batch: Batch) => {
+    const doc = generateBatchPDF(batch)
     const safeName = batch.name.replace(/[^a-zA-Z0-9-_]/g, '_')
     doc.save(`Laporan_${safeName}_Termin${batch.terminNumber}.pdf`)
     toast({ title: 'PDF terunduh 📄', description: `Laporan PDF untuk ${batch.name} berhasil diunduh` })
+  }
+
+  // Clean up the blob URL when the preview dialog closes.
+  const closePdfPreview = () => {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url)
+    setPdfPreview(null)
   }
 
   // Calendar events derived from batches
@@ -2043,8 +2073,11 @@ export default function HomePage() {
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-                                        <DropdownMenuItem onClick={() => exportBatchPDF(batch)} className="gap-2 text-xs">
-                                          <FileText className="w-3.5 h-3.5" /> PDF (siap print)
+                                        <DropdownMenuItem onClick={() => previewBatchPDF(batch)} className="gap-2 text-xs">
+                                          <Eye className="w-3.5 h-3.5" /> Preview PDF
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => downloadBatchPDF(batch)} className="gap-2 text-xs">
+                                          <Download className="w-3.5 h-3.5" /> Download PDF
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => exportBatchCSV(batch)} className="gap-2 text-xs">
                                           <FileSpreadsheet className="w-3.5 h-3.5" /> CSV (untuk Excel)
@@ -2465,8 +2498,11 @@ export default function HomePage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => exportBatchPDF(selectedBatch)} className="gap-2">
-                            <FileText className="w-4 h-4" /> PDF (siap print)
+                          <DropdownMenuItem onClick={() => previewBatchPDF(selectedBatch)} className="gap-2">
+                            <Eye className="w-4 h-4" /> Preview PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadBatchPDF(selectedBatch)} className="gap-2">
+                            <Download className="w-4 h-4" /> Download PDF
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => exportBatchCSV(selectedBatch)} className="gap-2">
                             <FileSpreadsheet className="w-4 h-4" /> CSV (untuk Excel)
@@ -3320,6 +3356,57 @@ export default function HomePage() {
                 </Badge>
               </div>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Preview Dialog — renders the generated PDF in an iframe so the
+          user can review the report before downloading. */}
+      <Dialog open={!!pdfPreview} onOpenChange={(open) => { if (!open) closePdfPreview() }}>
+        <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-5 py-4 border-b border-emerald-100 flex-row items-center justify-between space-y-0">
+            <div className="min-w-0">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span className="truncate">Preview Laporan — {pdfPreview?.batch.name}</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs mt-0.5">
+                Termin #{pdfPreview?.batch.terminNumber} • Tinjau laporan sebelum mengunduh
+              </DialogDescription>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => {
+                  if (pdfPreview) window.open(pdfPreview.url, '_blank')
+                }}
+              >
+                <Printer className="w-4 h-4" /> Buka Tab
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-700"
+                onClick={() => {
+                  if (pdfPreview) {
+                    downloadBatchPDF(pdfPreview.batch)
+                    closePdfPreview()
+                  }
+                }}
+              >
+                <Download className="w-4 h-4" /> Download PDF
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 bg-muted/30">
+            {pdfPreview?.url && (
+              <iframe
+                src={pdfPreview.url}
+                title="Preview PDF"
+                className="w-full h-full border-0"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
