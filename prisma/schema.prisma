@@ -82,23 +82,26 @@ model AppSetting {
 }
 
 model Equipment {
-  id           String   @id @default(cuid())
-  name         String   // nama barang, mis. "Broiler Pelet", "Tempat Minum Otomatis"
-  category     String   // kategori: Kandang, Peralatan Pakan & Minum, dll
-  quantity     Int      // jumlah
-  unit         String   @default("unit") // satuan: Sak, Karung, Liter, kg, dll
-  unitPrice    Float    // harga per satuan (Rp)
-  purchaseDate DateTime // tanggal pembelian
-  notes        String?
+  id            String   @id @default(cuid())
+  name          String   // nama barang, mis. "Broiler Pelet", "Tempat Minum Otomatis"
+  category      String   // kategori: Kandang, Peralatan Pakan & Minum, dll
+  quantity      Int      // jumlah
+  unit          String   @default("unit") // satuan: Sak, Karung, Liter, kg, dll
+  unitPrice     Float    // harga per satuan (Rp)
+  purchaseDate  DateTime // tanggal pembelian
+  notes         String?
   // Foto nota pembelian peralatan (base64 JPEG data URL, sudah dikompres di frontend).
   // Nullable agar catatan lama tetap valid. notaName = nama file asli untuk download.
-  notaData     String?
-  notaName     String?
-  batchId      String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notaData      String?
+  notaName      String?
+  batchId       String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
+  // Metode pembayaran: "cash" (tunai) atau "bon" (utang / belum dibayar).
+  // Default "cash" agar data lama yang tidak punya field tetap konsisten.
+  paymentMethod String   @default("cash")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  batch        Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch         Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 // Master daftar satuan (Sak, Karung, Liter, kg, dll).

@@ -34,11 +34,30 @@ export async function GET() {
       return sum + (harvestQty * harvestWt * price)
     }, 0)
 
+    // ============================================================
+    // Ringkasan metode pembayaran Cash vs BON (seluruh equipment
+    // di semua termin). Dipakai dashboard untuk menampilkan 2 kartu
+    // tambahan: Total Cash (tunai) & Total BON (utang/belum dibayar).
+    // Catatan: equipment.paymentMethod default "cash" (lihat Prisma
+    // schema), jadi data lama otomatis masuk ke total Cash.
+    // ============================================================
+    const allEquipment = batches.flatMap((b) => b.equipment)
+    const totalCashSpent = allEquipment
+      .filter((e) => e.paymentMethod !== 'bon')
+      .reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    const bonEquipments = allEquipment.filter((e) => e.paymentMethod === 'bon')
+    const totalBonAmount = bonEquipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    const bonCount = bonEquipments.length
+
     // Per-batch calculations
     // Catatan: fitur Pakan sudah dihapus — totalCost sekarang murni dari
     // equipment (biaya operasional). FCR & feedPerEkor dihilangkan.
     const batchSummaries = batches.map((batch) => {
       const totalCost = batch.equipment.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+      // BON amount per-batch (opsional, untuk tampilan ringkasan per termin).
+      const bonAmount = batch.equipment
+        .filter((e) => e.paymentMethod === 'bon')
+        .reduce((s, e) => s + e.quantity * e.unitPrice, 0)
       const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
       const aliveCount = batch.quantity - totalDead
       const latestWeight = batch.weightRecords[0]?.averageWeightGram || batch.initialWeight * 1000
@@ -77,6 +96,7 @@ export async function GET() {
         totalHarvestKg,
         totalHarvestValue,
         profit,
+        bonAmount,
       }
     })
 
@@ -87,6 +107,10 @@ export async function GET() {
       totalChickens: totalAliveChickens,
       totalMortality,
       totalHarvestRevenue,
+      // Ringkasan Cash vs BON (lihat penjelasan di atas).
+      totalCashSpent,
+      totalBonAmount,
+      bonCount,
       batchSummaries,
     })
   } catch (error) {

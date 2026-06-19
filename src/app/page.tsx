@@ -34,7 +34,9 @@ import {
   Pencil,
   AlertTriangle,
   Wallet,
+  Banknote,
   Clock,
+  ReceiptText,
   Download,
   Search,
   Target,
@@ -115,6 +117,13 @@ interface DashboardData {
   totalChickens: number
   totalMortality: number
   totalHarvestRevenue: number
+  // Ringkasan metode pembayaran Cash vs BON di seluruh equipment.
+  // totalCashSpent = total nilai equipment yang dibayar tunai.
+  // totalBonAmount = total nilai equipment yang masih BON (utang).
+  // bonCount = jumlah transaksi equipment berstatus BON.
+  totalCashSpent: number
+  totalBonAmount: number
+  bonCount: number
   batchSummaries: Array<{
     id: string
     name: string
@@ -133,6 +142,7 @@ interface DashboardData {
     totalHarvestKg: number
     totalHarvestValue: number
     profit: number
+    bonAmount: number
   }>
 }
 
@@ -154,6 +164,9 @@ interface Equipment {
   notaData: string | null
   notaName: string | null
   batchId: string | null
+  // Metode pembayaran: "cash" (tunai) atau "bon" (utang / belum dibayar).
+  // Default "cash" — data lama otomatis dapat "cash" lewat @default Prisma.
+  paymentMethod: string
   batch?: { id: string; name: string; terminNumber: number }
   createdAt: string
   updatedAt: string
@@ -172,6 +185,7 @@ interface Category {
 // Item dalam mode multi-item form. Field shared (tanggal beli, foto nota)
 // tetap disimpan di `equipmentForm`; field per-item disimpan di sini.
 // `newUnitName` & `newCategoryName` dipakai untuk inline "tambah baru" per item.
+// `paymentMethod` per-item — tiap item bisa Cash atau BON secara independen.
 interface EquipmentFormItem {
   id: string
   name: string
@@ -182,6 +196,7 @@ interface EquipmentFormItem {
   notes: string
   newUnitName: string
   newCategoryName: string
+  paymentMethod: string
 }
 
 // Kategori default — juga dipakai API untuk auto-seed tabel Category saat kosong.
@@ -363,7 +378,7 @@ export default function HomePage() {
   // Tidak ada lagi state `equipments` terpisah; semua peralatan datang
   // nested di setiap batch (batches[].equipment), sama seperti berat/mortalitas.
   const [equipmentForm, setEquipmentForm] = useState({
-    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '',
+    name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash',
   })
   // Multi-item mode: catat beberapa item dalam 1 nota sekaligus.
   // Field shared (purchaseDate, notaData, notaName) tetap di `equipmentForm`;
@@ -712,6 +727,8 @@ export default function HomePage() {
       notes: e.notes || '',
       notaData: e.notaData || '',
       notaName: e.notaName || '',
+      // paymentMethod: "cash" atau "bon". Fallback "cash" bila data lama null/undefined.
+      paymentMethod: e.paymentMethod === 'bon' ? 'bon' : 'cash',
     })
     setShowAddUnit(false)
     setNewUnitName('')
@@ -834,6 +851,8 @@ export default function HomePage() {
     notes: '',
     newUnitName: '',
     newCategoryName: '',
+    // Default Cash — user bisa toggle ke BON per item di form.
+    paymentMethod: 'cash',
   })
 
   // Toggle mode multi-item. Saat ON: pindahkan data form single ke item pertama
@@ -851,6 +870,8 @@ export default function HomePage() {
         notes: equipmentForm.notes,
         newUnitName: '',
         newCategoryName: '',
+        // Pertahankan metode pembayaran dari form single saat beralih.
+        paymentMethod: equipmentForm.paymentMethod === 'bon' ? 'bon' : 'cash',
       }
       setEquipmentItems([firstItem])
       setMultiItemMode(true)
@@ -873,6 +894,8 @@ export default function HomePage() {
           unit: first.unit && first.unit !== '__add_new__' ? first.unit : 'Unit',
           unitPrice: first.unitPrice,
           notes: first.notes,
+          // Bawa juga paymentMethod item pertama ke form single.
+          paymentMethod: first.paymentMethod === 'bon' ? 'bon' : 'cash',
         }))
       }
       setMultiItemMode(false)
@@ -933,7 +956,7 @@ export default function HomePage() {
         setDialogBatchId('')
         setShowAddUnit(false)
         setNewUnitName('')
-        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' })
         toast({ title: 'Berhasil! ✏️', description: 'Biaya berhasil diperbarui' })
         await fetchData()
         if (view === 'batch-detail' && selectedBatch?.id === batchId) {
@@ -990,6 +1013,8 @@ export default function HomePage() {
                 notes: item.notes,
                 notaData: equipmentForm.notaData,
                 notaName: equipmentForm.notaName,
+                // paymentMethod per-item (Cash/BON). Fallback "cash" bila invalid.
+                paymentMethod: item.paymentMethod === 'bon' ? 'bon' : 'cash',
                 batchId,
               }),
             })
@@ -1005,7 +1030,7 @@ export default function HomePage() {
         setDialogBatchId('')
         setMultiItemMode(false)
         setEquipmentItems([])
-        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' })
         if (failCount === 0) {
           toast({ title: 'Berhasil! 💰', description: `${successCount} item berhasil ditambahkan ke termin` })
         } else {
@@ -1037,7 +1062,7 @@ export default function HomePage() {
         setDialogBatchId('')
         setShowAddUnit(false)
         setNewUnitName('')
-        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
+        setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' })
         toast({ title: 'Berhasil! 💰', description: 'Biaya berhasil ditambahkan ke termin' })
         fetchData()
       }
@@ -1456,10 +1481,20 @@ export default function HomePage() {
     // Section 5: Equipment costs
     rows.push([])
     rows.push(['Riwayat Biaya / Peralatan'])
-    rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Ada Nota', 'Catatan'])
+    rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Metode', 'Ada Nota', 'Catatan'])
     ;[...batch.equipment].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()).forEach((e) => {
-      rows.push([formatDate(e.purchaseDate), e.name, e.category, e.quantity, e.unit, e.unitPrice, Math.round(e.quantity * e.unitPrice), e.notaData ? 'Ya' : 'Tidak', e.notes || '-'])
+      rows.push([formatDate(e.purchaseDate), e.name, e.category, e.quantity, e.unit, e.unitPrice, Math.round(e.quantity * e.unitPrice), e.paymentMethod === 'bon' ? 'BON' : 'Cash', e.notaData ? 'Ya' : 'Tidak', e.notes || '-'])
     })
+    // Sub-ringkasan Cash vs BON untuk equipment termin ini.
+    const cashEquipTotal = batch.equipment.filter((e) => e.paymentMethod !== 'bon').reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    const bonEquipTotal = batch.equipment.filter((e) => e.paymentMethod === 'bon').reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    if (batch.equipment.length > 0) {
+      rows.push([])
+      rows.push(['Ringkasan Pembayaran'])
+      rows.push(['Total Cash (Rp)', Math.round(cashEquipTotal)])
+      rows.push(['Total BON (Rp)', Math.round(bonEquipTotal)])
+      rows.push(['Jumlah Transaksi BON', batch.equipment.filter((e) => e.paymentMethod === 'bon').length])
+    }
 
     const csv = rows.map((r) => r.map(esc).join(',')).join('\n')
     // Prepend BOM so Excel reads UTF-8 correctly
@@ -1612,14 +1647,44 @@ export default function HomePage() {
       sectionTitle('Riwayat Biaya / Peralatan')
       autoTable(doc, {
         startY: y,
-        head: [['Tanggal', 'Nama', 'Kategori', 'Jml', 'Satuan', 'Harga Satuan', 'Total']],
+        head: [['Tanggal', 'Nama', 'Kategori', 'Jml', 'Satuan', 'Harga Satuan', 'Total', 'Metode']],
         body: [...batch.equipment].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()).map((e) => [
           formatDate(e.purchaseDate), e.name, e.category, String(e.quantity), e.unit,
           formatCurrency(e.unitPrice), formatCurrency(Math.round(e.quantity * e.unitPrice)),
+          e.paymentMethod === 'bon' ? 'BON' : 'Cash',
         ]),
         theme: 'striped',
         headStyles: { fillColor: [99, 102, 241], textColor: 255, fontSize: 8, fontStyle: 'bold' }, // indigo-500
         bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        // Highlight baris BON dengan warna amber lembut, baris Cash tetap default.
+        // (didImplement via willDrawCell — di sini pakai columnStyles untuk Metode).
+        columnStyles: { 7: { fontStyle: 'bold', halign: 'center' } },
+        margin: { left: margin, right: margin },
+        didParseCell: (data) => {
+          // Beri warna kolom Metode sesuai status (emerald untuk Cash, amber untuk BON).
+          if (data.section === 'body' && data.column.index === 7) {
+            const isBon = data.cell.text[0] === 'BON'
+            data.cell.styles.textColor = isBon ? [180, 83, 9] : [4, 120, 87] // amber-700 / emerald-700
+          }
+        },
+      })
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12
+
+      // Sub-ringkasan Cash vs BON di bawah tabel equipment.
+      const cashEquipTotal = batch.equipment.filter((e) => e.paymentMethod !== 'bon').reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+      const bonEquipTotal = batch.equipment.filter((e) => e.paymentMethod === 'bon').reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+      const bonCount = batch.equipment.filter((e) => e.paymentMethod === 'bon').length
+      autoTable(doc, {
+        startY: y,
+        head: [['Ringkasan Pembayaran', 'Nilai']],
+        body: [
+          ['Total Cash (tunai, lunas)', formatCurrency(cashEquipTotal)],
+          [`Total BON (utang, ${bonCount} transaksi)`, formatCurrency(bonEquipTotal)],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8, textColor: [31, 41, 55] },
+        columnStyles: { 0: { cellWidth: contentWidth * 0.65, fontStyle: 'bold' }, 1: { cellWidth: contentWidth * 0.35, halign: 'right' } },
         margin: { left: margin, right: margin },
       })
     }
@@ -2056,14 +2121,19 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    {/* KPI Cards - 5 (Pakan card dihapus — fitur pakan sudah digantikan Biaya) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-5">
+                    {/* KPI Cards — Total Termin, Ayam, Mortalitas, Total Biaya, Pendapatan,
+                        ditambah 2 kartu ringkasan Cash vs BON (Total Cash, Total BON). */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 mb-5">
                       {[
                         { icon: Package, label: 'Total Termin', value: String(dashboard?.totalBatches || 0), sub: `${dashboard?.activeBatches || 0} aktif · ${dashboard?.harvestedBatches || 0} panen`, color: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-200/50' },
                         { icon: Bird, label: 'Ayam Hidup', value: (dashboard?.totalChickens || 0).toLocaleString('id-ID'), sub: 'ekor aktif', color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
                         { icon: Skull, label: 'Mortalitas', value: (dashboard?.totalMortality || 0).toLocaleString('id-ID'), sub: 'ekor total', color: 'from-red-500 to-red-700', shadow: 'shadow-red-200/50' },
                         { icon: Wallet, label: 'Total Biaya', value: formatCurrency(dashExtras.totalCost), sub: 'Peralatan & operasional', color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50' },
                         { icon: TrendingUp, label: 'Pendapatan', value: formatCurrency(dashboard?.totalHarvestRevenue || 0), sub: `Laba: ${formatCurrency(dashExtras.totalProfit)}`, color: 'from-teal-500 to-cyan-600', shadow: 'shadow-teal-200/50' },
+                        // Ringkasan Cash (tunai) — sebagian besar biaya operasional dibayar tunai.
+                        { icon: Banknote, label: 'Total Cash', value: formatCurrency(dashboard?.totalCashSpent || 0), sub: 'Pembayaran tunai (lunas)', color: 'from-emerald-500 to-green-600', shadow: 'shadow-emerald-200/50' },
+                        // Ringkasan BON (utang) — menunjukkan berapa utang yang masih belum dibayar.
+                        { icon: ReceiptText, label: 'Total BON', value: formatCurrency(dashboard?.totalBonAmount || 0), sub: `${dashboard?.bonCount || 0} transaksi belum dibayar`, color: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-200/50' },
                       ].map((stat, i) => (
                         <motion.div
                           key={stat.label}
@@ -2119,7 +2189,7 @@ export default function HomePage() {
                         if (ab) {
                           setEditingEquipment(null)
                           setDialogBatchId(ab.id)
-                          setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' })
+                          setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' })
                           setShowAddUnit(false)
                           setNewUnitName('')
                           setAddEquipmentOpen(true)
@@ -2282,6 +2352,10 @@ export default function HomePage() {
                           {batches.filter((b) => b.status === 'active').map((batch, i) => {
                             const stats = getBatchStats(batch)
                             const progress = Math.min((stats.latestWeight / 2000) * 100, 100)
+                            // Hitung total BON per-batch (untuk badge utang di kartu).
+                            const batchBonAmount = (batch.equipment ?? [])
+                              .filter((e) => e.paymentMethod === 'bon')
+                              .reduce((s, e) => s + e.quantity * e.unitPrice, 0)
                             return (
                               <motion.div key={batch.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
                                 <Card className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden" onClick={() => openBatchDetail(batch)}>
@@ -2297,6 +2371,13 @@ export default function HomePage() {
                                       <div><p className="text-muted-foreground">Biaya</p><p className="font-semibold">{formatCurrency(stats.totalCost)}</p></div>
                                       <div><p className="text-muted-foreground">Mati</p><p className="font-semibold text-red-600">{stats.totalDead} ({stats.mortalityRate.toFixed(1)}%)</p></div>
                                     </div>
+                                    {/* Badge BON — muncul hanya jika ada utang (paymentMethod "bon") di termin ini. */}
+                                    {batchBonAmount > 0 && (
+                                      <div className="mb-2 -mt-1 flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[11px] text-amber-800">
+                                        <ReceiptText className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">BON: <strong className="font-semibold">{formatCurrency(batchBonAmount)}</strong> belum dibayar</span>
+                                      </div>
+                                    )}
                                     <div className="mb-1">
                                       <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
                                         <span>Progress ke target (2 kg)</span>
@@ -2530,7 +2611,7 @@ export default function HomePage() {
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => { setEditingWeight(null); setDialogBatchId(batch.id); setWeightForm({ date: new Date().toISOString().slice(0, 10), averageWeightGram: '', ageDays: '', sampleCount: '1', notes: '' }); setAddWeightOpen(true) }}>
                                       <Scale className="w-3 h-3" /> Timbang
                                     </Button>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
                                     </Button>
                                     <DropdownMenu>
@@ -3249,7 +3330,7 @@ export default function HomePage() {
                             </CardTitle>
                             <CardDescription>Catatan biaya & pembelian untuk termin ini</CardDescription>
                           </div>
-                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                          <Button size="sm" className="gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shrink-0" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                             <Plus className="w-4 h-4" /> Tambah
                           </Button>
                         </CardHeader>
@@ -3280,7 +3361,7 @@ export default function HomePage() {
                                   <div className="text-center py-8 text-muted-foreground">
                                     <Wrench className="w-10 h-10 mx-auto mb-2 opacity-30" />
                                     <p className="text-sm">Belum ada catatan biaya untuk termin ini</p>
-                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
+                                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => { setEditingEquipment(null); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '', notaData: '', notaName: '', paymentMethod: 'cash' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Tambah Biaya Pertama
                                     </Button>
                                   </div>
@@ -3289,15 +3370,20 @@ export default function HomePage() {
                                     {equipList.map((e) => (
                                       <div key={e.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-indigo-50/50 to-transparent hover:from-indigo-50 transition-colors group">
                                         <div className="flex items-center gap-3 min-w-0">
-                                          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                                            <Wrench className="w-5 h-5 text-indigo-600" />
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${e.paymentMethod === 'bon' ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+                                            {e.paymentMethod === 'bon'
+                                              ? <ReceiptText className="w-5 h-5 text-amber-600" />
+                                              : <Banknote className="w-5 h-5 text-emerald-600" />}
                                           </div>
                                           <div className="min-w-0">
                                             <p className="font-medium text-sm truncate">{e.name}</p>
                                             <p className="text-xs text-muted-foreground truncate">{e.quantity} {e.unit} × {formatCurrency(e.unitPrice)} • {formatDate(e.purchaseDate)}{e.notes ? ` • ${e.notes}` : ''}</p>
                                           </div>
                                         </div>
-                                        <div className="flex items-center gap-3 shrink-0">
+                                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 ${e.paymentMethod === 'bon' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`} title={e.paymentMethod === 'bon' ? 'BON — utang, belum dibayar' : 'Cash — tunai, lunas'}>
+                                            {e.paymentMethod === 'bon' ? 'BON' : 'Cash'}
+                                          </Badge>
                                           <p className="font-bold text-sm">{formatCurrency(e.quantity * e.unitPrice)}</p>
                                           {e.notaData && (
                                             <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={(ev) => { ev.stopPropagation(); setNotaViewer({ src: e.notaData!, title: `Nota ${e.name}`, fileName: e.notaName || undefined }) }} title="Lihat foto nota">
@@ -3386,6 +3472,9 @@ export default function HomePage() {
                                         <div className="flex items-center gap-2 min-w-0">
                                           <span className="text-sm font-medium truncate">{e.name}</span>
                                           <span className="text-xs text-muted-foreground">{e.quantity} {e.unit}</span>
+                                          <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 shrink-0 ${e.paymentMethod === 'bon' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                            {e.paymentMethod === 'bon' ? 'BON' : 'Cash'}
+                                          </Badge>
                                         </div>
                                         <span className="text-sm font-bold shrink-0">{formatCurrency(e.quantity * e.unitPrice)}</span>
                                       </div>
@@ -3917,16 +4006,48 @@ export default function HomePage() {
                         <Label className="text-xs">Harga / {item.unit && item.unit !== '__add_new__' ? item.unit : 'satuan'} (Rp) <span className="text-destructive">*</span></Label>
                         <Input type="number" step="100" min="0" placeholder="500000" value={item.unitPrice} onChange={(e) => updateEquipmentItem(item.id, { unitPrice: e.target.value })} />
                       </div>
+                      {/* Metode Pembayaran per item — Cash atau BON (independen per item). */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs flex items-center gap-1.5"><Wallet className="w-3 h-3" /> Metode Pembayaran</Label>
+                        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={`Metode pembayaran item ${idx + 1}`}>
+                          <Button
+                            type="button"
+                            onClick={() => updateEquipmentItem(item.id, { paymentMethod: 'cash' })}
+                            role="radio"
+                            aria-checked={item.paymentMethod !== 'bon'}
+                            className={`h-auto py-1.5 gap-1 text-xs ${
+                              item.paymentMethod !== 'bon'
+                                ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white border-emerald-600'
+                                : 'text-emerald-700 border-emerald-300 hover:bg-emerald-50 bg-white'
+                            }`}
+                          >
+                            <Banknote className="w-3.5 h-3.5" /> Cash
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => updateEquipmentItem(item.id, { paymentMethod: 'bon' })}
+                            role="radio"
+                            aria-checked={item.paymentMethod === 'bon'}
+                            className={`h-auto py-1.5 gap-1 text-xs ${
+                              item.paymentMethod === 'bon'
+                                ? 'bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-amber-600'
+                                : 'text-amber-700 border-amber-300 hover:bg-amber-50 bg-white'
+                            }`}
+                          >
+                            <ReceiptText className="w-3.5 h-3.5" /> BON
+                          </Button>
+                        </div>
+                      </div>
                       {/* Catatan per item */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Catatan</Label>
                         <Textarea placeholder="Catatan opsional..." value={item.notes} onChange={(e) => updateEquipmentItem(item.id, { notes: e.target.value })} className="min-h-[56px] text-sm" />
                       </div>
-                      {/* Subtotal per item */}
+                      {/* Subtotal per item — warna mengikuti metode pembayaran (Cash=emerald, BON=amber). */}
                       {item.quantity && item.unitPrice && parseFloat(item.quantity) > 0 && parseFloat(item.unitPrice) > 0 && (
-                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
-                          <p className="text-[10px] text-muted-foreground">Subtotal</p>
-                          <p className="text-sm font-bold text-indigo-700">{formatCurrency(parseFloat(item.quantity) * parseFloat(item.unitPrice))}</p>
+                        <div className={`rounded-lg p-2 text-center ${item.paymentMethod === 'bon' ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                          <p className="text-[10px] text-muted-foreground">Subtotal ({item.paymentMethod === 'bon' ? 'BON' : 'Cash'})</p>
+                          <p className={`text-sm font-bold ${item.paymentMethod === 'bon' ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(parseFloat(item.quantity) * parseFloat(item.unitPrice))}</p>
                         </div>
                       )}
                     </div>
@@ -3944,17 +4065,32 @@ export default function HomePage() {
                   <Plus className="w-4 h-4 mr-1.5" /> Tambah Item
                 </Button>
 
-                {/* Total keseluruhan */}
+                {/* Total keseluruhan — dengan rincian Cash vs BON. */}
                 {(() => {
                   const validItems = equipmentItems.filter(
                     (it) => it.name.trim() && parseFloat(it.quantity) > 0 && parseFloat(it.unitPrice) > 0 && it.category !== '__add_new__' && it.unit !== '__add_new__'
                   )
                   if (validItems.length === 0) return null
                   const total = validItems.reduce((sum, it) => sum + parseFloat(it.quantity) * parseFloat(it.unitPrice), 0)
+                  const cashTotal = validItems
+                    .filter((it) => it.paymentMethod !== 'bon')
+                    .reduce((s, it) => s + parseFloat(it.quantity) * parseFloat(it.unitPrice), 0)
+                  const bonTotal = validItems
+                    .filter((it) => it.paymentMethod === 'bon')
+                    .reduce((s, it) => s + parseFloat(it.quantity) * parseFloat(it.unitPrice), 0)
                   return (
-                    <div className="bg-indigo-50 rounded-lg p-3 text-center border border-indigo-200">
+                    <div className="bg-indigo-50 rounded-lg p-3 text-center border border-indigo-200 space-y-1.5">
                       <p className="text-xs text-muted-foreground">Total Keseluruhan ({validItems.length} item)</p>
                       <p className="text-xl font-bold text-indigo-700">{formatCurrency(total)}</p>
+                      <div className="flex items-center justify-center gap-3 text-[11px] pt-1 border-t border-indigo-200/60">
+                        <span className="inline-flex items-center gap-1 text-emerald-700">
+                          <Banknote className="w-3 h-3" /> Cash: {formatCurrency(cashTotal)}
+                        </span>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="inline-flex items-center gap-1 text-amber-700">
+                          <ReceiptText className="w-3 h-3" /> BON: {formatCurrency(bonTotal)}
+                        </span>
+                      </div>
                     </div>
                   )
                 })()}
@@ -4070,14 +4206,54 @@ export default function HomePage() {
                   <Label>Harga / {equipmentForm.unit || 'satuan'} (Rp)</Label>
                   <Input type="number" step="100" min="0" placeholder="500000" value={equipmentForm.unitPrice} onChange={(e) => setEquipmentForm({ ...equipmentForm, unitPrice: e.target.value })} />
                 </div>
+                {/* Metode Pembayaran — Cash (tunai) atau BON (utang/belum dibayar). */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5" /> Metode Pembayaran
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Metode Pembayaran">
+                    <Button
+                      type="button"
+                      variant={equipmentForm.paymentMethod === 'bon' ? 'outline' : 'default'}
+                      onClick={() => setEquipmentForm((prev) => ({ ...prev, paymentMethod: 'cash' }))}
+                      role="radio"
+                      aria-checked={equipmentForm.paymentMethod !== 'bon'}
+                      className={`h-auto py-2.5 flex-col gap-0.5 ${
+                        equipmentForm.paymentMethod !== 'bon'
+                          ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-200/50'
+                          : 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span className="text-xs font-semibold">Cash</span>
+                      <span className="text-[10px] opacity-80 leading-none">Tunai · Lunas</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={equipmentForm.paymentMethod === 'bon' ? 'default' : 'outline'}
+                      onClick={() => setEquipmentForm((prev) => ({ ...prev, paymentMethod: 'bon' }))}
+                      role="radio"
+                      aria-checked={equipmentForm.paymentMethod === 'bon'}
+                      className={`h-auto py-2.5 flex-col gap-0.5 ${
+                        equipmentForm.paymentMethod === 'bon'
+                          ? 'bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-amber-600 shadow-md shadow-amber-200/50'
+                          : 'text-amber-700 border-amber-300 hover:bg-amber-50'
+                      }`}
+                    >
+                      <ReceiptText className="w-4 h-4" />
+                      <span className="text-xs font-semibold">BON</span>
+                      <span className="text-[10px] opacity-80 leading-none">Utang · Belum dibayar</span>
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label>Tanggal Beli</Label>
                   <Input type="date" value={equipmentForm.purchaseDate} onChange={(e) => setEquipmentForm({ ...equipmentForm, purchaseDate: e.target.value })} />
                 </div>
                 {equipmentForm.quantity && equipmentForm.unitPrice && (
-                  <div className="bg-indigo-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-muted-foreground">Total Harga</p>
-                    <p className="text-lg font-bold text-indigo-700">{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
+                  <div className={`rounded-lg p-3 text-center ${equipmentForm.paymentMethod === 'bon' ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                    <p className="text-xs text-muted-foreground">Total Harga · {equipmentForm.paymentMethod === 'bon' ? 'BON (utang)' : 'Cash (lunas)'}</p>
+                    <p className={`text-lg font-bold ${equipmentForm.paymentMethod === 'bon' ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(parseFloat(equipmentForm.quantity) * parseFloat(equipmentForm.unitPrice))}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {equipmentForm.quantity || 0} {equipmentForm.unit || 'satuan'} × {formatCurrency(parseFloat(equipmentForm.unitPrice) || 0)}
                     </p>
