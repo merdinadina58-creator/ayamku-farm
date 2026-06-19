@@ -36,6 +36,9 @@ import {
   Wallet,
   Wheat,
   Clock,
+  Download,
+  Search,
+  Target,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -269,6 +272,10 @@ export default function HomePage() {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [dayDetail, setDayDetail] = useState<{ date: Date; events: CalendarEvent[] } | null>(null)
+
+  // Termin search & filter state
+  const [terminSearch, setTerminSearch] = useState('')
+  const [terminFilter, setTerminFilter] = useState<'all' | 'active' | 'harvested'>('all')
 
   // Dialog states
   const [addBatchOpen, setAddBatchOpen] = useState(false)
@@ -877,6 +884,119 @@ export default function HomePage() {
   // Computed values for selected batch (delegates to module-level pure helper)
   const getBatchStats = (batch: Batch) => computeBatchStats(batch)
 
+  // Estimate harvest readiness for an active batch.
+  // Uses the last two weight records to compute average daily gain (ADG),
+  // then projects how many days until the batch reaches the target weight.
+  // Returns null if insufficient data.
+  const estimateHarvest = (batch: Batch, targetGram = 1800): { daysToTarget: number; estDate: Date; adg: number } | null => {
+    if (batch.status !== 'active' || batch.weightRecords.length < 2) return null
+    const sorted = [...batch.weightRecords].sort((a, b) => a.ageDays - b.ageDays)
+    const latest = sorted[sorted.length - 1]
+    const first = sorted[0]
+    const daySpan = latest.ageDays - first.ageDays
+    if (daySpan <= 0) return null
+    const weightGain = latest.averageWeightGram - first.averageWeightGram
+    if (weightGain <= 0) return null
+    const adg = weightGain / daySpan // gram per day
+    if (latest.averageWeightGram >= targetGram) return { daysToTarget: 0, estDate: new Date(), adg }
+    const daysToTarget = Math.ceil((targetGram - latest.averageWeightGram) / adg)
+    const estDate = new Date()
+    estDate.setDate(estDate.getDate() + daysToTarget)
+    return { daysToTarget, estDate, adg }
+  }
+
+  // Export a full per-batch report as a CSV file (client-side).
+  // Includes: batch info, weight records, mortality records, feed records,
+  // equipment costs, and summary statistics. Triggers a browser download.
+  const exportBatchCSV = (batch: Batch) => {
+    const stats = computeBatchStats(batch)
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v)
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const rows: string[][] = []
+    // Section 1: Batch info
+    rows.push(['LAPORAN TERMIN - AYAMKU FARM'])
+    rows.push([])
+    rows.push(['Informasi Termin'])
+    rows.push(['Nama Termin', batch.name])
+    rows.push(['Nomor Termin', batch.terminNumber])
+    rows.push(['Tanggal Tiba', formatDate(batch.arrivalDate)])
+    rows.push(['Status', batch.status === 'active' ? 'Aktif' : 'Panen'])
+    rows.push(['Jumlah Awal (ekor)', batch.quantity])
+    rows.push(['Berat Awal (kg)', batch.initialWeight])
+    rows.push(['Catatan', batch.notes || '-'])
+    if (batch.status === 'harvested') {
+      rows.push([])
+      rows.push(['Data Panen'])
+      rows.push(['Tanggal Panen', batch.harvestDate ? formatDate(batch.harvestDate) : '-'])
+      rows.push(['Jumlah Panen (ekor)', batch.harvestQuantity ?? '-'])
+      rows.push(['Berat Panen (kg/ekor)', batch.harvestWeight ?? '-'])
+      rows.push(['Harga Jual (Rp/kg)', batch.sellingPricePerKg ?? '-'])
+    }
+    // Section 2: Summary stats
+    rows.push([])
+    rows.push(['Ringkasan Statistik'])
+    rows.push(['Umur (hari)', stats.ageDays])
+    rows.push(['Ayam Hidup (ekor)', stats.aliveCount])
+    rows.push(['Total Mati (ekor)', stats.totalDead])
+    rows.push(['Tingkat Mortalitas (%)', stats.mortalityRate.toFixed(2)])
+    rows.push(['Berat Terkini (gram)', stats.latestWeight])
+    rows.push(['Berat Terkini (kg)', (stats.latestWeight / 1000).toFixed(3)])
+    rows.push(['Pertambahan Berat (gram)', Math.round(stats.weightGain)])
+    rows.push(['Total Pakan (kg)', stats.totalFeed.toFixed(2)])
+    rows.push(['Pakan per Ekor (kg)', stats.feedPerEkor.toFixed(3)])
+    rows.push(['FCR', stats.fcr.toFixed(2)])
+    rows.push(['Total Biaya (Rp)', Math.round(stats.totalCost)])
+    if (batch.status === 'harvested') {
+      rows.push(['Total Panen (kg)', stats.totalHarvestKg.toFixed(2)])
+      rows.push(['Pendapatan (Rp)', Math.round(stats.totalHarvestValue)])
+      rows.push(['Laba/Rugi (Rp)', Math.round(stats.profit)])
+    }
+    // Section 3: Weight records
+    rows.push([])
+    rows.push(['Riwayat Penimbangan'])
+    rows.push(['Tanggal', 'Umur (hari)', 'Berat Rata-rata (gram)', 'Berat (kg)', 'Jumlah Sampel', 'Catatan'])
+    ;[...batch.weightRecords].sort((a, b) => a.ageDays - b.ageDays).forEach((w) => {
+      rows.push([formatDate(w.date), w.ageDays, w.averageWeightGram, (w.averageWeightGram / 1000).toFixed(3), w.sampleCount, w.notes || '-'])
+    })
+    // Section 4: Mortality records
+    rows.push([])
+    rows.push(['Riwayat Mortalitas'])
+    rows.push(['Tanggal', 'Jumlah (ekor)', 'Alasan', 'Catatan'])
+    ;[...batch.mortalityRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((m) => {
+      rows.push([formatDate(m.date), m.quantity, m.reason, m.notes || '-'])
+    })
+    // Section 5: Feed records
+    rows.push([])
+    rows.push(['Riwayat Pakan'])
+    rows.push(['Tanggal', 'Jenis Pakan', 'Jumlah (kg)', 'Harga/kg (Rp)', 'Total (Rp)', 'Catatan'])
+    ;[...batch.feedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((f) => {
+      rows.push([formatDate(f.date), f.feedType, f.quantityKg, f.pricePerKg, Math.round(f.quantityKg * f.pricePerKg), f.notes || '-'])
+    })
+    // Section 6: Equipment costs
+    rows.push([])
+    rows.push(['Riwayat Biaya / Peralatan'])
+    rows.push(['Tanggal Beli', 'Nama', 'Kategori', 'Jumlah', 'Satuan', 'Harga Satuan (Rp)', 'Total (Rp)', 'Catatan'])
+    ;[...batch.equipment].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()).forEach((e) => {
+      rows.push([formatDate(e.purchaseDate), e.name, e.category, e.quantity, e.unit, e.unitPrice, Math.round(e.quantity * e.unitPrice), e.notes || '-'])
+    })
+
+    const csv = rows.map((r) => r.map(esc).join(',')).join('\n')
+    // Prepend BOM so Excel reads UTF-8 correctly
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const safeName = batch.name.replace(/[^a-zA-Z0-9-_]/g, '_')
+    a.download = `Laporan_${safeName}_Termin${batch.terminNumber}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast({ title: 'Laporan terunduh 📄', description: `CSV untuk ${batch.name} berhasil diunduh` })
+  }
+
   // Calendar events derived from batches
   const calendarEvents = useMemo(() => {
     const events: Record<string, CalendarEvent[]> = {}
@@ -1055,6 +1175,21 @@ export default function HomePage() {
       .sort((a, b2) => new Date(b2.date).getTime() - new Date(a.date).getTime())
       .slice(0, 10)
   }, [batches])
+
+  // Filtered batches for the Termin section (search + status filter)
+  const filteredBatches = useMemo(() => {
+    const q = terminSearch.trim().toLowerCase()
+    return batches.filter((b) => {
+      if (terminFilter !== 'all' && b.status !== terminFilter) return false
+      if (!q) return true
+      return (
+        b.name.toLowerCase().includes(q) ||
+        `termin ${b.terminNumber}`.includes(q) ||
+        `termin#${b.terminNumber}`.includes(q) ||
+        formatDate(b.arrivalDate).toLowerCase().includes(q)
+      )
+    })
+  }, [batches, terminSearch, terminFilter])
 
   const renderSidebar = () => (
     <div className="flex flex-col h-full">
@@ -1553,10 +1688,52 @@ export default function HomePage() {
                         </CardContent>
                       </Card>
                     ) : (
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {batches.map((batch, i) => {
-                          const stats = getBatchStats(batch)
-                          return (
+                      <>
+                        {/* Search & Filter bar */}
+                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                          <div className="relative flex-1">
+                            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Input
+                              placeholder="Cari termin (nama / nomor / tanggal)..."
+                              value={terminSearch}
+                              onChange={(e) => setTerminSearch(e.target.value)}
+                              className="pl-9 h-10"
+                            />
+                          </div>
+                          <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
+                            {([['all', 'Semua'], ['active', 'Aktif'], ['harvested', 'Panen']] as const).map(([val, label]) => (
+                              <button
+                                key={val}
+                                onClick={() => setTerminFilter(val)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                                  terminFilter === val
+                                    ? 'bg-white shadow-sm text-emerald-700'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {filteredBatches.length === 0 ? (
+                          <Card className="border-dashed border-2">
+                            <CardContent className="flex flex-col items-center justify-center py-12">
+                              <Search className="w-10 h-10 text-muted-foreground/30 mb-2" />
+                              <h3 className="text-base font-semibold text-gray-700">Tidak ada termin ditemukan</h3>
+                              <p className="text-muted-foreground text-sm mt-1">Coba kata kunci atau filter lain</p>
+                              <Button variant="outline" size="sm" className="mt-3" onClick={() => { setTerminSearch(''); setTerminFilter('all') }}>
+                                Reset filter
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {filteredBatches.map((batch, i) => {
+                              const stats = getBatchStats(batch)
+                              const harvestEst = estimateHarvest(batch)
+                              return (
                             <motion.div
                               key={batch.id}
                               initial={{ opacity: 0, scale: 0.95 }}
@@ -1620,6 +1797,20 @@ export default function HomePage() {
                                     </div>
                                     <Progress value={Math.min((stats.latestWeight / 1800) * 100, 100)} className="h-2" />
                                   </div>
+                                  {/* Estimasi Panen - only for active batches with enough weight data */}
+                                  {batch.status === 'active' && harvestEst && (
+                                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5">
+                                      <Target className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] text-muted-foreground leading-tight">Estimasi siap panen</p>
+                                        <p className="text-xs font-bold text-emerald-700 leading-tight truncate">
+                                          {harvestEst.daysToTarget === 0
+                                            ? 'Sudah siap panen!'
+                                            : `~${harvestEst.daysToTarget} hari lagi (${formatDate(harvestEst.estDate.toISOString())})`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                   {/* Panen info - only for harvested batches */}
                                   {batch.status === 'harvested' && (
                                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-2.5 border border-amber-200">
@@ -1649,6 +1840,9 @@ export default function HomePage() {
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50" onClick={() => { setEditingEquipment(null); setDialogBatchId(batch.id); setEquipmentForm({ name: '', category: 'Peralatan Pakan & Minum', quantity: '', unit: 'Unit', unitPrice: '', purchaseDate: '', notes: '' }); setShowAddUnit(false); setNewUnitName(''); setAddEquipmentOpen(true) }}>
                                       <Plus className="w-3 h-3" /> Biaya
                                     </Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-cyan-300 text-cyan-700 hover:bg-cyan-50" onClick={(e) => { e.stopPropagation(); exportBatchCSV(batch) }}>
+                                      <Download className="w-3 h-3" /> Export
+                                    </Button>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openHarvestDialog(batch)}>
                                       {batch.status === 'active' ? <><CheckCircle2 className="w-3 h-3" /> Panen</> : <><Pencil className="w-3 h-3" /> Edit Panen</>}
                                     </Button>
@@ -1659,6 +1853,8 @@ export default function HomePage() {
                           )
                         })}
                       </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -2050,9 +2246,12 @@ export default function HomePage() {
                         Termin #{selectedBatch.terminNumber} • {selectedBatch.quantity.toLocaleString('id-ID')} ekor awal • Tiba {formatDate(selectedBatch.arrivalDate)}
                       </p>
                     </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="flex gap-2 w-full sm:w-auto flex-wrap">
                       <Button variant="outline" className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex-1 sm:flex-none" onClick={() => openEditBatch(selectedBatch)}>
                         <Pencil className="w-4 h-4" /> Edit
+                      </Button>
+                      <Button variant="outline" className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 flex-1 sm:flex-none" onClick={() => exportBatchCSV(selectedBatch)}>
+                        <Download className="w-4 h-4" /> Export
                       </Button>
                       <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => openHarvestDialog(selectedBatch)}>
                         {selectedBatch.status === 'active' ? (

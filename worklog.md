@@ -885,3 +885,33 @@ Stage Summary:
 - Empty states informatif untuk semua chart/section ketika belum ada data
 - Smart alerts mendeteksi otomatis: mortalitas tinggi, siap panen, belum timbang, FCR buruk, panen rugi
 - Catatan: DB lokal broken (pre-existing SQLite vs PostgreSQL issue) — semua nilai 0 di sandbox, tapi production Vercel (Neon PostgreSQL) akan menampilkan data asli
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Tambah 3 fitur penting yang belum ada tanpa merubah struktur (Export CSV + Search/Filter Termin + Estimasi Panen)
+
+Work Log:
+- Analisis gap: 3 fitur penting yang belum ada teridentifikasi
+  1. Export Laporan CSV — peternak perlu laporan untuk print/share ke pembeli/instansi/koperasi
+  2. Search & Filter di Termin — saat data bertambah sulit mencari
+  3. Estimasi Panen otomatis — prediksi hari lagi siap panen berdasarkan growth rate
+- Implementasi (semua client-side, tidak ubah backend/struktur):
+  - Tambah 3 icon imports: Download, Search, Target
+  - Tambah 2 state: terminSearch, terminFilter ('all' | 'active' | 'harvested')
+  - Tambah helper `estimateHarvest(batch, targetGram=1800)`: pakai 2 weight record terakhir untuk hitung ADG (average daily gain), proyeksikan hari ke target 1.8kg. Return {daysToTarget, estDate, adg} atau null kalau data kurang.
+  - Tambah helper `exportBatchCSV(batch)`: generate CSV multi-section (info termin, ringkasan statistik, riwayat penimbangan, mortalitas, pakan, biaya/peralatan) dengan BOM UTF-8 untuk Excel, trigger download via Blob + createObjectURL. Escape commas/quotes/newlines.
+  - Tambah useMemo `filteredBatches`: filter by status + search (nama, "termin N", "termin#N", tanggal)
+  - UI Search & Filter di section Termin: search box dengan icon Search + 3 toggle button (Semua/Aktif/Panen) + empty state "Tidak ditemukan" dengan tombol Reset
+  - Badge Estimasi Panen di batch card aktif (di bawah progress bar): icon Target + "Estimasi siap panen: ~X hari lagi (tanggal)" atau "Sudah siap panen!"
+  - Tombol Export CSV di 2 lokasi: (a) quick action buttons batch card, (b) batch detail header (sebelah tombol Edit)
+- Lint: bersih tanpa error
+- Dev server: ter-compile sukses
+- Verifikasi lokal: empty state muncul benar (DB lokal kosong), tidak ada console error
+
+Stage Summary:
+- 3 fitur penting ditambahkan tanpa merubah struktur yang sudah bagus
+- Export CSV: laporan lengkap per-batch dengan 6 section (info, statistik, timbang, mati, pakan, biaya) — siap print/share
+- Search & Filter: cari by nama/nomor/tanggal + filter status (Semua/Aktif/Panen) dengan empty state informatif
+- Estimasi Panen: prediksi otomatis hari siap panen berdasarkan growth rate riil dari history timbang
+- Semua client-side, tidak ada perubahan backend/API
