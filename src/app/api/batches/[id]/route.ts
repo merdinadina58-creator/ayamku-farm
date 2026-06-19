@@ -39,6 +39,33 @@ export async function PUT(
       status, harvestDate, harvestWeight, harvestQuantity, sellingPricePerKg, notes
     } = body
 
+    // ============================================================
+    // Validation: Tanggal panen tidak boleh sebelum tanggal ayam masuk.
+    // Hanya berlaku ketika status sedang di-set menjadi 'harvested' dan
+    // sebuah harvestDate diberikan. Kita ambil arrivalDate yang ada di DB
+    // (atau yang dikirim di body) sebagai acuan.
+    // ============================================================
+    if (status === 'harvested' && harvestDate) {
+      const existing = await db.batch.findUnique({
+        where: { id },
+        select: { arrivalDate: true },
+      })
+      if (existing) {
+        const refArrival = arrivalDate !== undefined ? new Date(arrivalDate) : existing.arrivalDate
+        const hd = new Date(harvestDate)
+        if (!isNaN(hd.getTime()) && !isNaN(refArrival.getTime())) {
+          const hdDay = new Date(hd.getFullYear(), hd.getMonth(), hd.getDate())
+          const adDay = new Date(refArrival.getFullYear(), refArrival.getMonth(), refArrival.getDate())
+          if (hdDay.getTime() < adDay.getTime()) {
+            return NextResponse.json(
+              { error: 'Tanggal panen tidak boleh sebelum tanggal ayam masuk' },
+              { status: 400 }
+            )
+          }
+        }
+      }
+    }
+
     const batch = await db.batch.update({
       where: { id },
       data: {

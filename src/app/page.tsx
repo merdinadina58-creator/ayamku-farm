@@ -43,6 +43,7 @@ import {
   FileSpreadsheet,
   Eye,
   Printer,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -294,6 +295,7 @@ export default function HomePage() {
   const [addMortalityOpen, setAddMortalityOpen] = useState(false)
   const [harvestOpen, setHarvestOpen] = useState(false)
   const [addEquipmentOpen, setAddEquipmentOpen] = useState(false)
+  const [addFeedOpen, setAddFeedOpen] = useState(false)
 
   // When adding feed/weight/mortality from a MAIN section (not from batch detail),
   // we need the user to pick which batch the record belongs to.
@@ -328,12 +330,16 @@ export default function HomePage() {
   const [harvestForm, setHarvestForm] = useState({
     harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
+  const [feedForm, setFeedForm] = useState({
+    date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '',
+  })
 
   // Edit mode states — null = add mode, object = edit mode
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [editingWeight, setEditingWeight] = useState<WeightRecord | null>(null)
   const [editingMortality, setEditingMortality] = useState<MortalityRecord | null>(null)
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
+  const [editingFeed, setEditingFeed] = useState<FeedRecord | null>(null)
 
   // ============================================================
   // Auto-compute chicken age (umur) untuk form timbang berat.
@@ -351,6 +357,23 @@ export default function HomePage() {
     if (diffMs < 0) return null // tanggal timbang sebelum tanggal masuk
     return Math.floor(diffMs / (1000 * 60 * 60 * 24))
   }, [weightBatch, weightForm.date])
+
+  // Validasi tanggal panen: tidak boleh sebelum tanggal ayam masuk.
+  // Dipakai untuk menampilkan pesan error & menonaktifkan tombol Konfirmasi
+  // di Harvest Dialog. Backend juga melakukan validasi yang sama (defensive).
+  const harvestDateError = useMemo(() => {
+    if (!selectedBatch || !harvestForm.harvestDate) return null
+    const hd = new Date(harvestForm.harvestDate)
+    const ad = new Date(selectedBatch.arrivalDate)
+    if (isNaN(hd.getTime()) || isNaN(ad.getTime())) return null
+    hd.setHours(0, 0, 0, 0)
+    ad.setHours(0, 0, 0, 0)
+    if (hd < ad) {
+      const adStr = ad.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+      return `Tanggal panen tidak boleh sebelum tanggal ayam masuk (${adStr})`
+    }
+    return null
+  }, [selectedBatch, harvestForm.harvestDate])
 
   // Semua peralatan dari seluruh termin, diturunkan dari state `batches`
   // (peralatan datang nested di setiap batch). Dipakai untuk ringkasan di
@@ -643,6 +666,11 @@ export default function HomePage() {
 
   const handleHarvest = async () => {
     if (!selectedBatch) return
+    // Defensive: jangan kirim jika ada error validasi tanggal panen.
+    if (harvestDateError) {
+      toast({ title: 'Validasi Gagal', description: harvestDateError, variant: 'destructive' })
+      return
+    }
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
@@ -659,13 +687,19 @@ export default function HomePage() {
           sellingPricePerKg: harvestForm.sellingPricePerKg,
         }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        // Backend mengembalikan { error } untuk validasi (mis. tanggal panen
+        // sebelum tanggal masuk). Tampilkan pesan Indonesia-nya ke user.
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || 'Gagal memperbarui status panen')
+      }
       setHarvestOpen(false)
       setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
       toast({ title: 'Berhasil! 🎉', description: isEdit ? 'Data panen berhasil diperbarui' : 'Ayam berhasil dipanen' })
       fetchData()
-    } catch {
-      toast({ title: 'Error', description: 'Gagal memperbarui status panen', variant: 'destructive' })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal memperbarui status panen'
+      toast({ title: 'Error', description: msg, variant: 'destructive' })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
@@ -780,6 +814,174 @@ export default function HomePage() {
       fetchData()
     } catch {
       toast({ title: 'Error', description: 'Gagal menghapus biaya', variant: 'destructive' })
+    }
+  }
+
+  // ============================================================
+  // Batalkan Panen — kembalikan status batch dari 'harvested' menjadi
+  // 'active' dan hapus semua data panen (tanggal, jumlah, berat, harga
+  // jual). Dipakai untuk memperbaiki panen yang salah termin atau salah
+  // catat. Data mortalitas, berat, pakan, dan biaya tetap tersimpan.
+  // ============================================================
+  const handleCancelHarvest = async (batch: Batch) => {
+    if (!confirm(
+      'Yakin batalkan panen untuk termin ini?\n\n' +
+      'Status akan kembali menjadi AKTIF dan semua data panen ' +
+      '(tanggal, jumlah, berat, harga jual) akan dihapus. ' +
+      'Data mortalitas, berat, pakan, dan biaya tetap tersimpan.'
+    )) return
+    try {
+      const res = await fetch(`/api/batches/${batch.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'active',
+          harvestDate: null,
+          harvestWeight: null,
+          harvestQuantity: null,
+          sellingPricePerKg: null,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || 'Gagal membatalkan panen')
+      }
+      toast({
+        title: 'Panen Dibatalkan',
+        description: `Termin ${batch.name} kembali aktif`,
+      })
+      await fetchData()
+      if (view === 'batch-detail' && selectedBatch?.id === batch.id) {
+        try {
+          const freshRes = await fetch('/api/batches')
+          if (freshRes.ok) {
+            const freshBatches = await freshRes.json()
+            const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === batch.id)
+            if (updated) setSelectedBatch(updated)
+          }
+        } catch {}
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal membatalkan panen'
+      toast({ title: 'Error', description: msg, variant: 'destructive' })
+    }
+  }
+
+  // ============================================================
+  // Pakan (Feed) — CRUD per-termin. Mirror dari pola equipment/weight:
+  // openAddFeed / openEditFeed / handleAddFeed / handleDeleteFeed.
+  // ============================================================
+  const openAddFeed = (batch: Batch) => {
+    setEditingFeed(null)
+    setSelectedBatch(batch)
+    setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+    setAddFeedOpen(true)
+  }
+
+  const openEditFeed = (f: FeedRecord, batch: Batch) => {
+    setEditingFeed(f)
+    setSelectedBatch(batch)
+    setFeedForm({
+      date: f.date ? new Date(f.date).toISOString().split('T')[0] : '',
+      feedType: f.feedType,
+      quantityKg: f.quantityKg.toString(),
+      pricePerKg: f.pricePerKg.toString(),
+      notes: f.notes || '',
+    })
+    setAddFeedOpen(true)
+  }
+
+  const handleAddFeed = async () => {
+    if (!selectedBatch) return
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
+    const isEdit = !!editingFeed
+    try {
+      const payload = {
+        date: feedForm.date,
+        feedType: feedForm.feedType,
+        quantityKg: feedForm.quantityKg,
+        pricePerKg: feedForm.pricePerKg,
+        notes: feedForm.notes,
+      }
+      if (isEdit) {
+        const editId = editingFeed!.id
+        const res = await fetch(`/api/feed/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: payload.date,
+            feedType: payload.feedType,
+            quantityKg: parseFloat(payload.quantityKg),
+            pricePerKg: parseFloat(payload.pricePerKg),
+            notes: payload.notes,
+          }),
+        })
+        if (!res.ok) throw new Error()
+        setAddFeedOpen(false)
+        setEditingFeed(null)
+        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+        toast({ title: 'Berhasil! ✏️', description: 'Catatan pakan berhasil diperbarui' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      } else {
+        const res = await fetch(`/api/batches/${selectedBatch.id}/feed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error()
+        setAddFeedOpen(false)
+        setFeedForm({ date: '', feedType: 'Starter', quantityKg: '', pricePerKg: '', notes: '' })
+        toast({ title: 'Berhasil! 🌾', description: 'Catatan pakan berhasil ditambahkan ke termin' })
+        await fetchData()
+        if (view === 'batch-detail' && selectedBatch?.id) {
+          try {
+            const freshRes = await fetch('/api/batches')
+            if (freshRes.ok) {
+              const freshBatches = await freshRes.json()
+              const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
+              if (updated) setSelectedBatch(updated)
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      toast({ title: 'Error', description: isEdit ? 'Gagal memperbarui pakan' : 'Gagal menambahkan pakan', variant: 'destructive' })
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteFeed = async (id: string) => {
+    if (!confirm('Yakin ingin menghapus catatan pakan ini?')) return
+    try {
+      await fetch(`/api/feed/${id}`, { method: 'DELETE' })
+      toast({ title: 'Dihapus', description: 'Catatan pakan berhasil dihapus' })
+      await fetchData()
+      if (view === 'batch-detail' && selectedBatch?.id) {
+        try {
+          const freshRes = await fetch('/api/batches')
+          if (freshRes.ok) {
+            const freshBatches = await freshRes.json()
+            const updated = (Array.isArray(freshBatches) ? freshBatches : []).find((b: Batch) => b.id === selectedBatch.id)
+            if (updated) setSelectedBatch(updated)
+          }
+        } catch {}
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menghapus pakan', variant: 'destructive' })
     }
   }
 
@@ -2123,6 +2325,25 @@ export default function HomePage() {
                         </div>
                       ) : (
                         <div className="space-y-3">
+                          {/* Rules: Aturan Pemisahan Data per Termin */}
+                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                            <div className="flex items-start gap-2">
+                              <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm text-blue-900 mb-1.5">Aturan Pemisahan Data per Termin</p>
+                                <ul className="text-xs text-blue-800 space-y-1 list-disc pl-4">
+                                  <li>Setiap kedatangan ayam dicatat sebagai <b>1 Termin</b> terpisah (nama, tanggal, jumlah, berat awal).</li>
+                                  <li><b>Mortalitas</b> (mati/afkir) terikat ke 1 Termin — tidak boleh dicampur antar termin.</li>
+                                  <li><b>Panen</b> terikat ke 1 Termin, dan tanggal panen tidak boleh sebelum tanggal ayam masuk.</li>
+                                  <li><b>Belanja pakan</b> terikat ke 1 Termin (catat di tab Pakan pada detail termin).</li>
+                                  <li><b>Penimbangan berat</b> terikat ke 1 Termin (catat di tab Berat pada detail termin).</li>
+                                  <li><b>Peralatan & biaya</b> terikat ke 1 Termin (catat di tab Biaya pada detail termin).</li>
+                                  <li>Jika panen salah termin, gunakan tombol <b>"Batalkan Panen"</b> lalu catat panen ke termin yang benar.</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Summary cards */}
                           {(() => {
                             const harvestedBatches = batches.filter((b) => b.status === 'harvested')
@@ -2202,7 +2423,7 @@ export default function HomePage() {
                                       )}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-3 shrink-0">
+                                  <div className="flex items-center gap-2 shrink-0">
                                     {isHarvested && (
                                       <div className="text-right hidden sm:block">
                                         <p className="text-xs text-muted-foreground">Pendapatan</p>
@@ -2217,6 +2438,16 @@ export default function HomePage() {
                                     >
                                       {isHarvested ? <><Pencil className="w-4 h-4" /> Edit Panen</> : <><CheckCircle2 className="w-4 h-4" /> Panen</>}
                                     </Button>
+                                    {isHarvested && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-2 shrink-0 border-red-300 text-red-600 hover:bg-red-50"
+                                        onClick={() => handleCancelHarvest(batch)}
+                                      >
+                                        <RotateCcw className="w-4 h-4" /> Batalkan
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -2516,6 +2747,11 @@ export default function HomePage() {
                           <><Pencil className="w-4 h-4" /> Edit Panen</>
                         )}
                       </Button>
+                      {selectedBatch.status === 'harvested' && (
+                        <Button variant="outline" className="gap-2 border-red-300 text-red-600 hover:bg-red-50 flex-1 sm:flex-none" onClick={() => handleCancelHarvest(selectedBatch)}>
+                          <RotateCcw className="w-4 h-4" /> Batalkan Panen
+                        </Button>
+                      )}
                       <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10 flex-1 sm:flex-none" onClick={() => handleDeleteBatch(selectedBatch.id)}>
                         <Trash2 className="w-4 h-4" /> Hapus
                       </Button>
@@ -2581,7 +2817,10 @@ export default function HomePage() {
 
                   {/* Detail Tabs: Weight, Mortality, Biaya */}
                   <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:grid-cols-4 sm:flex sm:flex-wrap">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-4 sm:grid-cols-5 sm:flex sm:flex-wrap">
+                      <TabsTrigger value="pakan" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
+                        <Wheat className="w-4 h-4" /> Pakan
+                      </TabsTrigger>
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -2595,6 +2834,89 @@ export default function HomePage() {
                         <Calculator className="w-4 h-4" /> Perhitungan
                       </TabsTrigger>
                     </TabsList>
+
+                    {/* Feed Records (per termin) */}
+                    <TabsContent value="pakan">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Wheat className="w-4 h-4 text-amber-600" />
+                              Riwayat Pakan
+                            </CardTitle>
+                            <CardDescription>Catatan pembelian pakan untuk termin ini</CardDescription>
+                          </div>
+                          {selectedBatch.status === 'active' && (
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openAddFeed(selectedBatch)}>
+                              <Plus className="w-4 h-4" /> Tambah
+                            </Button>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const feedList = selectedBatch.feedRecords ?? []
+                            const totalKg = feedList.reduce((s, f) => s + f.quantityKg, 0)
+                            const totalCost = feedList.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+                            return (
+                              <>
+                                {/* Summary row */}
+                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Jenis</p>
+                                    <p className="text-lg font-bold text-amber-700">{feedList.length}</p>
+                                  </div>
+                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Pakan</p>
+                                    <p className="text-lg font-bold text-emerald-700">{totalKg.toFixed(1)} kg</p>
+                                  </div>
+                                  <div className="bg-rose-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Biaya Pakan</p>
+                                    <p className="text-sm sm:text-lg font-bold text-rose-700 break-words">{formatCurrency(totalCost)}</p>
+                                  </div>
+                                </div>
+
+                                {feedList.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <Wheat className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">Belum ada catatan pakan untuk termin ini</p>
+                                    {selectedBatch.status === 'active' && (
+                                      <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => openAddFeed(selectedBatch)}>
+                                        <Plus className="w-3 h-3" /> Tambah Pakan Pertama
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                                    {feedList.map((f) => (
+                                      <div key={f.id} className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                            <Wheat className="w-5 h-5 text-amber-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="font-medium text-sm truncate">{f.feedType}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{f.quantityKg} kg × {formatCurrency(f.pricePerKg)}/kg • {formatDate(f.date)}{f.notes ? ` • ${f.notes}` : ''}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          <p className="font-bold text-sm">{formatCurrency(f.quantityKg * f.pricePerKg)}</p>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={(ev) => { ev.stopPropagation(); openEditFeed(f, selectedBatch) }}>
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-8 w-8 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); handleDeleteFeed(f.id) }}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
 
                     {/* Weight Records */}
                     <TabsContent value="berat">
@@ -3165,9 +3487,29 @@ export default function HomePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Konfirmasi termin yang dipanen — mencegah salah-termin panen */}
+            {selectedBatch && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-600" />
+                  <p className="font-semibold text-sm text-amber-800">Konfirmasi Termin yang Dipanen</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-amber-900">
+                  <div><span className="text-amber-700">Termin:</span> <span className="font-medium">{selectedBatch.name} (#{selectedBatch.terminNumber})</span></div>
+                  <div><span className="text-amber-700">Tgl Ayam Masuk:</span> <span className="font-medium">{formatDate(selectedBatch.arrivalDate)}</span></div>
+                  <div><span className="text-amber-700">Jumlah Awal:</span> <span className="font-medium">{selectedBatch.quantity.toLocaleString('id-ID')} ekor</span></div>
+                  <div><span className="text-amber-700">Ayam Hidup:</span> <span className="font-medium">{(selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)).toLocaleString('id-ID')} ekor</span></div>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Tanggal Panen</Label>
               <Input type="date" value={harvestForm.harvestDate} onChange={(e) => setHarvestForm({ ...harvestForm, harvestDate: e.target.value })} />
+              {harvestDateError && (
+                <p className="text-xs text-red-600 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />{harvestDateError}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -3175,6 +3517,11 @@ export default function HomePage() {
                 <Input type="number" min="0" placeholder="4800" value={harvestForm.harvestQuantity} onChange={(e) => setHarvestForm({ ...harvestForm, harvestQuantity: e.target.value })} />
                 {selectedBatch && (
                   <p className="text-xs text-muted-foreground">Hidup: {selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)} ekor</p>
+                )}
+                {selectedBatch && harvestForm.harvestQuantity && parseInt(harvestForm.harvestQuantity) > (selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)) && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />Jumlah panen melebihi ayam hidup saat ini
+                  </p>
                 )}
               </div>
               <div className="space-y-2">
@@ -3200,7 +3547,7 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
+            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg || harvestDateError}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (selectedBatch?.status === 'harvested' ? 'Simpan Perubahan' : 'Konfirmasi Panen')}
             </Button>
           </div>
@@ -3315,6 +3662,65 @@ export default function HomePage() {
             </div>
             <Button onClick={handleAddEquipment} className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" disabled={submitting || (!selectedBatch && !dialogBatchId) || !equipmentForm.name || !equipmentForm.quantity || !equipmentForm.unitPrice || !equipmentForm.purchaseDate}>
               {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingEquipment ? 'Simpan Perubahan' : 'Simpan Biaya')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Pakan Dialog */}
+      <Dialog open={addFeedOpen} onOpenChange={(open) => { setAddFeedOpen(open); if (!open) setEditingFeed(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wheat className="w-5 h-5 text-amber-600" />
+              {editingFeed ? 'Edit Pakan' : 'Tambah Pakan'}
+            </DialogTitle>
+            <DialogDescription>{editingFeed ? 'Perbarui catatan pakan' : `Catat pembelian pakan untuk ${selectedBatch?.name ?? 'termin ini'}`}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Konfirmasi termin pakan — pakan wajib terikat ke sebuah termin */}
+            {selectedBatch && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+                <span className="text-amber-700">Termin:</span> <b>{selectedBatch.name} (#{selectedBatch.terminNumber})</b> — pakan terikat ke termin ini
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Tanggal Beli Pakan</Label>
+              <Input type="date" value={feedForm.date} onChange={(e) => setFeedForm({ ...feedForm, date: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Jenis Pakan</Label>
+              <Select value={feedForm.feedType} onValueChange={(v) => setFeedForm({ ...feedForm, feedType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['Starter', 'Grower', 'Finisher', 'Pre-Starter', 'Konsentrat', 'Lainnya'].map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Jumlah (kg)</Label>
+                <Input type="number" step="0.01" min="0" placeholder="50" value={feedForm.quantityKg} onChange={(e) => setFeedForm({ ...feedForm, quantityKg: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Harga/kg (Rp)</Label>
+                <Input type="number" step="100" min="0" placeholder="8500" value={feedForm.pricePerKg} onChange={(e) => setFeedForm({ ...feedForm, pricePerKg: e.target.value })} />
+              </div>
+            </div>
+            {feedForm.quantityKg && feedForm.pricePerKg && (
+              <div className="bg-amber-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-muted-foreground">Total Biaya Pakan</p>
+                <p className="text-lg font-bold text-amber-700">{formatCurrency(parseFloat(feedForm.quantityKg) * parseFloat(feedForm.pricePerKg))}</p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Catatan (opsional)</Label>
+              <Textarea placeholder="mis. Sak ke-3, pakan tambahan..." value={feedForm.notes} onChange={(e) => setFeedForm({ ...feedForm, notes: e.target.value })} rows={2} />
+            </div>
+            <Button onClick={handleAddFeed} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !feedForm.date || !feedForm.feedType || !feedForm.quantityKg || !feedForm.pricePerKg}>
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingFeed ? 'Simpan Perubahan' : 'Simpan Data Pakan')}
             </Button>
           </div>
         </DialogContent>
