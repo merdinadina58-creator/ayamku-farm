@@ -58,3 +58,4 @@ db/*.db
 db/*.db-journal
 test-*.png
 *.png
+tool-results/
