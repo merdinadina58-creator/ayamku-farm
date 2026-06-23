@@ -80,6 +80,19 @@ interface MortalityRecord {
   createdAt: string
 }
 
+interface HarvestRecord {
+  id: string
+  batchId: string
+  date: string
+  quantity: number
+  weightPerEkor: number
+  sellingPricePerKg: number
+  buyerName: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 interface Batch {
   id: string
   name: string
@@ -99,6 +112,7 @@ interface Batch {
   weightRecords: WeightRecord[]
   mortalityRecords: MortalityRecord[]
   equipment: Equipment[]
+  harvestRecords: HarvestRecord[]
 }
 
 interface DashboardData {
@@ -110,6 +124,7 @@ interface DashboardData {
   totalFeedKg: number
   totalFeedCost: number
   totalHarvestRevenue: number
+  totalHarvestedEkor: number
   batchSummaries: Array<{
     id: string
     name: string
@@ -132,12 +147,16 @@ interface DashboardData {
     totalHarvestKg: number
     totalHarvestValue: number
     profit: number
+    harvestRecordsCount: number
   }>
 }
 
 interface CalendarEvent {
   type: 'tiba' | 'panen'
   batch: Batch
+  // Untuk event 'panen' partial — referensi ke harvest record spesifik.
+  // Jika undefined, event ini dari legacy batch.harvestDate.
+  harvestRecord?: HarvestRecord
 }
 
 interface Equipment {
@@ -209,11 +228,7 @@ const SECTION_LABELS: Record<string, string> = {
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: 'text-emerald-600' },
   { id: 'termin', label: 'Termin', icon: Package, iconColor: 'text-emerald-600' },
-  { id: 'berat', label: 'Berat', icon: Scale, iconColor: 'text-teal-600' },
-  { id: 'mortalitas', label: 'Mortalitas', icon: Skull, iconColor: 'text-red-600' },
-  { id: 'biaya', label: 'Biaya', icon: Wrench, iconColor: 'text-indigo-600' },
   { id: 'panen', label: 'Panen', icon: ShoppingBasket, iconColor: 'text-amber-600' },
-  { id: 'hitung', label: 'Perhitungan', icon: Calculator, iconColor: 'text-rose-600' },
   { id: 'kalender', label: 'Kalender', icon: CalendarDays, iconColor: 'text-emerald-600' },
   { id: 'settings', label: 'Pengaturan', icon: Settings, iconColor: 'text-gray-600' },
 ] as const
@@ -247,8 +262,21 @@ export default function HomePage() {
   const [addBatchOpen, setAddBatchOpen] = useState(false)
   const [addWeightOpen, setAddWeightOpen] = useState(false)
   const [addMortalityOpen, setAddMortalityOpen] = useState(false)
-  const [harvestOpen, setHarvestOpen] = useState(false)
   const [addEquipmentOpen, setAddEquipmentOpen] = useState(false)
+
+  // Panen (multiple harvest records) — satu termin bisa dipanen beberapa kali.
+  const [addHarvestRecordOpen, setAddHarvestRecordOpen] = useState(false)
+  const [editingHarvestRecord, setEditingHarvestRecord] = useState<HarvestRecord | null>(null)
+  // Batch yang jadi konteks form panen (default = selectedBatch, atau bisa di-override
+  // lewat dropdown termin di dialog saat dibuka dari section global).
+  const [harvestRecordBatchId, setHarvestRecordBatchId] = useState('')
+  const [harvestRecordForm, setHarvestRecordForm] = useState({
+    date: '', quantity: '', weightPerEkor: '', sellingPricePerKg: '', buyerName: '', notes: '',
+  })
+
+  // Tab aktif di batch detail (Berat/Mortalitas/Biaya/Panen). Default 'berat'.
+  // Dipakai supaya tombol "Kelola Panen" bisa langsung switch ke tab Panen.
+  const [activeBatchTab, setActiveBatchTab] = useState<'berat' | 'mortalitas' | 'biaya' | 'panen'>('berat')
 
   // When adding feed/weight/mortality from a MAIN section (not from batch detail),
   // we need the user to pick which batch the record belongs to.
@@ -279,9 +307,6 @@ export default function HomePage() {
   })
   const [mortalityForm, setMortalityForm] = useState({
     date: '', quantity: '', reason: 'sakit', notes: '',
-  })
-  const [harvestForm, setHarvestForm] = useState({
-    harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '',
   })
 
   // ============================================================
@@ -426,52 +451,112 @@ export default function HomePage() {
     }
   }
 
-  const openHarvestDialog = (batch: Batch) => {
+  // ============================================================
+  // Panen (multiple harvest records) helpers
+  // ============================================================
+
+  // Buka dialog tambah panen. Jika dari batch detail, batchId = selectedBatch.id.
+  // Jika dari section global (tanpa selectedBatch), batchId = batch pertama.
+  const openAddHarvestRecordDialog = (batch: Batch) => {
     setSelectedBatch(batch)
-    if (batch.status === 'harvested') {
-      // Edit mode — pre-fill form dengan data panen yang sudah ada
-      setHarvestForm({
-        harvestDate: batch.harvestDate ? new Date(batch.harvestDate).toISOString().split('T')[0] : '',
-        harvestWeight: batch.harvestWeight?.toString() || '',
-        harvestQuantity: batch.harvestQuantity?.toString() || '',
-        sellingPricePerKg: batch.sellingPricePerKg?.toString() || '',
-      })
-    } else {
-      // New harvest mode — form kosong
-      setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
-    }
-    setHarvestOpen(true)
+    setHarvestRecordBatchId(batch.id)
+    setEditingHarvestRecord(null)
+    // Default tanggal = hari ini.
+    const today = new Date().toISOString().split('T')[0]
+    setHarvestRecordForm({
+      date: today, quantity: '', weightPerEkor: '', sellingPricePerKg: '', buyerName: '', notes: '',
+    })
+    setAddHarvestRecordOpen(true)
   }
 
-  const handleHarvest = async () => {
-    if (!selectedBatch) return
+  // Buka dialog edit panen — pre-fill form dari record yang ada.
+  const openEditHarvestRecordDialog = (batch: Batch, record: HarvestRecord) => {
+    setSelectedBatch(batch)
+    setHarvestRecordBatchId(batch.id)
+    setEditingHarvestRecord(record)
+    setHarvestRecordForm({
+      date: new Date(record.date).toISOString().split('T')[0],
+      quantity: String(record.quantity),
+      weightPerEkor: String(record.weightPerEkor),
+      sellingPricePerKg: String(record.sellingPricePerKg),
+      buyerName: record.buyerName || '',
+      notes: record.notes || '',
+    })
+    setAddHarvestRecordOpen(true)
+  }
+
+  const handleSaveHarvestRecord = async () => {
+    const batchId = harvestRecordBatchId || selectedBatch?.id
+    if (!batchId) return
     if (submittingRef.current) return
     submittingRef.current = true
     setSubmitting(true)
-    const isEdit = selectedBatch.status === 'harvested'
+    const isEdit = !!editingHarvestRecord
     try {
-      const res = await fetch(`/api/batches/${selectedBatch.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'harvested',
-          harvestDate: harvestForm.harvestDate,
-          harvestWeight: harvestForm.harvestWeight,
-          harvestQuantity: harvestForm.harvestQuantity,
-          sellingPricePerKg: harvestForm.sellingPricePerKg,
-        }),
+      const payload = {
+        date: harvestRecordForm.date,
+        quantity: harvestRecordForm.quantity,
+        weightPerEkor: harvestRecordForm.weightPerEkor,
+        sellingPricePerKg: harvestRecordForm.sellingPricePerKg,
+        buyerName: harvestRecordForm.buyerName,
+        notes: harvestRecordForm.notes,
+      }
+      const res = isEdit
+        ? await fetch(`/api/harvest-records/${editingHarvestRecord!.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/harvest-records', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, batchId }),
+          })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error || 'Gagal menyimpan panen')
+      }
+      // Update selectedBatch agar UI detail langsung sinkron.
+      await fetchData()
+      setAddHarvestRecordOpen(false)
+      setEditingHarvestRecord(null)
+      setHarvestRecordBatchId('')
+      setHarvestRecordForm({
+        date: '', quantity: '', weightPerEkor: '', sellingPricePerKg: '', buyerName: '', notes: '',
       })
-      if (!res.ok) throw new Error()
-      setHarvestOpen(false)
-      setHarvestForm({ harvestDate: '', harvestWeight: '', harvestQuantity: '', sellingPricePerKg: '' })
-      toast({ title: 'Berhasil! 🎉', description: isEdit ? 'Data panen berhasil diperbarui' : 'Ayam berhasil dipanen' })
-      fetchData()
-    } catch {
-      toast({ title: 'Error', description: 'Gagal memperbarui status panen', variant: 'destructive' })
+      toast({
+        title: 'Berhasil! 🎉',
+        description: isEdit ? 'Panen berhasil diperbarui' : 'Panen berhasil dicatat',
+      })
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : 'Gagal menyimpan panen',
+        variant: 'destructive',
+      })
     } finally {
       submittingRef.current = false
       setSubmitting(false)
     }
+  }
+
+  const handleDeleteHarvestRecord = async (record: HarvestRecord) => {
+    if (!confirm(`Yakin ingin menghapus catatan panen ${record.quantity} ekor tanggal ${formatDate(record.date)}?`)) return
+    try {
+      const res = await fetch(`/api/harvest-records/${record.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Dihapus', description: 'Catatan panen dihapus' })
+      fetchData()
+    } catch {
+      toast({ title: 'Error', description: 'Gagal menghapus catatan panen', variant: 'destructive' })
+    }
+  }
+
+  // Navigasi ke batch detail + switch tab ke Panen (dipakai tombol "Kelola Panen" / "Panen").
+  const goToBatchPanenTab = (batch: Batch) => {
+    setSelectedBatch(batch)
+    setActiveBatchTab('panen')
+    setView('batch-detail')
   }
 
   const handleDeleteWeight = async (id: string) => {
@@ -510,6 +595,7 @@ export default function HomePage() {
 
   const openBatchDetail = (batch: Batch) => {
     setSelectedBatch(batch)
+    setActiveBatchTab('berat')
     setView('batch-detail')
   }
 
@@ -676,18 +762,31 @@ export default function HomePage() {
       : batch.initialWeight * 1000
     const weightGain = latestWeight - batch.initialWeight * 1000
     const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
-    const now = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
+    // Reference date untuk hitung umur: jika batch sudah panen (status harvested),
+    // pakai tanggal panen terbaru (dari harvestRecords, atau legacy harvestDate).
+    const latestHarvestDate = batch.harvestRecords.length > 0
+      ? batch.harvestRecords
+          .map((h) => new Date(h.date))
+          .reduce((latest, d) => d > latest ? d : latest, new Date(batch.harvestRecords[0].date))
+      : batch.harvestDate
+    const now = batch.status === 'harvested' && latestHarvestDate ? new Date(latestHarvestDate) : new Date()
     const arrival = new Date(batch.arrivalDate)
     const ageDays = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
     const feedPerEkor = aliveCount > 0 ? totalFeed / aliveCount : 0
     const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
 
-    // Harvest calculations
-    const harvestQty = batch.harvestQuantity || 0
-    const harvestWt = batch.harvestWeight || 0
-    const sellPrice = batch.sellingPricePerKg || 0
-    const totalHarvestKg = harvestQty * harvestWt
-    const totalHarvestValue = totalHarvestKg * sellPrice
+    // Harvest calculations — dari sum harvestRecords (atau fallback legacy).
+    // Virtual migration di API menjamin batch.harvestRecords selalu terisi
+    // jika ada data panen (legacy atau baru).
+    const harvestQty = batch.harvestRecords.reduce((s, h) => s + h.quantity, 0)
+    const totalHarvestKg = batch.harvestRecords.reduce((s, h) => s + h.quantity * h.weightPerEkor, 0)
+    const totalHarvestValue = batch.harvestRecords.reduce(
+      (s, h) => s + h.quantity * h.weightPerEkor * h.sellingPricePerKg,
+      0
+    )
+    // Berat rata-rata & harga rata-rata tertimbang (untuk display).
+    const harvestWt = harvestQty > 0 ? totalHarvestKg / harvestQty : 0
+    const sellPrice = totalHarvestKg > 0 ? totalHarvestValue / totalHarvestKg : 0
     const profit = totalHarvestValue - totalCost
 
     return {
@@ -697,6 +796,14 @@ export default function HomePage() {
     }
   }
 
+  // Sisa ayam yang masih bisa dipanen untuk sebuah batch (kapasitas - sudah dipanen).
+  // Dipakai untuk hint di form tambah/edit panen.
+  const getRemainingHarvestable = (batch: Batch) => {
+    const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+    const totalHarvested = batch.harvestRecords.reduce((s, h) => s + h.quantity, 0)
+    return Math.max(0, batch.quantity - totalDead - totalHarvested)
+  }
+
   // Calendar events derived from batches
   const calendarEvents = useMemo(() => {
     const events: Record<string, CalendarEvent[]> = {}
@@ -704,11 +811,14 @@ export default function HomePage() {
       const arriveKey = new Date(batch.arrivalDate).toDateString()
       if (!events[arriveKey]) events[arriveKey] = []
       events[arriveKey].push({ type: 'tiba', batch })
-      if (batch.harvestDate) {
-        const harvestKey = new Date(batch.harvestDate).toDateString()
-        if (!events[harvestKey]) events[harvestKey] = []
-        events[harvestKey].push({ type: 'panen', batch })
-      }
+      // Setiap harvest record → satu event panen (partial harvest).
+      // Virtual migration di API menjamin batch.harvestRecords terisi
+      // untuk data lama (legacy) juga.
+      batch.harvestRecords.forEach((hr) => {
+        const key = new Date(hr.date).toDateString()
+        if (!events[key]) events[key] = []
+        events[key].push({ type: 'panen', batch, harvestRecord: hr })
+      })
     })
     return events
   }, [batches])
@@ -1323,11 +1433,17 @@ export default function HomePage() {
 
                 {/* Panen Section */}
                 {activeSection === 'panen' && (() => {
-                  const harvestedBatches = batches.filter(b => b.status === 'harvested')
+                  // Termin yang PUNYA harvest records (status=harvested ATAU partial harvested).
+                  // Virtual migration menjamin batch dengan legacy harvestDate punya
+                  // setidaknya 1 virtual harvest record.
+                  const batchesWithHarvest = batches.filter(b => b.harvestRecords.length > 0)
                   const activeBatches = batches.filter(b => b.status === 'active')
-                  const totalHarvestQty = harvestedBatches.reduce((s, b) => s + (b.harvestQuantity || 0), 0)
-                  const totalHarvestKg = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0)), 0)
-                  const totalRevenue = harvestedBatches.reduce((s, b) => s + ((b.harvestQuantity || 0) * (b.harvestWeight || 0) * (b.sellingPricePerKg || 0)), 0)
+                  const totalHarvestQty = batches.reduce((s, b) => s + b.harvestRecords.reduce((s2, h) => s2 + h.quantity, 0), 0)
+                  const totalHarvestKg = batches.reduce((s, b) => s + b.harvestRecords.reduce((s2, h) => s2 + h.quantity * h.weightPerEkor, 0), 0)
+                  const totalRevenue = batches.reduce(
+                    (s, b) => s + b.harvestRecords.reduce((s2, h) => s2 + h.quantity * h.weightPerEkor * h.sellingPricePerKg, 0),
+                    0
+                  )
                   return (
                     <div className="space-y-4">
                       {/* Summary cards */}
@@ -1340,7 +1456,7 @@ export default function HomePage() {
                               </div>
                               <p className="text-xs text-muted-foreground">Termin Panen</p>
                             </div>
-                            <p className="text-2xl font-bold text-amber-700">{harvestedBatches.length}</p>
+                            <p className="text-2xl font-bold text-amber-700">{batchesWithHarvest.length}</p>
                             <p className="text-xs text-muted-foreground">dari {batches.length} termin</p>
                           </CardContent>
                         </Card>
@@ -1377,7 +1493,7 @@ export default function HomePage() {
                               <p className="text-xs text-muted-foreground">Total Pendapatan</p>
                             </div>
                             <p className="text-xl sm:text-2xl font-bold text-green-700 break-words">{formatCurrency(totalRevenue)}</p>
-                            <p className="text-xs text-muted-foreground">dari {harvestedBatches.length} panen</p>
+                            <p className="text-xs text-muted-foreground">dari {batchesWithHarvest.length} termin</p>
                           </CardContent>
                         </Card>
                       </div>
@@ -1392,7 +1508,7 @@ export default function HomePage() {
                           <CardDescription>
                             {batches.length === 0
                               ? 'Tambahkan termin terlebih dahulu untuk mencatat panen'
-                              : 'Catat dan kelola data panen untuk setiap termin ayam'}
+                              : 'Catat panen partial (bertahap) — satu termin bisa dipanen beberapa kali sampai semua ayam terjual'}
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -1411,9 +1527,11 @@ export default function HomePage() {
                             </div>
                           ) : (
                             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                              {/* Harvested batches first */}
-                              {harvestedBatches.map((batch) => {
-                                const revenue = (batch.harvestQuantity || 0) * (batch.harvestWeight || 0) * (batch.sellingPricePerKg || 0)
+                              {/* Batches yang sudah punya catatan panen (partial atau lengkap) */}
+                              {batchesWithHarvest.map((batch) => {
+                                const stats = getBatchStats(batch)
+                                const remaining = getRemainingHarvestable(batch)
+                                const lastHarvestDate = batch.harvestRecords[0]?.date
                                 return (
                                   <Card key={batch.id} className="border-amber-200 bg-amber-50/40 overflow-hidden">
                                     <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
@@ -1422,41 +1540,51 @@ export default function HomePage() {
                                         <div className="min-w-0 flex-1">
                                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             <h4 className="font-bold truncate">{batch.name}</h4>
-                                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Panen</Badge>
+                                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                                              {batch.status === 'harvested' ? 'Panen Lengkap' : 'Panen Sebagian'}
+                                            </Badge>
+                                            <Badge variant="outline" className="text-xs">{batch.harvestRecords.length} catatan</Badge>
                                           </div>
                                           <p className="text-xs text-muted-foreground mb-2">
-                                            Tgl Panen: {batch.harvestDate ? formatDate(batch.harvestDate) : '—'} • Termin #{batch.terminNumber}
+                                            Panen terakhir: {lastHarvestDate ? formatDate(lastHarvestDate) : '—'} • Termin #{batch.terminNumber}
                                           </p>
                                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                             <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Jumlah</p>
-                                              <p className="text-sm font-bold text-amber-700">{(batch.harvestQuantity || 0).toLocaleString('id-ID')} ekor</p>
+                                              <p className="text-[10px] text-muted-foreground">Dipanen</p>
+                                              <p className="text-sm font-bold text-amber-700">{stats.harvestQty.toLocaleString('id-ID')} ekor</p>
                                             </div>
                                             <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Berat/Ekor</p>
-                                              <p className="text-sm font-bold text-orange-700">{(batch.harvestWeight || 0).toFixed(2)} kg</p>
+                                              <p className="text-[10px] text-muted-foreground">Berat Total</p>
+                                              <p className="text-sm font-bold text-orange-700">{stats.totalHarvestKg.toFixed(1)} kg</p>
                                             </div>
                                             <div className="bg-white/60 rounded-lg p-2">
-                                              <p className="text-[10px] text-muted-foreground">Harga/kg</p>
-                                              <p className="text-sm font-bold text-emerald-700">{formatCurrency(batch.sellingPricePerKg || 0)}</p>
+                                              <p className="text-[10px] text-muted-foreground">Sisa</p>
+                                              <p className={`text-sm font-bold ${remaining > 0 ? 'text-emerald-700' : 'text-gray-500'}`}>{remaining.toLocaleString('id-ID')} ekor</p>
                                             </div>
                                             <div className="bg-white/60 rounded-lg p-2">
                                               <p className="text-[10px] text-muted-foreground">Pendapatan</p>
-                                              <p className="text-sm font-bold text-green-700 break-words">{formatCurrency(revenue)}</p>
+                                              <p className="text-sm font-bold text-green-700 break-words">{formatCurrency(stats.totalHarvestValue)}</p>
                                             </div>
                                           </div>
                                         </div>
-                                        <Button variant="outline" size="sm" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100 shrink-0" onClick={() => openHarvestDialog(batch)}>
-                                          <Pencil className="w-4 h-4" /> Edit Panen
-                                        </Button>
+                                        <div className="flex flex-col gap-2 shrink-0">
+                                          <Button variant="outline" size="sm" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => goToBatchPanenTab(batch)}>
+                                            <Pencil className="w-4 h-4" /> Kelola Panen
+                                          </Button>
+                                          {remaining > 0 && (
+                                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" onClick={() => openAddHarvestRecordDialog(batch)}>
+                                              <Plus className="w-4 h-4" /> Tambah Panen
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
                                     </CardContent>
                                   </Card>
                                 )
                               })}
 
-                              {/* Active batches (not yet harvested) */}
-                              {activeBatches.map((batch) => {
+                              {/* Active batches yang belum punya catatan panen sama sekali */}
+                              {activeBatches.filter((b) => b.harvestRecords.length === 0).map((batch) => {
                                 const stats = getBatchStats(batch)
                                 return (
                                   <Card key={batch.id} className="border-emerald-200 overflow-hidden">
@@ -1472,7 +1600,7 @@ export default function HomePage() {
                                             Termin #{batch.terminNumber} • {stats.aliveCount.toLocaleString('id-ID')} ekor hidup • Umur {stats.ageDays} hari • Tiba {formatDate(batch.arrivalDate)}
                                           </p>
                                         </div>
-                                        <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openHarvestDialog(batch)}>
+                                        <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openAddHarvestRecordDialog(batch)}>
                                           <CheckCircle2 className="w-4 h-4" /> Panen
                                         </Button>
                                       </div>
@@ -1481,9 +1609,9 @@ export default function HomePage() {
                                 )
                               })}
 
-                              {batches.length > 0 && harvestedBatches.length === 0 && activeBatches.length > 0 && (
+                              {batches.length > 0 && batchesWithHarvest.length === 0 && (
                                 <p className="text-center text-xs text-muted-foreground pt-2">
-                                  Belum ada termin yang dipanen. Klik tombol <span className="font-semibold text-amber-700">Panen</span> pada termin di atas untuk mencatat panen.
+                                  Belum ada termin yang dipanen. Klik tombol <span className="font-semibold text-amber-700">Panen</span> pada termin di atas untuk mencatat panen pertama.
                                 </p>
                               )}
                             </div>
@@ -1887,7 +2015,7 @@ export default function HomePage() {
                 <div className="space-y-6">
                   {/* Back button & header */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 relative z-10">
-                    <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null); setActiveSection('termin') }} className="w-fit gap-2">
+                    <Button variant="ghost" onClick={() => { setView('dashboard'); setSelectedBatch(null); setActiveSection('termin'); setActiveBatchTab('berat') }} className="w-fit gap-2">
                       <ArrowLeft className="w-4 h-4" /> Kembali
                     </Button>
                     <div className="flex-1 min-w-0">
@@ -1902,12 +2030,8 @@ export default function HomePage() {
                       </p>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
-                      <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => openHarvestDialog(selectedBatch)}>
-                        {selectedBatch.status === 'active' ? (
-                          <><CheckCircle2 className="w-4 h-4" /> Panen</>
-                        ) : (
-                          <><Pencil className="w-4 h-4" /> Edit Panen</>
-                        )}
+                      <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 flex-1 sm:flex-none" onClick={() => setActiveBatchTab('panen')}>
+                        <ShoppingBasket className="w-4 h-4" /> Kelola Panen
                       </Button>
                       <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10 flex-1 sm:flex-none" onClick={() => handleDeleteBatch(selectedBatch.id)}>
                         <Trash2 className="w-4 h-4" /> Hapus
@@ -1972,9 +2096,9 @@ export default function HomePage() {
                     </Card>
                   )}
 
-                  {/* Detail Tabs: Weight, Mortality, Biaya */}
-                  <Tabs defaultValue="berat" className="space-y-4">
-                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-3 sm:flex sm:flex-wrap">
+                  {/* Detail Tabs: Weight, Mortality, Biaya, Panen */}
+                  <Tabs value={activeBatchTab} onValueChange={(v) => setActiveBatchTab(v as 'berat' | 'mortalitas' | 'biaya' | 'panen')} className="space-y-4">
+                    <TabsList className="bg-white shadow-sm border p-1 grid grid-cols-4 sm:flex sm:flex-wrap">
                       <TabsTrigger value="berat" className="gap-2 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 w-full sm:w-auto">
                         <Scale className="w-4 h-4" /> Berat
                       </TabsTrigger>
@@ -1983,6 +2107,9 @@ export default function HomePage() {
                       </TabsTrigger>
                       <TabsTrigger value="biaya" className="gap-2 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 w-full sm:w-auto">
                         <Wrench className="w-4 h-4" /> Biaya
+                      </TabsTrigger>
+                      <TabsTrigger value="panen" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 w-full sm:w-auto">
+                        <ShoppingBasket className="w-4 h-4" /> Panen
                       </TabsTrigger>
                     </TabsList>
 
@@ -2189,6 +2316,137 @@ export default function HomePage() {
                                         </div>
                                       </div>
                                     ))}
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Panen Records (partial harvest) */}
+                    <TabsContent value="panen">
+                      <Card className="border-0 shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <ShoppingBasket className="w-4 h-4 text-amber-600" />
+                              Riwayat Panen
+                            </CardTitle>
+                            <CardDescription>Catat panen bertahap — satu termin bisa dipanen beberapa kali</CardDescription>
+                          </div>
+                          {getRemainingHarvestable(selectedBatch) > 0 && (
+                            <Button size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shrink-0" onClick={() => openAddHarvestRecordDialog(selectedBatch)}>
+                              <Plus className="w-4 h-4" /> Tambah Panen
+                            </Button>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          {(() => {
+                            const harvestList = selectedBatch.harvestRecords
+                            const totalHarvested = harvestList.reduce((s, h) => s + h.quantity, 0)
+                            const totalKg = harvestList.reduce((s, h) => s + h.quantity * h.weightPerEkor, 0)
+                            const totalRevenue = harvestList.reduce((s, h) => s + h.quantity * h.weightPerEkor * h.sellingPricePerKg, 0)
+                            const totalDead = selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
+                            const remaining = Math.max(0, selectedBatch.quantity - totalDead - totalHarvested)
+                            return (
+                              <>
+                                {/* Summary row */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Dipanen</p>
+                                    <p className="text-lg font-bold text-amber-700">{totalHarvested.toLocaleString('id-ID')} ekor</p>
+                                  </div>
+                                  <div className="bg-orange-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Total Berat</p>
+                                    <p className="text-lg font-bold text-orange-700">{totalKg.toFixed(1)} kg</p>
+                                  </div>
+                                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Sisa Ayam</p>
+                                    <p className={`text-lg font-bold ${remaining > 0 ? 'text-emerald-700' : 'text-gray-500'}`}>{remaining.toLocaleString('id-ID')} ekor</p>
+                                  </div>
+                                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-muted-foreground">Pendapatan</p>
+                                    <p className="text-sm sm:text-lg font-bold text-green-700 break-words">{formatCurrency(totalRevenue)}</p>
+                                  </div>
+                                </div>
+
+                                {/* Status badge row */}
+                                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge className={selectedBatch.status === 'active' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                                      {selectedBatch.status === 'active' ? 'Aktif' : 'Panen Lengkap'}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      {harvestList.length} catatan panen
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    Kapasitas: {(selectedBatch.quantity - totalDead).toLocaleString('id-ID')} ekor • Terpanen: {totalHarvested.toLocaleString('id-ID')} ({selectedBatch.quantity - totalDead > 0 ? Math.round((totalHarvested / (selectedBatch.quantity - totalDead)) * 100) : 0}%)
+                                  </span>
+                                </div>
+
+                                {harvestList.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    <ShoppingBasket className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-sm">Belum ada catatan panen</p>
+                                    <p className="text-xs mt-1">Klik &quot;Tambah Panen&quot; untuk mencatat penjualan ayam.</p>
+                                    {getRemainingHarvestable(selectedBatch) > 0 && (
+                                      <Button size="sm" variant="outline" className="mt-3 gap-2 border-amber-300 text-amber-700 hover:bg-amber-50" onClick={() => openAddHarvestRecordDialog(selectedBatch)}>
+                                        <Plus className="w-3 h-3" /> Tambah Panen Pertama
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
+                                    {harvestList.map((h) => {
+                                      const revenue = h.quantity * h.weightPerEkor * h.sellingPricePerKg
+                                      const totalKgH = h.quantity * h.weightPerEkor
+                                      return (
+                                        <div key={h.id} className="p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-transparent hover:from-amber-50 transition-colors group">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                                              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                                <ShoppingBasket className="w-5 h-5 text-amber-600" />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  <p className="font-medium text-sm">{formatDate(h.date)}</p>
+                                                  {h.buyerName && (
+                                                    <Badge variant="outline" className="text-xs">{h.buyerName}</Badge>
+                                                  )}
+                                                  {h.id.startsWith('legacy_') && (
+                                                    <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Data Lama</Badge>
+                                                  )}
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                  {h.quantity.toLocaleString('id-ID')} ekor × {h.weightPerEkor.toFixed(2)} kg × {formatCurrency(h.sellingPricePerKg)}/kg
+                                                </p>
+                                                {h.notes && (
+                                                  <p className="text-xs text-muted-foreground mt-0.5 italic truncate">"{h.notes}"</p>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                              <p className="font-bold text-sm text-green-700">{formatCurrency(revenue)}</p>
+                                              <p className="text-[10px] text-muted-foreground">{totalKgH.toFixed(1)} kg</p>
+                                              <div className="flex items-center gap-1">
+                                                <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-amber-700 hover:text-amber-900 hover:bg-amber-100" onClick={(e) => { e.stopPropagation(); openEditHarvestRecordDialog(selectedBatch, h) }} title="Edit panen">
+                                                  <Pencil className="w-3.5 h-3.5" />
+                                                </Button>
+                                                {/* Tombol hapus disembunyikan untuk virtual (legacy) record. */}
+                                                {!h.id.startsWith('legacy_') && (
+                                                  <Button variant="ghost" size="icon" className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteHarvestRecord(h) }} title="Hapus panen">
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </Button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
                                   </div>
                                 )}
                               </>
@@ -2436,58 +2694,102 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Harvest Dialog */}
-      <Dialog open={harvestOpen} onOpenChange={setHarvestOpen}>
+      {/* Add/Edit Harvest Record Dialog (partial harvest) */}
+      <Dialog open={addHarvestRecordOpen} onOpenChange={(open) => { setAddHarvestRecordOpen(open); if (!open) { setEditingHarvestRecord(null); setHarvestRecordBatchId('') } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShoppingBasket className="w-5 h-5 text-amber-600" />
-              {selectedBatch?.status === 'harvested' ? 'Edit Data Panen' : 'Panen Ayam'}
+              {editingHarvestRecord ? 'Edit Catatan Panen' : 'Tambah Catatan Panen'}
             </DialogTitle>
             <DialogDescription>
-              {selectedBatch?.status === 'harvested'
-                ? `Perbarui data panen untuk termin ${selectedBatch?.name}`
-                : `Tandai termin ${selectedBatch?.name} sebagai sudah panen`}
+              {editingHarvestRecord
+                ? `Perbarui data panen untuk termin ${selectedBatch?.name ?? ''}`
+                : `Catat panen partial untuk termin ${selectedBatch?.name ?? ''}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Pilih termin — hanya muncul jika tidak ada selectedBatch (dari section global). */}
+            {!selectedBatch && (
+              <div className="space-y-2">
+                <Label>Termin</Label>
+                <Select
+                  value={harvestRecordBatchId}
+                  onValueChange={(v) => setHarvestRecordBatchId(v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih termin..." /></SelectTrigger>
+                  <SelectContent>
+                    {batches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name} — Termin #{b.terminNumber}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Tanggal Panen</Label>
-              <Input type="date" value={harvestForm.harvestDate} onChange={(e) => setHarvestForm({ ...harvestForm, harvestDate: e.target.value })} />
+              <Input type="date" value={harvestRecordForm.date} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, date: e.target.value })} />
             </div>
+            {/* Info sisa ayam yang bisa dipanen */}
+            {(() => {
+              const ctxBatch = selectedBatch || batches.find((b) => b.id === harvestRecordBatchId)
+              if (!ctxBatch) return null
+              // Untuk edit mode: sisa = remaining + qty record ini (karena qty record ini akan di-replace).
+              const baseRemaining = getRemainingHarvestable(ctxBatch)
+              const editableQty = editingHarvestRecord ? editingHarvestRecord.quantity : 0
+              const effectiveRemaining = baseRemaining + editableQty
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                  Sisa ayam yang bisa dipanen: <span className="font-bold">{effectiveRemaining.toLocaleString('id-ID')} ekor</span>
+                  {editingHarvestRecord && (
+                    <span className="block text-[10px] text-amber-600 mt-0.5">(termasuk {editableQty} ekor dari catatan ini yang sedang di-edit)</span>
+                  )}
+                </div>
+              )
+            })()}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Jumlah Panen (ekor)</Label>
-                <Input type="number" min="0" placeholder="4800" value={harvestForm.harvestQuantity} onChange={(e) => setHarvestForm({ ...harvestForm, harvestQuantity: e.target.value })} />
-                {selectedBatch && (
-                  <p className="text-xs text-muted-foreground">Hidup: {selectedBatch.quantity - selectedBatch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)} ekor</p>
-                )}
+                <Label>Jumlah Ekor</Label>
+                <Input type="number" min="1" placeholder="100" value={harvestRecordForm.quantity} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, quantity: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Berat Rata-rata (kg/ekor)</Label>
-                <Input type="number" step="0.01" min="0" placeholder="1.8" value={harvestForm.harvestWeight} onChange={(e) => setHarvestForm({ ...harvestForm, harvestWeight: e.target.value })} />
+                <Label>Berat per Ekor (kg)</Label>
+                <Input type="number" step="0.01" min="0" placeholder="1.8" value={harvestRecordForm.weightPerEkor} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, weightPerEkor: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Harga Jual per kg (Rp)</Label>
-              <Input type="number" step="100" min="0" placeholder="22000" value={harvestForm.sellingPricePerKg} onChange={(e) => setHarvestForm({ ...harvestForm, sellingPricePerKg: e.target.value })} />
+              <Label>Harga per Kg (Rp)</Label>
+              <Input type="number" step="100" min="0" placeholder="22000" value={harvestRecordForm.sellingPricePerKg} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, sellingPricePerKg: e.target.value })} />
             </div>
-            {harvestForm.harvestQuantity && harvestForm.harvestWeight && harvestForm.sellingPricePerKg && (
+            <div className="space-y-2">
+              <Label>Nama Pembeli (opsional)</Label>
+              <Input placeholder="mis. Pak Budi, CV Ayam Sehat" value={harvestRecordForm.buyerName} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, buyerName: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Catatan (opsional)</Label>
+              <Textarea placeholder="Catatan tambahan..." value={harvestRecordForm.notes} onChange={(e) => setHarvestRecordForm({ ...harvestRecordForm, notes: e.target.value })} />
+            </div>
+            {/* Live preview total */}
+            {harvestRecordForm.quantity && harvestRecordForm.weightPerEkor && harvestRecordForm.sellingPricePerKg && (
               <div className="bg-amber-50 rounded-lg p-3">
                 <div className="grid grid-cols-2 gap-3 text-center">
                   <div>
-                    <p className="text-xs text-muted-foreground">Total Berat Panen</p>
-                    <p className="text-lg font-bold text-amber-700">{(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight)).toFixed(1)} kg</p>
+                    <p className="text-xs text-muted-foreground">Total Berat</p>
+                    <p className="text-lg font-bold text-amber-700">{(parseFloat(harvestRecordForm.quantity) * parseFloat(harvestRecordForm.weightPerEkor)).toFixed(1)} kg</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Pendapatan</p>
-                    <p className="text-base sm:text-lg font-bold text-green-700 break-words">{formatCurrency(parseFloat(harvestForm.harvestQuantity) * parseFloat(harvestForm.harvestWeight) * parseFloat(harvestForm.sellingPricePerKg))}</p>
+                    <p className="text-base sm:text-lg font-bold text-green-700 break-words">{formatCurrency(parseFloat(harvestRecordForm.quantity) * parseFloat(harvestRecordForm.weightPerEkor) * parseFloat(harvestRecordForm.sellingPricePerKg))}</p>
                   </div>
                 </div>
               </div>
             )}
-            <Button onClick={handleHarvest} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" disabled={submitting || !harvestForm.harvestDate || !harvestForm.harvestWeight || !harvestForm.harvestQuantity || !harvestForm.sellingPricePerKg}>
-              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (selectedBatch?.status === 'harvested' ? 'Simpan Perubahan' : 'Konfirmasi Panen')}
+            <Button
+              onClick={handleSaveHarvestRecord}
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+              disabled={submitting || !harvestRecordForm.date || !harvestRecordForm.quantity || !harvestRecordForm.weightPerEkor || !harvestRecordForm.sellingPricePerKg || (!selectedBatch && !harvestRecordBatchId)}
+            >
+              {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : (editingHarvestRecord ? 'Simpan Perubahan' : 'Simpan Panen')}
             </Button>
           </div>
         </DialogContent>
@@ -2634,7 +2936,7 @@ export default function HomePage() {
                     Termin #{event.batch.terminNumber} •{' '}
                     {event.type === 'tiba'
                       ? `Bibit tiba • ${event.batch.quantity.toLocaleString('id-ID')} ekor`
-                      : `Panen • ${event.batch.harvestQuantity?.toLocaleString('id-ID') || 0} ekor`}
+                      : `Panen • ${event.harvestRecord ? `${event.harvestRecord.quantity.toLocaleString('id-ID')} ekor` : `${event.batch.harvestQuantity?.toLocaleString('id-ID') || 0} ekor`}`}
                   </p>
                 </div>
                 <Badge variant="outline" className={`shrink-0 ${event.type === 'tiba' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>

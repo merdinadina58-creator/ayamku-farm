@@ -1,6 +1,42 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
+/**
+ * Menghitung total panen dari array harvestRecords.
+ * Fallback ke field legacy (harvestQuantity × harvestWeight × sellingPricePerKg)
+ * jika tidak ada harvest records (untuk data lama yang belum dimigrasi).
+ */
+function calcHarvestTotals(batch: {
+  harvestRecords: Array<{ quantity: number; weightPerEkor: number; sellingPricePerKg: number }>
+  harvestQuantity: number | null
+  harvestWeight: number | null
+  sellingPricePerKg: number | null
+}) {
+  if (batch.harvestRecords.length > 0) {
+    const totalHarvested = batch.harvestRecords.reduce((s, h) => s + h.quantity, 0)
+    const totalHarvestKg = batch.harvestRecords.reduce(
+      (s, h) => s + h.quantity * h.weightPerEkor,
+      0
+    )
+    const totalHarvestValue = batch.harvestRecords.reduce(
+      (s, h) => s + h.quantity * h.weightPerEkor * h.sellingPricePerKg,
+      0
+    )
+    return { totalHarvested, totalHarvestKg, totalHarvestValue }
+  }
+  // Fallback ke legacy.
+  const qty = batch.harvestQuantity ?? 0
+  const wt = batch.harvestWeight ?? 0
+  const price = batch.sellingPricePerKg ?? 0
+  return {
+    totalHarvested: qty,
+    totalHarvestKg: qty * wt,
+    totalHarvestValue: qty * wt * price,
+  }
+}
+
 export async function GET() {
   try {
     const batches = await db.batch.findMany({
@@ -9,6 +45,7 @@ export async function GET() {
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: true,
         equipment: true,
+        harvestRecords: true,
       },
     })
 
@@ -39,13 +76,15 @@ export async function GET() {
       0
     )
 
-    // Total harvest revenue
-    const totalHarvestRevenue = harvestedBatches.reduce((sum, b) => {
-      const harvestQty = b.harvestQuantity || 0
-      const harvestWt = b.harvestWeight || 0
-      const price = b.sellingPricePerKg || 0
-      return sum + (harvestQty * harvestWt * price)
-    }, 0)
+    // Total harvest revenue — dihitung dari sum semua HarvestRecord (atau
+    // fallback ke legacy field untuk batch lama yang belum dimigrasi).
+    let totalHarvestRevenue = 0
+    let totalHarvestedEkor = 0
+    batches.forEach((b) => {
+      const totals = calcHarvestTotals(b)
+      totalHarvestRevenue += totals.totalHarvestValue
+      totalHarvestedEkor += totals.totalHarvested
+    })
 
     // Per-batch calculations
     const batchSummaries = batches.map((batch) => {
@@ -57,20 +96,28 @@ export async function GET() {
       const weightGain = latestWeight - batch.initialWeight * 1000
       const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
 
-      // Calculate age in days (for harvested batches, use harvest date)
-      const referenceDate = batch.status === 'harvested' && batch.harvestDate ? new Date(batch.harvestDate) : new Date()
+      // Calculate age in days (for harvested batches, use latest harvest date)
+      const latestHarvestDate = batch.harvestRecords.length > 0
+        ? batch.harvestRecords.reduce((latest, h) => h.date > latest ? h.date : latest, batch.harvestRecords[0].date)
+        : batch.harvestDate
+      const referenceDate = batch.status === 'harvested' && latestHarvestDate
+        ? new Date(latestHarvestDate)
+        : new Date()
       const arrival = new Date(batch.arrivalDate)
       const ageDays = Math.floor((referenceDate.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
 
       // Mortality rate
       const mortalityRate = batch.quantity > 0 ? (totalDead / batch.quantity) * 100 : 0
 
-      // Harvest calculations
-      const harvestQuantity = batch.harvestQuantity || 0
-      const harvestWeight = batch.harvestWeight || 0
-      const sellingPricePerKg = batch.sellingPricePerKg || 0
-      const totalHarvestKg = harvestQuantity * harvestWeight
-      const totalHarvestValue = totalHarvestKg * sellingPricePerKg
+      // Harvest calculations — dari sum harvestRecords (atau fallback legacy).
+      const totals = calcHarvestTotals(batch)
+      const harvestQuantity = totals.totalHarvested
+      const totalHarvestKg = totals.totalHarvestKg
+      const totalHarvestValue = totals.totalHarvestValue
+      // Berat rata-rata per ekor (untuk info display).
+      const harvestWeight = harvestQuantity > 0 ? totalHarvestKg / harvestQuantity : 0
+      // Harga rata-rata tertimbang per kg (kg × price / total kg).
+      const sellingPricePerKg = totalHarvestKg > 0 ? totalHarvestValue / totalHarvestKg : 0
       const profit = totalHarvestValue - totalCost
 
       return {
@@ -90,11 +137,12 @@ export async function GET() {
         aliveCount,
         mortalityRate: Math.round(mortalityRate * 100) / 100,
         harvestQuantity,
-        harvestWeight,
-        sellingPricePerKg,
-        totalHarvestKg,
+        harvestWeight: Math.round(harvestWeight * 100) / 100,
+        sellingPricePerKg: Math.round(sellingPricePerKg * 100) / 100,
+        totalHarvestKg: Math.round(totalHarvestKg * 100) / 100,
         totalHarvestValue,
         profit,
+        harvestRecordsCount: batch.harvestRecords.length,
       }
     })
 
@@ -107,6 +155,7 @@ export async function GET() {
       totalFeedKg: Math.round(totalFeedKg * 100) / 100,
       totalFeedCost: Math.round(totalFeedCost * 100) / 100,
       totalHarvestRevenue,
+      totalHarvestedEkor,
       batchSummaries,
     })
   } catch (error) {

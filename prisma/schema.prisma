@@ -12,25 +12,28 @@ datasource db {
 }
 
 model Batch {
-  id               String   @id @default(cuid())
-  name             String
-  terminNumber     Int
-  arrivalDate      DateTime
-  initialWeight    Float    // kg per ekor saat datang
-  quantity         Int      // jumlah ekor awal
-  status           String   @default("active") // active, harvested
-  harvestDate      DateTime?
-  harvestWeight    Float?   // kg per ekor saat panen
-  harvestQuantity  Int?     // jumlah ekor yang dipanen
-  sellingPricePerKg Float?  // harga jual per kg saat panen
-  notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String            @id @default(cuid())
+  name              String
+  terminNumber      Int
+  arrivalDate       DateTime
+  initialWeight     Float    // kg per ekor saat datang
+  quantity          Int      // jumlah ekor awal
+  status            String   @default("active") // active, harvested
+  // LEGACY single-harvest fields (dipertahankan untuk backward compat).
+  // Panen partial sekarang disimpan di HarvestRecord (1 batch → banyak record).
+  harvestDate       DateTime?
+  harvestWeight     Float?   // kg per ekor saat panen
+  harvestQuantity   Int?     // jumlah ekor yang dipanen
+  sellingPricePerKg Float?   // harga jual per kg saat panen
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  feedRecords      FeedRecord[]
-  weightRecords    WeightRecord[]
-  mortalityRecords MortalityRecord[]
-  equipment        Equipment[]
+  feedRecords       FeedRecord[]
+  weightRecords     WeightRecord[]
+  mortalityRecords  MortalityRecord[]
+  equipment         Equipment[]
+  harvestRecords    HarvestRecord[]
 }
 
 model FeedRecord {
@@ -42,21 +45,24 @@ model FeedRecord {
   pricePerKg Float    // harga per kg
   notes      String?
   createdAt  DateTime @default(now())
+  // Nota pembelian (opsional) — Cash/BON feature.
+  notaData   String?  // base64 data URL bukti nota
+  notaName   String?  // nama file nota
 
   batch      Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 model WeightRecord {
-  id               String   @id @default(cuid())
-  batchId          String
-  date             DateTime
-  averageWeightGram Float   // rata-rata berat dalam gram
-  ageDays          Int      // umur dalam hari
-  sampleCount      Int      @default(1) // jumlah sampel
-  notes            String?
-  createdAt        DateTime @default(now())
+  id                String   @id @default(cuid())
+  batchId           String
+  date              DateTime
+  averageWeightGram Float    // rata-rata berat dalam gram
+  ageDays           Int      // umur dalam hari
+  sampleCount       Int      @default(1) // jumlah sampel
+  notes             String?
+  createdAt         DateTime @default(now())
 
-  batch            Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch             Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 model MortalityRecord {
@@ -78,19 +84,23 @@ model AppSetting {
 }
 
 model Equipment {
-  id           String   @id @default(cuid())
-  name         String   // nama barang, mis. "Broiler Pelet", "Tempat Minum Otomatis"
-  category     String   // kategori: Kandang, Peralatan Pakan & Minum, dll
-  quantity     Int      // jumlah
-  unit         String   @default("unit") // satuan: Sak, Karung, Liter, kg, dll
-  unitPrice    Float    // harga per satuan (Rp)
-  purchaseDate DateTime // tanggal pembelian
-  notes        String?
-  batchId      String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String   // nama barang, mis. "Broiler Pelet", "Tempat Minum Otomatis"
+  category      String   // kategori: Kandang, Peralatan Pakan & Minum, dll
+  quantity      Int      // jumlah
+  unit          String   @default("unit") // satuan: Sak, Karung, Liter, kg, dll
+  unitPrice     Float    // harga per satuan (Rp)
+  purchaseDate  DateTime // tanggal pembelian
+  notes         String?
+  batchId       String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
+  // Nota & metode bayar (Cash/BON feature).
+  notaData      String?  // base64 data URL bukti nota
+  notaName      String?  // nama file nota
+  paymentMethod String   @default("cash") // cash, bon (utang)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  batch        Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch         Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 // Master daftar satuan (Sak, Karung, Liter, kg, dll).
@@ -100,4 +110,31 @@ model Unit {
   id        String   @id @default(cuid())
   name      String   @unique // nama satuan, mis. "Sak"
   createdAt DateTime @default(now())
+}
+
+// Master daftar kategori peralatan/biaya (Cash/BON feature).
+// Pengguna bisa menambah kategori baru lewat UI.
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+// Catatan panen (partial harvest) — satu termin bisa dipanen beberapa kali
+// sampai semua ayam terjual. Sebelum fitur ini, panen hanya bisa 1x per
+// termin (disimpan di field legacy Batch.harvestDate/Weight/Quantity/Price).
+// Field legacy tetap dipertahankan untuk backward compat & data lama.
+model HarvestRecord {
+  id                String   @id @default(cuid())
+  batchId           String
+  date              DateTime
+  quantity          Int      // jumlah ekor dipanen pada event ini
+  weightPerEkor     Float    // kg per ekor saat panen ini (rata-rata)
+  sellingPricePerKg Float    // harga jual per kg saat panen ini
+  buyerName         String?  // nama pembeli (opsional)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  batch             Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }

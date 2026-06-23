@@ -58,3 +58,8 @@ db/*.db
 db/*.db-journal
 test-*.png
 *.png
+
+# Agent/tool working dirs
+agent-ctx/
+tool-results/
+.zscripts/

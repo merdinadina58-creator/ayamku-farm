@@ -1,6 +1,50 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
+/**
+ * Membuat virtual harvest record dari field legacy (lihat /api/batches/route.ts).
+ */
+type LegacyBatch = {
+  id: string
+  status: string
+  harvestDate: Date | null
+  harvestWeight: number | null
+  harvestQuantity: number | null
+  sellingPricePerKg: number | null
+  updatedAt: Date
+}
+
+type HarvestRecordOut = {
+  id: string
+  batchId: string
+  date: string
+  quantity: number
+  weightPerEkor: number
+  sellingPricePerKg: number
+  buyerName: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+function virtualHarvestRecord(batch: LegacyBatch): HarvestRecordOut | null {
+  if (!batch.harvestDate || !batch.harvestQuantity) return null
+  return {
+    id: `legacy_${batch.id}`,
+    batchId: batch.id,
+    date: batch.harvestDate.toISOString(),
+    quantity: batch.harvestQuantity,
+    weightPerEkor: batch.harvestWeight ?? 0,
+    sellingPricePerKg: batch.sellingPricePerKg ?? 0,
+    buyerName: null,
+    notes: 'Data panen lama (migrasi)',
+    createdAt: batch.updatedAt.toISOString(),
+    updatedAt: batch.updatedAt.toISOString(),
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -13,11 +57,21 @@ export async function GET(
         feedRecords: { orderBy: { date: 'desc' } },
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: { orderBy: { date: 'desc' } },
+        equipment: { orderBy: { purchaseDate: 'desc' } },
+        harvestRecords: { orderBy: { date: 'desc' } },
       },
     })
 
     if (!batch) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
+    }
+
+    // Merge virtual harvest record dari field legacy kalau perlu.
+    if (batch.harvestRecords.length === 0) {
+      const virtual = virtualHarvestRecord(batch)
+      if (virtual) {
+        return NextResponse.json({ ...batch, harvestRecords: [virtual] })
+      }
     }
 
     return NextResponse.json(batch)

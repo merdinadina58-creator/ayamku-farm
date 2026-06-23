@@ -649,3 +649,58 @@ Stage Summary:
 - Edit mode: batch yang sudah panen sekarang BISA diedit datanya (sebelumnya tidak bisa). Dialog pre-fill form, title "Edit Data Panen", tombol "Simpan Perubahan".
 - Batch detail dialog: tombol Panen/Edit Panen tampil untuk semua status.
 - Production Vercel: commit d40480e deployed successfully. URL: https://ayamku-farm.vercel.app
+
+---
+Task ID: 3
+Agent: full-stack-developer
+Task: Implement multiple harvest records (partial harvest / panen bertahap) — satu termin bisa dipanen beberapa kali sampai semua ayam terjual. Sebelumnya panen hanya 1x per termin (single event di Batch).
+
+Work Log:
+- Membaca worklog Task 1 & Task 2 untuk konteks (multi-item, Cash/BON). Saat db:push, ketahuan DB punya kolom/tabel yang tidak tercatat di schema file (FeedRecord.notaData/notaName, Equipment.notaData/notaName/paymentMethod, Category) — kemungkinan ditambah oleh task Cash/BON yang tidak tercatat. Merge semua ke schema file dulu sebelum push supaya tidak ada data loss.
+- prisma/schema.prisma: tambah model `HarvestRecord` (id, batchId, date, quantity, weightPerEkor, sellingPricePerKg, buyerName?, notes?, createdAt, updatedAt) dengan onDelete: Cascade ke Batch. Tambah `harvestRecords HarvestRecord[]` relation di Batch. Pertahankan legacy fields (harvestDate/harvestWeight/harvestQuantity/sellingPricePerKg) untuk backward compat.
+- Run `DATABASE_URL=... DIRECT_URL=... bun run db:push` — schema synced ke Neon Postgres, Prisma Client regenerated.
+- NEW `src/app/api/harvest-records/route.ts`: GET list (filter ?batchId) + POST create. Validasi: batchId/date/quantity/weightPerEkor wajib, quantity>0, weightPerEkor>0, sellingPricePerKg>=0. Kapasitas: totalHarvested + new <= batch.quantity - totalMortality → 400 dengan pesan "Jumlah melebihi sisa ayam yang bisa dipanen (tersisa X ekor)" kalau over. Lazy migration: jika batch punya legacy harvestQuantity tapi belum ada real HarvestRecord, auto-create 1 record dari legacy fields sebelum validasi (supaya kapasitas dihitung konsisten). Auto-resync batch.status: total >= kapasitas → "harvested" + harvestDate = latest record; sebaliknya → "active". Dedup guard via withDedup (60s).
+- NEW `src/app/api/harvest-records/[id]/route.ts`: PUT (update fields, re-validate kapasitas exclude record yang di-edit) + DELETE (re-sync batch.status — bisa balik ke "active" kalau total drop < kapasitas).
+- UPDATE `src/app/api/batches/route.ts` & `src/app/api/batches/[id]/route.ts`: include harvestRecords di findMany/findUnique. Virtual migration: jika batch tidak punya real HarvestRecord tapi punya legacy harvest data, return virtual record (id="legacy_<batchId>", notes="Data panen lama (migrasi)") supaya frontend treat semua sebagai array harvestRecords.
+- UPDATE `src/app/api/dashboard/route.ts`: totalHarvestRevenue & per-batch harvestQuantity/totalHarvestKg/totalHarvestValue/profit dihitung dari sum harvestRecords (dengan fallback ke legacy kalau batch belum dimigrasi). Tambah `totalHarvestedEkor` ke response. Tambah `harvestRecordsCount` per batch summary.
+- UPDATE `src/app/page.tsx` (file 2974 baris):
+  - Tambah interface HarvestRecord; tambah `harvestRecords: HarvestRecord[]` ke Batch; tambah `totalHarvestedEkor` + `harvestRecordsCount` ke DashboardData.
+  - CalendarEvent tambah `harvestRecord?` reference (untuk panen partial).
+  - State baru: `addHarvestRecordOpen`, `editingHarvestRecord`, `harvestRecordBatchId`, `harvestRecordForm` (6 fields), `activeBatchTab` (untuk switch tab Panen dari tombol).
+  - Handler baru: `openAddHarvestRecordDialog`, `openEditHarvestRecordDialog`, `handleSaveHarvestRecord` (POST atau PUT tergantung mode), `handleDeleteHarvestRecord`, `goToBatchPanenTab`. Toast menampilkan pesan error dari API (mis. kapasitas exceeded).
+  - `getBatchStats` di-rewrite: hitung harvestQty/totalHarvestKg/totalHarvestValue/profit dari sum `batch.harvestRecords` (bukan legacy fields lagi). harvestWt & sellPrice jadi weighted average.
+  - Helper baru `getRemainingHarvestable(batch)` untuk hint di form.
+  - `calendarEvents` iterate `batch.harvestRecords` (setiap record → 1 event panen).
+  - Global Panen section: summary cards pakai sum harvestRecords. List menampilkan batch yang PUNYA harvest records (badge "Panen Lengkap" vs "Panen Sebagian" + jumlah catatan). Tombol "Kelola Panen" → navigasi ke batch detail + switch tab Panen. Tombol "Tambah Panen" → buka dialog add (hanya jika remaining > 0).
+  - Batch detail header: ganti tombol "Panen/Edit Panen" jadi "Kelola Panen" yang switch ke tab Panen.
+  - Batch detail Tabs: dari 3 (Berat/Mortalitas/Biaya) jadi 4 (tambah Panen). Controlled via `value={activeBatchTab}` supaya tombol bisa switch programmatically. TabsList grid-cols-3 → grid-cols-4.
+  - Tab Panen baru: summary card (Total Dipanen, Total Berat, Sisa Ayam, Pendapatan), badge status + progress %, tombol "Tambah Panen" (hanya jika remaining > 0), list harvest records (date, qty×kg×price, revenue, buyerName, notes, badge "Data Lama" untuk virtual record). Edit + Delete per record (Delete hidden untuk virtual record).
+  - Dialog Add/Edit Harvest Record baru: fields date, quantity, weightPerEkor, sellingPricePerKg, buyerName (opsional), notes (opsional). Live preview total (qty×weight×price). Info box "Sisa ayam yang bisa dipanen: X ekor" (untuk edit: X + qty record ini). Dropdown Termin hanya muncul jika tidak ada selectedBatch.
+  - Day Detail Dialog (kalender): tampilkan `event.harvestRecord.quantity` kalau ada, fallback ke `batch.harvestQuantity`.
+  - Hapus state & handler lama (harvestOpen, harvestForm, openHarvestDialog, handleHarvest) dan dialog harvest lama — diganti total oleh flow baru.
+  - Perhitungan tab & Total Panen card: otomatis pakai getBatchStats yang baru.
+- Update `/home/z/my-project/.env`: ganti stale SQLite URL (`file:/home/z/my-project/db/custom.db`) ke Neon Postgres connection strings. Stale env bikin dev server crash saat init Prisma client.
+- `bun run lint` — bersih, no error.
+- Dev server jalan di port 3000, no compile errors.
+- Test API via curl (semua lulus):
+  - GET /api/batches → setiap batch punya array harvestRecords (virtual untuk belum dimigrasi, real setelah migrasi).
+  - POST valid (5 ekor) → 201, auto-migrasi legacy 55 ekor ke real record. Status batch berubah dari "harvested" → "active" karena 60 < 595 kapasitas.
+  - POST qty=10000 → 400 "Jumlah melebihi sisa ayam yang bisa dipanen (tersisa 535 ekor)".
+  - POST qty=0 → 400.
+  - POST sellingPricePerKg=-100 → 400 "Harga per kg tidak boleh negatif".
+  - PUT edit (qty 5→10, wt 1.85→1.9, price 26000→26500, buyer+notes) → 200.
+  - PUT qty=10000 → 400 (kapasitas exclude record yang di-edit: tersisa 540 ekor).
+  - DELETE record → 200, batch status auto-resync (tetap "active" karena 55 < 595).
+  - GET /api/dashboard → totalHarvestedEkor & per-batch harvest totals benar.
+- Buat /home/z/my-project/agent-ctx/3-full-stack-developer.md sebagai work record.
+
+Stage Summary:
+- Fitur panen bertahap (partial harvest) fully implemented end-to-end.
+- Satu termin bisa punya banyak catatan panen; masing-masing catat: tanggal, jumlah ekor, berat per ekor, harga per kg, nama pembeli (opsional), catatan (opsional).
+- Validasi kapasitas mencegah over-harvest: POST/PUT ditolak (400) jika total > batch.quantity - totalMortality. Pesan error jelas menyebut sisa ekor.
+- Status batch auto-sync: "harvested" ketika total panen >= kapasitas, "active" kalau belum. Delete record bisa balik ke "active".
+- Data lama (legacy 1x-per-termin harvest) dipertahankan via virtual migration di GET response + lazy auto-migration ke real record saat POST pertama. Frontend treat semua sebagai array harvestRecords.
+- Tab "Panen" baru di batch detail (sekarang 4 tab: Berat/Mortalitas/Biaya/Panen) dengan summary, list, dan dialog add/edit.
+- Global Panen section: tombol "Kelola Panen" navigasi ke batch detail + tab Panen; tombol "Tambah Panen" buka dialog langsung.
+- Kalender: setiap harvest record jadi 1 event panen terpisah.
+- Lint bersih, dev server port 3000 jalan stabil, semua test curl lulus (termasuk 4 skenario 400 validation).
