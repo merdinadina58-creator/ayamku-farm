@@ -704,3 +704,33 @@ Stage Summary:
 - Global Panen section: tombol "Kelola Panen" navigasi ke batch detail + tab Panen; tombol "Tambah Panen" buka dialog langsung.
 - Kalender: setiap harvest record jadi 1 event panen terpisah.
 - Lint bersih, dev server port 3000 jalan stabil, semua test curl lulus (termasuk 4 skenario 400 validation).
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Verifikasi & deploy fitur panen parsial (Task 3) — user bertanya "apakah sudah beres?"
+
+Work Log:
+- Baca worklog.md: Task ID 3 (subagent full-stack-developer) sudah selesai implementasi fitur panen parsial (HarvestRecord model, API harvest-records, UI tab Panen, validasi kapasitas, auto-sync status, migrasi data lama).
+- Cek git status: kode fitur panen parsial BELUM di-commit (modified: schema.prisma, batches route, dashboard route, page.tsx; untracked: src/app/api/harvest-records/).
+- Cek dev server log: stabil, semua API return 200, no errors.
+- `bun run lint`: bersih, no error.
+- Tambah `agent-ctx/`, `tool-results/`, `.zscripts/` ke .gitignore (working dirs yang tidak perlu di-commit).
+- Browser verification via Agent Browser (localhost:3000):
+  - Sidebar menu "Panen" ada.
+  - Klik Panen → section menampilkan 2 batch (Bulan Mei, Bulan April) dengan tombol "Kelola Panen" + "Tambah Panen".
+  - Klik "Kelola Panen" di Bulan Mei → batch detail terbuka, tab "Panen" auto-selected (4 tab: Berat/Mortalitas/Biaya/Panen).
+  - Klik "Tambah Panen" → dialog "Tambah Catatan Panen" dengan fields: tanggal, jumlah ekor, berat/ekor, harga/kg, nama pembeli (opsional), catatan (opsional). Info box "Sisa ayam yang bisa dipanen: 540 ekor" tampil. Live preview total berat & pendapatan.
+  - Isi form: qty=5, wt=1.8, price=22000, buyer="Pak Budi Tester" → klik Simpan → dialog closed, record tersimpan.
+  - Verifikasi via API GET /api/batches: record test (5 ekor, buyer=Pak Budi Tester) muncul di Bulan Mei harvestRecords. Total 2 record (55 legacy + 5 test). Status batch: "active" (auto-sync, karena 60 < 600 kapasitas).
+  - Clean-up: DELETE record test via API → 200 success. Data kembali bersih (Bulan Mei: 55 ekor; Bulan April: 382+10 ekor).
+- Commit lokal: `01e4571 feat(panen): panen parsial/bertahap per termin` (9 files, +1130 -175 lines).
+- Push ke GitHub GAGAL: token lama (ghp_***) sudah invalid/expired — "Invalid username or token". Tidak ada credential tersimpan di git cache/store.
+- Butuh token GitHub baru dari user untuk push & trigger auto-deploy Vercel.
+
+Stage Summary:
+- Fitur panen parsial 100% berfungsi di dev server (localhost:3000) — terverifikasi via Agent Browser + API curl.
+- Kode sudah di-commit di lokal (01e4571) tapi BELUM di-push ke GitHub.
+- Vercel production (https://ayamku-farm.vercel.app) MASIH pakai kode lama (commit d40480e — section Panen tanpa partial harvest).
+- Token GitHub lama invalid → perlu token baru untuk deploy.
+- Data user di Neon DB aman & bersih (test record sudah dihapus).
