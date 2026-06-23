@@ -1590,3 +1590,45 @@ Stage Summary:
 - Styling konsisten: Cash=emerald/green, BON=amber/orange. Accessibility: role="radiogroup"/"radio" + aria-checked.
 - API resilient: defensive fallback bila dev server cache Prisma client belum tahu field baru (POST/PUT retry tanpa paymentMethod; GET patch response). Setelah dev server restart, semua field otomatis terpakai penuh.
 - Lint PASS, dev server functional (200 OK untuk semua endpoint), hot-reload bekerja.
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Merge fitur panen parsial (lokal) dengan origin/main (Cash/BON + multi-item + export), lalu deploy ke Vercel. User: "jangan salah deploy ya, saya ingin tetap data saya ada didalam"
+
+Work Log:
+- Token GitHub lama (ghp_L45...) invalid → user berikan token baru (ghp_iDb...).
+- Cek git status: local divergent dari origin/main. Local punya fitur panen parsial (commit 01e4571) tapi TIDAK punya Cash/BON/multi-item/export. Remote punya Cash/BON/multi-item/export tapi TIDAK punya panen parsial. Common ancestor: d40480e.
+- STRATEGY: `git merge origin/main` — gabungkan kedua feature set. JANGAN force-push (akan hapus fitur remote).
+- Merge conflicts di 6 file: .gitignore, schema.prisma, dashboard/route.ts, page.tsx (14 conflicts), worklog.md, tool-results/.
+- Resolved:
+  - .gitignore: gabung agent-ctx/ + tool-results/ + .zscripts/
+  - schema.prisma: gabung HarvestRecord model + Cash/BON fields (paymentMethod, notaData, notaName)
+  - dashboard/route.ts: totalHarvestRevenue dari harvestRecords + totalCashSpent/totalBonAmount/bonCount + harvestRecordsCount per batch
+  - page.tsx (14 conflicts, ~5000 lines):
+    * Conflict 1-3: Keep origin's edit functions (openEditBatch/Weight/Mortality/Equipment) + HEAD's harvest record functions (openAddHarvestRecordDialog, handleSaveHarvestRecord, handleDeleteHarvestRecord). Remove old openHarvestDialog/handleHarvest.
+    * Conflict 4: Keep origin's getBatchStats (delegates to computeBatchStats) + estimateHarvest. Update computeBatchStats untuk pakai batch.harvestRecords (bukan legacy fields).
+    * Conflict 5-6: Keep HEAD's Panen section (summary cards + batch list dengan partial harvest). Remove origin's old Panen section + Hitung section (origin removed hitung from nav).
+    * Conflict 7: Combine origin's Edit + Export dropdown + HEAD's "Kelola Panen" button. Remove origin's old "Panen/Edit Panen" (openHarvestDialog). Fix openHarvestDialog refs → openAddHarvestRecordDialog.
+    * Conflict 8-9: Keep HEAD's controlled Tabs (activeBatchTab) dengan 4 tabs (Berat/Mortalitas/Biaya/Panen). Remove origin's "Perhitungan" tab.
+    * Conflict 10: Keep HEAD's Panen tab content (partial harvest UI). Remove origin's Perhitungan tab content.
+    * Conflict 11-14: Keep HEAD's harvest record dialog (harvestRecordForm state). Remove origin's old harvest dialog (harvestForm state).
+  - Fix: harvestDateError useMemo pakai harvestRecordForm.date (bukan harvestForm.harvestDate yang sudah dihapus).
+  - Install missing dependency: jspdf-autotable (dari origin's PDF export feature).
+- Lint: clean, no errors.
+- Browser verification (Agent Browser):
+  - Dashboard: Total Cash Rp0 + Total BON Rp5.290.000 + Pendapatan Rp29.875.000 ✅
+  - Termin: 2 batch dengan Edit + Export + Panen buttons ✅
+  - Panen section: 447 ekor, 884 kg, Rp29.875.000 (Bulan Mei 55 ekor + Bulan April 392 ekor) ✅
+  - Biaya form: Cash/BON toggle + "Catat beberapa item dalam 1 nota" (multi-item) ✅
+- Commit: a537d29 (merge) + 7c676ed (empty commit trigger).
+- Push ke GitHub: SUKSES (4bba3c0..7c676ed main -> main).
+- Vercel auto-deploy: GAGAL — no webhook configured on GitHub repo. GitHub webhook check: "NO webhooks configured". Vercel GitHub App kemungkinan disconnected (mungkin saat old token revoked). Vercel CLI tidak ada auth credentials.
+- Production (https://ayamku-farm.vercel.app): masih jalan kode LAMA (origin/main tanpa harvest partial). API: totalHarvestedEktor MISSING, totalHarvestRevenue 0.
+- DATA AMAN: Neon Postgres intact (2 batches, 7 categories, equipment dengan BON, harvest records). Verified via /api/dashboard: totalBatches 2, totalBonAmount 5290000.
+
+Stage Summary:
+- Kode merge SUKSES di lokal + GitHub (commit 7c676ed). Semua fitur tergabung: panen parsial + Cash/BON + multi-item + PDF/CSV export + edit + search + kalender.
+- Data Neon Postgres AMAN (tidak terpengaruh code deploy).
+- Vercel production MASIH kode lama — perlu manual redeploy dari Vercel dashboard atau reconnect Vercel-GitHub integration.
+- User perlu: (1) Login ke Vercel dashboard → ayamku-farm project → Deployments → Redeploy latest commit (7c676ed), ATAU (2) Reconnect GitHub integration di Vercel project settings.
