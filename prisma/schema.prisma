@@ -44,10 +44,11 @@ model FeedRecord {
   quantityKg Float    // jumlah pakan dalam kg
   pricePerKg Float    // harga per kg
   notes      String?
+  // Foto nota pembelian pakan (base64 JPEG data URL, sudah dikompres di frontend).
+  // Nullable agar catatan lama tetap valid. notaName = nama file asli untuk download.
+  notaData   String?
+  notaName   String?
   createdAt  DateTime @default(now())
-  // Nota pembelian (opsional) — Cash/BON feature.
-  notaData   String?  // base64 data URL bukti nota
-  notaName   String?  // nama file nota
 
   batch      Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
@@ -93,10 +94,13 @@ model Equipment {
   purchaseDate  DateTime // tanggal pembelian
   notes         String?
   batchId       String?  // relasi ke Batch — peralatan dibeli per termin (nullable untuk data lama)
-  // Nota & metode bayar (Cash/BON feature).
-  notaData      String?  // base64 data URL bukti nota
-  notaName      String?  // nama file nota
-  paymentMethod String   @default("cash") // cash, bon (utang)
+  // Foto nota pembelian peralatan (base64 JPEG data URL, sudah dikompres di frontend).
+  // Nullable agar catatan lama tetap valid. notaName = nama file asli untuk download.
+  notaData      String?
+  notaName      String?
+  // Metode pembayaran: "cash" (tunai) atau "bon" (utang / belum dibayar).
+  // Default "cash" agar data lama yang tidak punya field tetap konsisten.
+  paymentMethod String   @default("cash")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -112,11 +116,12 @@ model Unit {
   createdAt DateTime @default(now())
 }
 
-// Master daftar kategori peralatan/biaya (Cash/BON feature).
-// Pengguna bisa menambah kategori baru lewat UI.
+// Master daftar kategori biaya (Kandang, Peralatan Pakan & Minum, dll).
+// Pengguna bisa menambah kategori baru lewat UI; kategori tersimpan di sini
+// agar tetap tersedia di dropdown pada sesi berikutnya.
 model Category {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String   @unique // nama kategori, mis. "Kandang & Infrastruktur"
   createdAt DateTime @default(now())
 }
 

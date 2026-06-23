@@ -2,8 +2,14 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
 // Reuse the client across hot-reloads in dev and across serverless invocations.
+// `SCHEMA_VERSION` dipakai untuk memaksa PrismaClient dibuat ulang saat schema
+// berubah (mis. setelah `prisma db push` menambah kolom baru). Tanpa ini, dev
+// server Next.js akan terus memakai client lama yang di-cache di globalThis,
+// sehingga field baru (mis. Equipment.paymentMethod) tidak ikut ter-return.
+const SCHEMA_VERSION = 'v2-payment-method'
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+  __prismaSchemaVersion?: string
 }
 
 // Sanitize the connection string — Vercel Postgres values copied from the
@@ -31,7 +37,17 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ adapter })
 }
 
+// Jika schema version berubah (mis. setelah `prisma db push` baru), dispose
+// client lama & buat ulang. Di production globalForPrisma.prisma tidak pernah
+// di-set via SCHEMA_VERSION (NODE_ENV === 'production'), jadi tidak ada impact.
+if (globalForPrisma.__prismaSchemaVersion !== SCHEMA_VERSION) {
+  if (globalForPrisma.prisma) {
+    try { void globalForPrisma.prisma.$disconnect() } catch {}
+  }
+  globalForPrisma.prisma = undefined
+  globalForPrisma.__prismaSchemaVersion = SCHEMA_VERSION
+}
+
 export const db = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
-

@@ -41,7 +41,6 @@ export async function GET() {
   try {
     const batches = await db.batch.findMany({
       include: {
-        feedRecords: true,
         weightRecords: { orderBy: { date: 'desc' } },
         mortalityRecords: true,
         equipment: true,
@@ -64,18 +63,6 @@ export async function GET() {
       return sum + b.quantity - deadInBatch
     }, 0)
 
-    // Total feed across all batches
-    const totalFeedKg = batches.reduce(
-      (sum, b) => sum + b.feedRecords.reduce((s, f) => s + f.quantityKg, 0),
-      0
-    )
-
-    // Total feed cost across all batches
-    const totalFeedCost = batches.reduce(
-      (sum, b) => sum + b.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0),
-      0
-    )
-
     // Total harvest revenue — dihitung dari sum semua HarvestRecord (atau
     // fallback ke legacy field untuk batch lama yang belum dimigrasi).
     let totalHarvestRevenue = 0
@@ -86,15 +73,33 @@ export async function GET() {
       totalHarvestedEkor += totals.totalHarvested
     })
 
+    // ============================================================
+    // Ringkasan metode pembayaran Cash vs BON (seluruh equipment
+    // di semua termin). Dipakai dashboard untuk menampilkan 2 kartu
+    // tambahan: Total Cash (tunai) & Total BON (utang/belum dibayar).
+    // Catatan: equipment.paymentMethod default "cash" (lihat Prisma
+    // schema), jadi data lama otomatis masuk ke total Cash.
+    // ============================================================
+    const allEquipment = batches.flatMap((b) => b.equipment)
+    const totalCashSpent = allEquipment
+      .filter((e) => e.paymentMethod !== 'bon')
+      .reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    const bonEquipments = allEquipment.filter((e) => e.paymentMethod === 'bon')
+    const totalBonAmount = bonEquipments.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+    const bonCount = bonEquipments.length
+
     // Per-batch calculations
+    // Catatan: fitur Pakan sudah dihapus — totalCost sekarang murni dari
+    // equipment (biaya operasional). FCR & feedPerEkor dihilangkan.
     const batchSummaries = batches.map((batch) => {
-      const totalFeed = batch.feedRecords.reduce((s, f) => s + f.quantityKg, 0)
-      const totalCost = batch.feedRecords.reduce((s, f) => s + f.quantityKg * f.pricePerKg, 0)
+      const totalCost = batch.equipment.reduce((s, e) => s + e.quantity * e.unitPrice, 0)
+      // BON amount per-batch (opsional, untuk tampilan ringkasan per termin).
+      const bonAmount = batch.equipment
+        .filter((e) => e.paymentMethod === 'bon')
+        .reduce((s, e) => s + e.quantity * e.unitPrice, 0)
       const totalDead = batch.mortalityRecords.reduce((s, m) => s + m.quantity, 0)
       const aliveCount = batch.quantity - totalDead
       const latestWeight = batch.weightRecords[0]?.averageWeightGram || batch.initialWeight * 1000
-      const weightGain = latestWeight - batch.initialWeight * 1000
-      const fcr = weightGain > 0 && aliveCount > 0 ? (totalFeed * 1000) / (aliveCount * weightGain) : 0
 
       // Calculate age in days (for harvested batches, use latest harvest date)
       const latestHarvestDate = batch.harvestRecords.length > 0
@@ -129,10 +134,6 @@ export async function GET() {
         initialWeight: batch.initialWeight,
         latestWeightGram: latestWeight,
         ageDays,
-        totalFeedKg: totalFeed,
-        totalFeedCost: totalCost,
-        fcr: Math.round(fcr * 100) / 100,
-        feedPerEkor: aliveCount > 0 ? Math.round((totalFeed / aliveCount) * 100) / 100 : 0,
         totalDead,
         aliveCount,
         mortalityRate: Math.round(mortalityRate * 100) / 100,
@@ -143,6 +144,7 @@ export async function GET() {
         totalHarvestValue,
         profit,
         harvestRecordsCount: batch.harvestRecords.length,
+        bonAmount,
       }
     })
 
@@ -152,10 +154,12 @@ export async function GET() {
       harvestedBatches: harvestedBatches.length,
       totalChickens: totalAliveChickens,
       totalMortality,
-      totalFeedKg: Math.round(totalFeedKg * 100) / 100,
-      totalFeedCost: Math.round(totalFeedCost * 100) / 100,
       totalHarvestRevenue,
       totalHarvestedEkor,
+      // Ringkasan Cash vs BON (lihat penjelasan di atas).
+      totalCashSpent,
+      totalBonAmount,
+      bonCount,
       batchSummaries,
     })
   } catch (error) {
